@@ -1,0 +1,478 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, FlaskConical, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { toast } from "sonner";
+import { SectionTitle } from "@/components/section-title";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/tauri";
+import type { RuleValidationResult, SiteRule } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const EMPTY: SiteRule = {
+  id: "", name: "", enabled: true, priority: 99,
+  domain: "https://example.com", listPages: ["/updates"],
+  selectorEngine: "xpath",
+  selectors: {
+    listDate: "//time/text()", listUrl: "//a/@href", listName: "//a/text()",
+    detailName: "//h1/text()", chapterUrl: "//div[@id='list']//a/@href",
+    content: "//div[@id='content']//text()",
+  },
+  network: { encoding: "utf-8", timeoutMs: 45_000, retryCount: 5, proxy: "" },
+};
+
+function newDraft(): SiteRule {
+  return { ...EMPTY, id: crypto.randomUUID(), name: "新站点规则" };
+}
+
+function FL({ children }: { children: string }) {
+  return <label className="mb-1 block text-xs font-medium text-app-ink-muted">{children}</label>;
+}
+
+function Sect({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-app-ink">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+/* ── Editor Dialog ──────────────────────────────────────────────────────────── */
+interface EditorProps {
+  initial: SiteRule;
+  isNew: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  onDeleted: () => void;
+}
+
+function EditorDialog({ initial, isNew, canDelete, onClose, onSaved, onDeleted }: EditorProps) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<SiteRule>(initial);
+  const [preview, setPreview] = useState<RuleValidationResult | null>(null);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const previewMut = useMutation({
+    mutationFn: () => api.previewSiteScan(draft, `${draft.domain}${draft.listPages[0] ?? ""}`),
+    onSuccess: (r) => setPreview(r),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "预览失败"),
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const rules = await api.listSiteRules();
+      const exists = rules.some((r) => r.id === draft.id);
+      return exists ? api.updateSiteRule(draft) : api.createSiteRule(draft);
+    },
+    onSuccess: async () => {
+      toast.success("规则已保存");
+      await qc.invalidateQueries({ queryKey: ["rules"] });
+      await qc.invalidateQueries({ queryKey: ["dashboard"] });
+      onSaved();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "保存失败"),
+  });
+
+  const delMut = useMutation({
+    mutationFn: () => api.deleteSiteRule(draft.id),
+    onSuccess: async () => {
+      toast.success("规则已删除");
+      await qc.invalidateQueries({ queryKey: ["rules"] });
+      await qc.invalidateQueries({ queryKey: ["dashboard"] });
+      onDeleted();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
+  });
+
+  const set = (p: Partial<SiteRule>) => setDraft((d) => ({ ...d, ...p }));
+  const setSel = (p: Partial<SiteRule["selectors"]>) => setDraft((d) => ({ ...d, selectors: { ...d.selectors, ...p } }));
+  const setNet = (p: Partial<SiteRule["network"]>) => setDraft((d) => ({ ...d, network: { ...d.network, ...p } }));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm md:items-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-3xl rounded-2xl border border-app-border bg-app-surface-elevated shadow-2xl">
+        {/* header */}
+        <div className="flex items-center justify-between border-b border-app-border px-5 py-4">
+          <div>
+            <p className="text-base font-bold text-app-ink">{isNew ? "新建站点规则" : `编辑 — ${initial.name}`}</p>
+            <p className="mt-0.5 text-xs text-app-ink-muted">编辑基础信息、选择器和网络设置</p>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-app-ink-muted hover:bg-app-surface-panel hover:text-app-ink">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* body */}
+        <div className="max-h-[calc(100vh-200px)] space-y-5 overflow-y-auto px-5 py-5">
+          {/* Basic */}
+          <Sect title="基础信息">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <FL>站点名称</FL>
+                <Input value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder="站点名称" />
+              </div>
+              <div>
+                <FL>域名</FL>
+                <Input value={draft.domain} onChange={(e) => set({ domain: e.target.value })} placeholder="https://example.com" />
+              </div>
+              <div>
+                <FL>优先级（数字越小越优先）</FL>
+                <Input type="number" value={draft.priority} onChange={(e) => set({ priority: Number(e.target.value) })} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-app-border bg-app-surface-panel px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium text-app-ink">启用站点</p>
+                  <p className="text-xs text-app-ink-muted">关闭后不参与扫描</p>
+                </div>
+                <Switch checked={draft.enabled} onCheckedChange={(v) => set({ enabled: v })} />
+              </div>
+            </div>
+            <div className="mt-3">
+              <FL>选择器引擎</FL>
+              <div className="flex gap-2">
+                {(["xpath", "css"] as const).map((eng) => (
+                  <button
+                    key={eng} type="button"
+                    onClick={() => set({ selectorEngine: eng })}
+                    className={cn(
+                      "rounded-xl border px-4 py-1.5 text-sm font-medium transition",
+                      draft.selectorEngine === eng ? "theme-section-chip" : "border-app-border bg-app-surface-panel text-app-ink-muted hover:border-app-border-strong",
+                    )}
+                  >
+                    {eng.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Sect>
+
+          {/* List page */}
+          <Sect title="列表页规则">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <FL>列表页路径（每行一个）</FL>
+                <Textarea
+                  value={draft.listPages.join("\n")}
+                  onChange={(e) => set({ listPages: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+                  placeholder="/updates&#10;/updates/page2.html"
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div>
+                <FL>发布日期选择器</FL>
+                <Input value={draft.selectors.listDate} onChange={(e) => setSel({ listDate: e.target.value })} placeholder="//time/text()" />
+              </div>
+              <div>
+                <FL>详情链接选择器</FL>
+                <Input value={draft.selectors.listUrl} onChange={(e) => setSel({ listUrl: e.target.value })} placeholder="//a/@href" />
+              </div>
+              <div className="sm:col-span-2">
+                <FL>列表书名选择器（可选）</FL>
+                <Input value={draft.selectors.listName ?? ""} onChange={(e) => setSel({ listName: e.target.value })} placeholder="//a/text()" />
+              </div>
+            </div>
+          </Sect>
+
+          {/* Detail page */}
+          <Sect title="详情页规则">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <FL>书名选择器</FL>
+                <Input value={draft.selectors.detailName} onChange={(e) => setSel({ detailName: e.target.value })} placeholder="//h1/text()" />
+              </div>
+              <div>
+                <FL>章节链接选择器</FL>
+                <Input value={draft.selectors.chapterUrl} onChange={(e) => setSel({ chapterUrl: e.target.value })} placeholder="//a/@href" />
+              </div>
+              <div className="sm:col-span-2">
+                <FL>正文选择器</FL>
+                <Textarea value={draft.selectors.content} onChange={(e) => setSel({ content: e.target.value })} placeholder="//div[@id='content']//text()" className="min-h-[72px]" />
+              </div>
+            </div>
+          </Sect>
+
+          {/* Network */}
+          <Sect title="网络设置">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <FL>编码</FL>
+                <Input value={draft.network.encoding ?? ""} onChange={(e) => setNet({ encoding: e.target.value })} placeholder="utf-8 或 gbk" />
+              </div>
+              <div>
+                <FL>超时（毫秒）</FL>
+                <Input type="number" value={draft.network.timeoutMs} onChange={(e) => setNet({ timeoutMs: Number(e.target.value) })} />
+              </div>
+              <div>
+                <FL>重试次数</FL>
+                <Input type="number" value={draft.network.retryCount} onChange={(e) => setNet({ retryCount: Number(e.target.value) })} />
+              </div>
+              <div>
+                <FL>代理地址（可留空）</FL>
+                <Input value={draft.network.proxy ?? ""} onChange={(e) => setNet({ proxy: e.target.value })} placeholder="http://proxy:port" />
+              </div>
+            </div>
+          </Sect>
+
+          {/* Preview */}
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => previewMut.mutate()} disabled={previewMut.isPending}>
+              <FlaskConical className="h-3.5 w-3.5" />
+              <span>{previewMut.isPending ? "测试中…" : "预览测试"}</span>
+            </Button>
+            {preview && (
+              <Badge className={preview.valid ? "theme-status-healthy" : "theme-status-danger"}>
+                {preview.valid ? `✓ 命中 ${preview.matchedCount} 条` : "✗ 校验失败"}
+              </Badge>
+            )}
+          </div>
+
+          {preview && (
+            <div className="space-y-2 rounded-xl border border-app-border bg-app-surface-panel p-4 text-sm">
+              {preview.sampleItems.length > 0 && (
+                <div className="text-xs text-app-ink-muted">
+                  <b className="text-app-ink">样本：</b>{preview.sampleItems.slice(0, 3).join(" | ")}
+                </div>
+              )}
+              {preview.warnings.length > 0 && (
+                <div className="text-xs text-app-warning">
+                  <b>警告：</b>{preview.warnings.join("；")}
+                </div>
+              )}
+              {preview.error && (
+                <div className="text-xs text-app-danger">
+                  <b>错误：</b>{preview.error}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* footer */}
+        <div className="flex items-center justify-between border-t border-app-border px-5 py-3">
+          <div>
+            {canDelete && (
+              <Button
+                variant="danger" size="sm"
+                onClick={() => {
+                  if (window.confirm(`确定删除「${draft.name}」？`)) delMut.mutate();
+                }}
+                disabled={delMut.isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>删除</span>
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onClose}>取消</Button>
+            <Button
+              size="sm"
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending}
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>{saveMut.isPending ? "保存中…" : "保存"}</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Page ────────────────────────────────────────────────────────────── */
+export function RulesPage() {
+  const qc = useQueryClient();
+  const [keyword, setKeyword] = useState("");
+  const [editing, setEditing] = useState<SiteRule | null>(null);
+  const [isNew, setIsNew] = useState(false);
+
+  const rulesQ = useQuery({ queryKey: ["rules"], queryFn: api.listSiteRules });
+
+  const filtered = useMemo(() =>
+    (rulesQ.data ?? []).filter((r) =>
+      keyword.trim() === "" || `${r.name} ${r.domain}`.toLowerCase().includes(keyword.toLowerCase())
+    ), [rulesQ.data, keyword],
+  );
+
+  const importMut = useMutation({
+    mutationFn: api.importLegacyPythonConfig,
+    onSuccess: async (r) => {
+      toast.success(`已导入 ${r.imported} 条旧规则`);
+      await qc.invalidateQueries({ queryKey: ["rules"] });
+      await qc.invalidateQueries({ queryKey: ["config"] });
+      await qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "导入失败"),
+  });
+
+  function openNew() { setEditing(newDraft()); setIsNew(true); }
+  function openEdit(r: SiteRule) { setEditing(r); setIsNew(false); }
+  function closeDialog() { setEditing(null); }
+
+  const canDelete = editing ? (rulesQ.data ?? []).some((r) => r.id === editing.id) : false;
+
+  return (
+    <div className="space-y-5 animate-fade-up">
+      <SectionTitle
+        eyebrow="规则管理"
+        title="站点规则"
+        description="维护站点列表、选择器与网络设置，点击编辑按钮打开弹窗编辑器。"
+        actions={
+          <>
+            <Button onClick={openNew}>
+              <Plus className="h-3.5 w-3.5" />
+              <span>新建规则</span>
+            </Button>
+            <Button variant="secondary" onClick={() => importMut.mutate()} disabled={importMut.isPending}>
+              <Upload className="h-3.5 w-3.5" />
+              <span>导入旧配置</span>
+            </Button>
+          </>
+        }
+      />
+
+      <Card>
+        {/* search bar */}
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <Input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="搜索站点名称或域名…"
+            className="max-w-sm"
+          />
+          <Badge className="theme-section-chip shrink-0">{(rulesQ.data ?? []).length} 条规则</Badge>
+        </div>
+
+        {/* empty state */}
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-app-border py-12 text-center">
+            <p className="text-sm text-app-ink-muted">
+              {(rulesQ.data ?? []).length === 0
+                ? "还没有站点规则，点击「新建规则」或「导入旧配置」开始。"
+                : "没有匹配的规则。"}
+            </p>
+          </div>
+        ) : (
+          /* list — desktop table */
+          <>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-app-border">
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">站点</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">域名</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">优先级</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">引擎</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">列表页</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">编码</th>
+                    <th className="pb-2 pr-3 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">状态</th>
+                    <th className="pb-2 text-left text-xs font-semibold uppercase tracking-wide text-app-ink-muted">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-app-border">
+                  {filtered.map((r) => (
+                    <tr key={r.id} className="hover:bg-app-surface-panel/40 transition-colors">
+                      <td className="py-3 pr-3">
+                        <p className="truncate font-medium text-app-ink max-w-[160px]">{r.name}</p>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <p className="truncate text-xs text-app-ink-muted max-w-[200px]">{r.domain}</p>
+                      </td>
+                      <td className="py-3 pr-3 text-sm text-app-ink">{r.priority}</td>
+                      <td className="py-3 pr-3">
+                        <span className="rounded bg-app-surface-panel px-2 py-0.5 font-mono text-xs text-app-ink-muted">
+                          {r.selectorEngine.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-3 text-xs text-app-ink-muted">{r.listPages.length} 个</td>
+                      <td className="py-3 pr-3">
+                        {r.network.encoding && r.network.encoding !== "utf-8" ? (
+                          <span className="rounded bg-app-warning/10 px-1.5 py-0.5 text-xs font-medium text-app-warning">
+                            {r.network.encoding.toUpperCase()}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-app-ink-muted">UTF-8</span>
+                        )}
+                      </td>
+                      <td className="py-3 pr-3">
+                        <Badge className={r.enabled ? "theme-status-healthy" : ""}>{r.enabled ? "启用" : "停用"}</Badge>
+                      </td>
+                      <td className="py-3">
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span>编辑</span>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* list — mobile cards */}
+            <div className="space-y-2 lg:hidden">
+              {filtered.map((r) => (
+                <div key={r.id} className="rounded-xl border border-app-border bg-app-surface-panel p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-app-ink">{r.name}</p>
+                      <p className="truncate text-xs text-app-ink-muted">{r.domain}</p>
+                    </div>
+                    <Badge className={r.enabled ? "theme-status-healthy shrink-0" : "shrink-0"}>
+                      {r.enabled ? "启用" : "停用"}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-app-ink-muted">
+                    <span>优先级 <b className="text-app-ink">{r.priority}</b></span>
+                    <span className="rounded bg-app-surface-elevated px-1.5 py-0.5 font-mono text-[10px]">
+                      {r.selectorEngine.toUpperCase()}
+                    </span>
+                    <span>{r.listPages.length} 个列表页</span>
+                    {r.network.encoding && r.network.encoding !== "utf-8" && (
+                      <span className="rounded bg-app-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-app-warning">
+                        {r.network.encoding.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <Button size="sm" variant="secondary" onClick={() => openEdit(r)} className="w-full">
+                      <Pencil className="h-3.5 w-3.5" />
+                      <span>编辑规则</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* Editor dialog */}
+      {editing && (
+        <EditorDialog
+          initial={editing}
+          isNew={isNew}
+          canDelete={canDelete}
+          onClose={closeDialog}
+          onSaved={closeDialog}
+          onDeleted={closeDialog}
+        />
+      )}
+    </div>
+  );
+}
