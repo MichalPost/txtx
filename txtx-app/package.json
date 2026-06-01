@@ -1,0 +1,42 @@
+{
+  "name": "txtx-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c cyan,magenta --kill-others-on-fail \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "dev:frontend": "vite",
+    "dev:backend": "cross-env HTTP_PROXY= HTTPS_PROXY= http_proxy= https_proxy= cargo run --bin txtx-server --manifest-path src-tauri/Cargo.toml",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "4.3.0",
+    "@tanstack/react-query": "^5.100.14",
+    "@tanstack/react-virtual": "^3.13.26",
+    "@tauri-apps/api": "2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "2.5.4",
+    "animejs": "^4.4.1",
+    "dayjs": "^1.11.21",
+    "lucide-react": "1.17.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-router-dom": "7.16.0",
+    "sonner": "^2.0.7",
+    "tailwindcss": "4.3.0",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.2",
+    "@types/node": "^25.9.1",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "concurrently": "10.0.0",
+    "cross-env": "10.1.0",
+    "typescript": "6.0.3",
+    "vite": "8.0.14"
+  }
+}

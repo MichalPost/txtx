@@ -276,7 +276,7 @@ ebook_conversion:
 text_conversion:
   enabled: false
   traditional_to_simplified: false
-  auto_detect: false
+  auto_detect: true
 websites:
   web1:
     enabled: true
