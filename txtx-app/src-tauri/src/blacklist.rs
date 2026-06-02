@@ -4,7 +4,6 @@ use crate::models::BlacklistConfig;
 pub struct Blacklist {
     keywords: Vec<String>,
     compiled_regex: Vec<Regex>,
-    // Grading: strict / moderate / mild keyword lists (already lowercased if needed)
     grading_strict: Vec<String>,
     grading_moderate: Vec<String>,
     grading_mild: Vec<String>,
@@ -12,6 +11,8 @@ pub struct Blacklist {
     case_insensitive: bool,
     fuzzy_match: bool,
     regex_match: bool,
+    tag_filter: bool,
+    filtered_tags: Vec<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -77,6 +78,8 @@ impl Blacklist {
             case_insensitive: ci,
             fuzzy_match: cfg.fuzzy_match,
             regex_match: cfg.regex_match,
+            tag_filter: cfg.tag_filter,
+            filtered_tags: maybe_lower(&cfg.filtered_tags, ci),
         }
     }
 
@@ -136,6 +139,29 @@ impl Blacklist {
                     if matched {
                         return (true, format!("grading:{}", kw));
                     }
+                }
+            }
+        }
+
+        (false, String::new())
+    }
+
+    /// 带标签的黑名单检查，返回 (is_blocked, reason)
+    pub fn is_blocked_with_tags(&self, name: &str, tags: &[String]) -> (bool, String) {
+        // 先做名称检查
+        let (blocked, reason) = self.is_blocked(name);
+        if blocked { return (blocked, reason); }
+
+        // 标签过滤
+        if self.tag_filter && !self.filtered_tags.is_empty() && !tags.is_empty() {
+            let check_tags: Vec<String> = if self.case_insensitive {
+                tags.iter().map(|t| t.to_lowercase()).collect()
+            } else {
+                tags.to_vec()
+            };
+            for ft in &self.filtered_tags {
+                if check_tags.contains(ft) {
+                    return (true, format!("tag:{}", ft));
                 }
             }
         }

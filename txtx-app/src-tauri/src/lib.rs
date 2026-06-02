@@ -8,6 +8,12 @@ pub mod text_converter;
 pub mod ebook_converter;
 pub mod history;
 pub mod single_downloader;
+pub mod ttks_downloader;
+
+#[cfg(debug_assertions)]
+pub mod dev_tools;
+
+pub mod kumo_scanner;
 
 // ─── Tauri integration ────────────────────────────────────────────────────────
 

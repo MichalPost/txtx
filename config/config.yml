@@ -423,3 +423,52 @@ logging:
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
   file_enabled: true
   console_enabled: true
+
+content_filter:
+  ad_patterns:
+    - 'www\.[a-zA-Z0-9.-]+\.(com|cn|net|org|tw)'
+    - 'QQ[：:]?\s*\d{5,}'
+    - '微信[：:]?\s*[a-zA-Z0-9_-]+'
+    - '关注.*公众号'
+    - '加群.*\d+'
+    - '更新.*最快'
+    - '手机.*阅读'
+    - '上一[篇章][：:]'
+    - '下一[篇章][：:]'
+    - '返回目录'
+    - '章节目录'
+    - '书签.*收藏'
+    - '加入书架'
+    - '本章完'
+  nav_keywords:
+    - 上一篇
+    - 下一篇
+    - 上一章
+    - 下一章
+    - 返回目录
+    - 章节目录
+    - 下一节
+    - 上一节
+    - 章节列表
+  safety_threshold: 0.3
+  fallback_trim_lines: 2
+
+ttks:
+  domains:
+    - ttks.tw
+    - ttks.cc
+    - ttks.me
+  delay_min_ms: 3000
+  delay_max_ms: 8000
+  ua_pool:
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0'
+    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
+    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+advanced_network:
+  pool_idle_timeout_secs: 90
+  tcp_keepalive_secs: 60
+  min_chapter_bytes: 1024
+  chapter_fail_threshold: 0.05

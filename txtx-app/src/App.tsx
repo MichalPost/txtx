@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
+import { CommandPalette } from "@/components/CommandPalette";
 import { DownloadPage } from "@/pages/DownloadPage";
 import { WebsitesPage } from "@/pages/WebsitesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/converter" element={<ConverterPage />} />
           </Routes>
         </main>
+        <CommandPalette />
       </div>
     </MemoryRouter>
   );

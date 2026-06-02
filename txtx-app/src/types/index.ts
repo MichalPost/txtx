@@ -36,6 +36,7 @@ export interface BlacklistConfig {
   fuzzy_match: boolean;
   regex_match: boolean;
   tag_filter: boolean;
+  filtered_tags: string[];
   keywords: string[];
   regex_patterns: string[];
   grading_rules: {
@@ -55,6 +56,10 @@ export interface WebsiteConfig {
   novel_name_x: string;
   chapter_url_x: string;
   page_list: string[];
+  /** Special download mode: "normal" | "ttks" */
+  special_mode: string;
+  /** Fallback XPath rules for content extraction */
+  novel_content_fallbacks: string[];
 }
 
 export interface TextConversionConfig {
@@ -69,6 +74,27 @@ export interface EbookConversionConfig {
   calibre_path: string | null;
 }
 
+export interface ContentFilterConfig {
+  ad_patterns: string[];
+  nav_keywords: string[];
+  safety_threshold: number;
+  fallback_trim_lines: number;
+}
+
+export interface TtksConfig {
+  domains: string[];
+  delay_min_ms: number;
+  delay_max_ms: number;
+  ua_pool: string[];
+}
+
+export interface AdvancedNetworkConfig {
+  pool_idle_timeout_secs: number;
+  tcp_keepalive_secs: number;
+  min_chapter_bytes: number;
+  chapter_fail_threshold: number;
+}
+
 export interface AppConfig {
   paths: PathsConfig;
   network: NetworkConfig;
@@ -78,6 +104,9 @@ export interface AppConfig {
   websites: Record<string, WebsiteConfig>;
   text_conversion: TextConversionConfig;
   ebook_conversion: EbookConversionConfig;
+  content_filter: ContentFilterConfig;
+  ttks: TtksConfig;
+  advanced_network: AdvancedNetworkConfig;
 }
 
 // ─── Scan Options ─────────────────────────────────────────────────────────────

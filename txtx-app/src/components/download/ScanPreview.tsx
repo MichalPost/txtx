@@ -8,6 +8,7 @@ import { useDownloadStore } from "@/store/downloadStore";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { animateCountUp } from "@/lib/animations";
+import { usePersistedState } from "@/lib/persist";
 import type { ScanItem } from "@/types";
 
 // ─── ExcludedBadge ────────────────────────────────────────────────────────────
@@ -280,9 +281,8 @@ export function ScanPreview() {
   const [sortAsc, setSortAsc] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showSiteFilter, setShowSiteFilter] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("grouped");
-  const [showChart, setShowChart] = useState(false);
-  const selectedCountRef = useRef<HTMLSpanElement>(null);
+  const [viewMode, setViewMode] = usePersistedState<ViewMode>("scan-view-mode", "grouped");
+  const [showChart, setShowChart] = usePersistedState<boolean>("scan-show-chart", false);  const selectedCountRef = useRef<HTMLSpanElement>(null);
   const prevSelectedCount = useRef(0);
 
   const pendingCount = scanItems.filter((i) => !i.excluded_reason).length;
@@ -365,7 +365,7 @@ export function ScanPreview() {
               <span className="font-semibold tabular-nums" style={{ color }}>{val}</span>
             </div>
           ))}
-          <button onClick={() => setShowChart((v) => !v)}
+          <button onClick={() => setShowChart(!showChart)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
             style={{
               background: showChart ? "color-mix(in srgb, var(--color-accent) 10%, var(--color-surface))" : "var(--color-surface)",

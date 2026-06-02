@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use axum::{
-    extract::{State, WebSocketUpgrade},
+    extract::{State, WebSocketUpgrade, Query},
     extract::ws::{Message, WebSocket},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::{mpsc, Mutex, Notify};
@@ -212,6 +213,33 @@ async fn get_history() -> Result<Json<Vec<crate::history::HistoryEntry>>, AppErr
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
     let entries = crate::history::load_history(&base_dir).await?;
     Ok(Json(entries))
+}
+
+async fn get_history_page(
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<crate::history::HistoryPage>, AppError> {
+    let cfg = config::load_config()?;
+    let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
+    let query = crate::history::HistoryQuery {
+        page: q.get("page").and_then(|v| v.parse().ok()),
+        page_size: q.get("page_size").and_then(|v| v.parse().ok()),
+        search: q.get("search").cloned(),
+        status: q.get("status").cloned(),
+        site: q.get("site").cloned(),
+    };
+    let page = crate::history::query_history(&base_dir, query).await?;
+    Ok(Json(page))
+}
+
+async fn get_history_stats(
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = config::load_config()?;
+    let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
+    let days = q.get("days").and_then(|v| v.parse::<i64>().ok()).unwrap_or(30);
+    let daily = crate::history::get_daily_stats(&base_dir, days).await?;
+    let sites = crate::history::get_site_stats(&base_dir).await?;
+    Ok(Json(json!({ "daily": daily, "sites": sites })))
 }
 
 async fn delete_history() -> Result<Json<serde_json::Value>, AppError> {
@@ -515,6 +543,8 @@ pub async fn run_server() {
         .route("/api/download/selected", get(ws_download_selected))
         .route("/api/stop",    post(post_stop))
         .route("/api/history", get(get_history).delete(delete_history))
+        .route("/api/history/page", get(get_history_page))
+        .route("/api/history/stats", get(get_history_stats))
         .route("/api/health",  get(get_health))
         .route("/api/convert/text", post(post_convert_text))
         .route("/api/queue", get(get_queue).delete(delete_queue))
@@ -524,7 +554,7 @@ pub async fn run_server() {
         .layer(cors);
 
     let addr = format!("127.0.0.1:{port}");
-    println!("txtx-server listening on http://{addr}");
+    tracing::info!("txtx-server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

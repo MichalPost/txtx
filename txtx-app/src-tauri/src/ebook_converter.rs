@@ -89,6 +89,19 @@ pub fn convert_to_epub(txt_path: &Path, novel_name: &str) -> Result<PathBuf> {
     builder.metadata("title", novel_name).map_err(|e| anyhow::anyhow!("{}", e))?;
     builder.metadata("lang", "zh").map_err(|e| anyhow::anyhow!("{}", e))?;
 
+    // 尝试从正文前 5 行提取作者信息（格式：作者：xxx 或 作者:xxx）
+    if let Some(author) = txt.lines().take(5).find_map(|line| {
+        let line = line.trim();
+        if line.starts_with("作者") {
+            let after = line.trim_start_matches("作者").trim_start_matches(['：', ':']).trim();
+            if !after.is_empty() { Some(after.to_string()) } else { None }
+        } else {
+            None
+        }
+    }) {
+        let _ = builder.metadata("creator", &author);
+    }
+
     for (i, ch) in chapters.iter().enumerate() {
         let html = format!(
             "<?xml version='1.0' encoding='utf-8'?>\

@@ -12,7 +12,7 @@ use crate::models::{
     AppConfig, BookCandidate, DownloadStats, EbookConversionConfig,
     ProgressEvent, ScanItem, TextConversionConfig, WebsiteConfig, NetworkConfig,
 };
-use crate::crawler::{build_client, scan_site, fetch_novel_name, get_chapter_urls, download_chapter};
+use crate::crawler::{build_client_with_pool, scan_site, fetch_novel_name, get_chapter_urls, download_chapter};
 use crate::blacklist::Blacklist;
 use crate::text_converter;
 use crate::ebook_converter;
@@ -106,7 +106,7 @@ pub async fn run_download(
     tx: mpsc::Sender<ProgressEvent>,
     cancel: Arc<tokio::sync::Notify>,
 ) -> Result<()> {
-    let client = Arc::new(build_client(&config.network)?);
+    let client = Arc::new(build_client_with_pool(&config.network, config.concurrency.max_connections_per_host)?);
     let target_date = compute_target_date(&config);
     let base_dir = PathBuf::from(&config.paths.base_dir);
     let log_dir = PathBuf::from(&config.paths.log_dir);
@@ -167,6 +167,9 @@ pub async fn run_download(
 
     let mut tasks = Vec::new();
 
+    let content_filter_cfg = config.content_filter.clone();
+    let ttks_cfg_main = config.ttks.clone();
+
     for candidate in to_download {
         let client = client.clone();
         let site_cfg = match site_map.get(&candidate.crawler_domain) {
@@ -183,6 +186,8 @@ pub async fn run_download(
         let logger_file = logger.as_ref().map(|l| l.file.clone());
         let text_conv = config.text_conversion.clone();
         let ebook_conv = config.ebook_conversion.clone();
+        let content_filter_cfg = content_filter_cfg.clone();
+        let ttks_cfg_clone = ttks_cfg_main.clone();
         let target_date = target_date.clone();
 
         tasks.push(tokio::spawn(async move {
@@ -200,6 +205,7 @@ pub async fn run_download(
                 &client, &candidate, &site_cfg, &net_cfg,
                 &base_dir, chapter_sem, cancel,
                 tx.clone(), text_conv, ebook_conv,
+                content_filter_cfg.clone(), ttks_cfg_clone.clone(),
             ).await;
 
             // Log to file
@@ -273,60 +279,83 @@ async fn run_scan_and_filter(
     let enabled_sites: Vec<WebsiteConfig> = config.websites.values()
         .filter(|s| s.enabled).cloned().collect();
 
-    let mut all_candidates: Vec<BookCandidate> = Vec::new();
+    // 并发扫描所有站点（kumo multi-spider）
+    if cancel.notified().now_or_never().is_some() { return Ok(vec![]); }
+    log(tx, logger, "info", format!("并发扫描 {} 个站点...", enabled_sites.len())).await;
 
-    for site_cfg in &enabled_sites {
-        if cancel.notified().now_or_never().is_some() { return Ok(vec![]); }
-
-        let _ = tx.send(ProgressEvent::ScanStart { site: site_cfg.domain_name.clone() }).await;
-
-        match scan_site(client, site_cfg, &config.network, target_date).await {
-            Ok(mut candidates) => {
-                // Fill missing names concurrently (max 3 parallel)
-                let sem = Arc::new(Semaphore::new(config.concurrency.novel_threads.min(3)));
-                let fill_tasks: Vec<_> = candidates.iter()
-                    .filter(|c| c.name.is_empty())
-                    .map(|c| {
-                        let client = client.clone();
-                        let url = c.url.clone();
-                        let xpath = site_cfg.novel_name_x.clone();
-                        let enc = config.network.encoding_map.clone();
-                        let rc = config.network.retry_count;
-                        let rd = config.network.retry_delay;
-                        let sem = sem.clone();
-                        tokio::spawn(async move {
-                            let _p = sem.acquire().await.unwrap();
-                            let name = fetch_novel_name(&client, &url, &xpath, &enc, rc, rd).await;
-                            (url, name)
-                        })
-                    }).collect();
-
-                let name_map: HashMap<String, String> = futures::future::join_all(fill_tasks).await
-                    .into_iter().filter_map(|r| r.ok())
-                    .filter_map(|(url, name)| name.map(|n| (url, n)))
-                    .collect();
-
-                for c in candidates.iter_mut() {
-                    if c.name.is_empty() {
-                        if let Some(n) = name_map.get(&c.url) { c.name = n.clone(); }
-                    }
-                }
-
-                let valid: Vec<_> = candidates.into_iter().filter(|c| !c.name.is_empty()).collect();
-                let count = valid.len();
+    let all_candidates: Vec<BookCandidate> = match crate::kumo_scanner::scan_all_sites_concurrent(
+        enabled_sites.clone(),
+        &config.network,
+        target_date,
+    ).await {
+        Ok(candidates) => {
+            log(tx, logger, "info",
+                format!("并发扫描完成，共 {} 条候选", candidates.len())).await;
+            // 发送每个站点的 ScanDone 汇总事件
+            for site_cfg in &enabled_sites {
+                let count = candidates.iter()
+                    .filter(|c| c.crawler_domain == site_cfg.domain_name)
+                    .count();
                 let _ = tx.send(ProgressEvent::ScanDone {
                     site: site_cfg.domain_name.clone(), total: count,
                 }).await;
-                log(tx, logger, "info",
-                    format!("{}: 扫描到 {} 本", site_cfg.domain_name, count)).await;
-                all_candidates.extend(valid);
             }
-            Err(e) => {
-                log(tx, logger, "error",
-                    format!("{}: 扫描失败 - {}", site_cfg.domain_name, e)).await;
-            }
+            candidates
         }
-    }
+        Err(e) => {
+            log(tx, logger, "warn",
+                format!("并发扫描失败: {}，回退到串行扫描", e)).await;
+            // 降级：串行扫描（保留原始逻辑）
+            let mut fallback: Vec<BookCandidate> = Vec::new();
+            for site_cfg in &enabled_sites {
+                if cancel.notified().now_or_never().is_some() { return Ok(vec![]); }
+                let _ = tx.send(ProgressEvent::ScanStart { site: site_cfg.domain_name.clone() }).await;
+                match scan_site(client, site_cfg, &config.network, target_date).await {
+                    Ok(mut candidates) => {
+                        let sem = Arc::new(Semaphore::new(config.concurrency.novel_threads.min(3)));
+                        let fill_tasks: Vec<_> = candidates.iter()
+                            .filter(|c| c.name.is_empty())
+                            .map(|c| {
+                                let client = client.clone();
+                                let url = c.url.clone();
+                                let xpath = site_cfg.novel_name_x.clone();
+                                let enc = config.network.encoding_map.clone();
+                                let rc = config.network.retry_count;
+                                let rd = config.network.retry_delay;
+                                let sem = sem.clone();
+                                tokio::spawn(async move {
+                                    let _p = sem.acquire().await.unwrap();
+                                    let name = fetch_novel_name(&client, &url, &xpath, &enc, rc, rd).await;
+                                    (url, name)
+                                })
+                            }).collect();
+                        let name_map: HashMap<String, String> = futures::future::join_all(fill_tasks).await
+                            .into_iter().filter_map(|r| r.ok())
+                            .filter_map(|(url, name)| name.map(|n| (url, n)))
+                            .collect();
+                        for c in candidates.iter_mut() {
+                            if c.name.is_empty() {
+                                if let Some(n) = name_map.get(&c.url) { c.name = n.clone(); }
+                            }
+                        }
+                        let valid: Vec<_> = candidates.into_iter().filter(|c| !c.name.is_empty()).collect();
+                        let count = valid.len();
+                        let _ = tx.send(ProgressEvent::ScanDone {
+                            site: site_cfg.domain_name.clone(), total: count,
+                        }).await;
+                        log(tx, logger, "info",
+                            format!("{}: 扫描到 {} 本", site_cfg.domain_name, count)).await;
+                        fallback.extend(valid);
+                    }
+                    Err(e) => {
+                        log(tx, logger, "error",
+                            format!("{}: 扫描失败 - {}", site_cfg.domain_name, e)).await;
+                    }
+                }
+            }
+            fallback
+        }
+    };
 
     log(tx, logger, "info", "第二阶段：去重和筛选...".into()).await;
 
@@ -396,6 +425,8 @@ async fn download_novel(
     tx: mpsc::Sender<ProgressEvent>,
     text_conv: TextConversionConfig,
     ebook_conv: EbookConversionConfig,
+    cfg_content_filter: crate::models::ContentFilterConfig,
+    cfg_ttks: crate::models::TtksConfig,
 ) -> Result<()> {
     let chapter_urls = get_chapter_urls(
         client, &candidate.url, &site_cfg.chapter_url_x,
@@ -408,6 +439,9 @@ async fn download_novel(
     }
 
     let total_chapters = chapter_urls.len();
+    let content_filter = cfg_content_filter.clone();
+    let ttks_cfg = cfg_ttks.clone();
+    let xpath_fallbacks = site_cfg.novel_content_fallbacks.clone();
     let temp_dir = base_dir.join(format!("temp_{}", candidate.name));
     tokio::fs::create_dir_all(&temp_dir).await?;
 
@@ -421,6 +455,8 @@ async fn download_novel(
         let enc = net_cfg.encoding_map.clone();
         let rc = net_cfg.retry_count;
         let rd = net_cfg.retry_delay;
+        let proxy = net_cfg.proxy.clone();
+        let timeout = net_cfg.timeout;
         let temp_dir = temp_dir.clone();
         let sem = chapter_sem.clone();
         let cancel = cancel.clone();
@@ -428,6 +464,9 @@ async fn download_novel(
         let novel = candidate.name.clone();
         let ctr = counter.clone();
         let tc = text_conv.clone();
+        let ttks_cfg = ttks_cfg.clone();
+        let content_filter = content_filter.clone();
+        let xpath_fallbacks = xpath_fallbacks.clone();
 
         tokio::spawn(async move {
             let _p = sem.acquire().await.unwrap();
@@ -450,7 +489,25 @@ async fn download_novel(
                 }
             }
 
-            let text = download_chapter(&client, &url, &xpath, &enc, rc, rd).await?;
+            // TTKS 专用下载器 vs 通用下载器
+            let text = if crate::ttks_downloader::is_ttks_url(&url, &ttks_cfg) {
+                let proxy_opt = proxy.as_deref().filter(|p| !p.is_empty());
+                match crate::ttks_downloader::build_ttks_client(proxy_opt, timeout, &ttks_cfg) {
+                    Ok(ttks_client) => {
+                        let domain = url.split('/').take(3).collect::<Vec<_>>().join("/");
+                        crate::ttks_downloader::fetch_ttks_chapter(
+                            &ttks_client, &url, &domain,
+                            &xpath, &xpath_fallbacks, &enc, rc, rd, &ttks_cfg, &content_filter,
+                        ).await?
+                    }
+                    Err(_) => {
+                        // 构建专用客户端失败，回退到通用
+                        download_chapter(&client, &url, &xpath, &xpath_fallbacks, &enc, rc, rd, &content_filter).await?
+                    }
+                }
+            } else {
+                download_chapter(&client, &url, &xpath, &xpath_fallbacks, &enc, rc, rd, &content_filter).await?
+            };
             if !text.is_empty() {
                 let out = if tc.enabled && tc.traditional_to_simplified {
                     text_converter::detect_and_convert(&text, tc.auto_detect).0
@@ -506,7 +563,7 @@ async fn download_novel(
             tokio::spawn(async move {
                 let _p = sem.acquire().await.unwrap();
                 let result = (|| async {
-                    let text = download_chapter(&client, &url, &xpath, &enc, rc, rd).await?;
+                    let text = download_chapter(&client, &url, &xpath, &[], &enc, rc, rd, &crate::models::ContentFilterConfig::default()).await?;
                     if text.is_empty() {
                         return Err(anyhow::anyhow!("empty chapter"));
                     }
@@ -631,7 +688,7 @@ pub async fn run_scan_with_options(
     tx: mpsc::Sender<ProgressEvent>,
     cancel: Arc<tokio::sync::Notify>,
 ) -> Result<()> {
-    let client = Arc::new(build_client(&config.network)?);
+    let client = Arc::new(build_client_with_pool(&config.network, config.concurrency.max_connections_per_host)?);
 
     // Apply site filter: disable sites not in the list
     if let Some(ref site_filter) = options.enabled_sites {
@@ -683,42 +740,53 @@ async fn build_scan_items(
 
     let mut all_candidates: Vec<BookCandidate> = Vec::new();
 
-    for site_cfg in &enabled_sites {
-        if cancel.notified().now_or_never().is_some() { return Ok(vec![]); }
-        match crate::crawler::scan_site(client, site_cfg, &config.network, target_date).await {
-            Ok(mut candidates) => {
-                // Fill missing names
-                let sem = Arc::new(Semaphore::new(config.concurrency.novel_threads.min(3)));
-                let fill_tasks: Vec<_> = candidates.iter()
-                    .filter(|c| c.name.is_empty())
-                    .map(|c| {
-                        let client = client.clone();
-                        let url = c.url.clone();
-                        let xpath = site_cfg.novel_name_x.clone();
-                        let enc = config.network.encoding_map.clone();
-                        let rc = config.network.retry_count;
-                        let rd = config.network.retry_delay;
-                        let sem = sem.clone();
-                        tokio::spawn(async move {
-                            let _p = sem.acquire().await.unwrap();
-                            let name = crate::crawler::fetch_novel_name(&client, &url, &xpath, &enc, rc, rd).await;
-                            (url, name)
-                        })
-                    }).collect();
-
-                let name_map: HashMap<String, String> = futures::future::join_all(fill_tasks).await
-                    .into_iter().filter_map(|r| r.ok())
-                    .filter_map(|(url, name)| name.map(|n| (url, n)))
-                    .collect();
-
-                for c in candidates.iter_mut() {
-                    if c.name.is_empty() {
-                        if let Some(n) = name_map.get(&c.url) { c.name = n.clone(); }
+    // 并发扫描所有站点（kumo multi-spider），失败时降级到串行
+    match crate::kumo_scanner::scan_all_sites_concurrent(
+        enabled_sites.clone(),
+        &config.network,
+        target_date,
+    ).await {
+        Ok(candidates) => {
+            all_candidates.extend(candidates);
+        }
+        Err(_) => {
+            // 降级：串行逐站扫描
+            for site_cfg in &enabled_sites {
+                if cancel.notified().now_or_never().is_some() { return Ok(vec![]); }
+                match crate::crawler::scan_site(client, site_cfg, &config.network, target_date).await {
+                    Ok(mut candidates) => {
+                        // Fill missing names
+                        let sem = Arc::new(Semaphore::new(config.concurrency.novel_threads.min(3)));
+                        let fill_tasks: Vec<_> = candidates.iter()
+                            .filter(|c| c.name.is_empty())
+                            .map(|c| {
+                                let client = client.clone();
+                                let url = c.url.clone();
+                                let xpath = site_cfg.novel_name_x.clone();
+                                let enc = config.network.encoding_map.clone();
+                                let rc = config.network.retry_count;
+                                let rd = config.network.retry_delay;
+                                let sem = sem.clone();
+                                tokio::spawn(async move {
+                                    let _p = sem.acquire().await.unwrap();
+                                    let name = crate::crawler::fetch_novel_name(&client, &url, &xpath, &enc, rc, rd).await;
+                                    (url, name)
+                                })
+                            }).collect();
+                        let name_map: HashMap<String, String> = futures::future::join_all(fill_tasks).await
+                            .into_iter().filter_map(|r| r.ok())
+                            .filter_map(|(url, name)| name.map(|n| (url, n)))
+                            .collect();
+                        for c in candidates.iter_mut() {
+                            if c.name.is_empty() {
+                                if let Some(n) = name_map.get(&c.url) { c.name = n.clone(); }
+                            }
+                        }
+                        all_candidates.extend(candidates.into_iter().filter(|c| !c.name.is_empty()));
                     }
+                    Err(_) => {}
                 }
-                all_candidates.extend(candidates.into_iter().filter(|c| !c.name.is_empty()));
             }
-            Err(_) => {}
         }
     }
 
@@ -796,7 +864,7 @@ pub async fn run_download_selected(
         return Ok(());
     }
 
-    let client = Arc::new(build_client(&config.network)?);
+    let client = Arc::new(build_client_with_pool(&config.network, config.concurrency.max_connections_per_host)?);
     let base_dir = PathBuf::from(&config.paths.base_dir);
     let log_dir = PathBuf::from(&config.paths.log_dir);
     tokio::fs::create_dir_all(&base_dir).await?;
@@ -823,6 +891,9 @@ pub async fn run_download_selected(
 
     let mut tasks = Vec::new();
 
+    let content_filter_sel = config.content_filter.clone();
+    let ttks_cfg_sel = config.ttks.clone();
+
     for candidate in selected {
         let client = client.clone();
         let site_cfg = match site_map.get(&candidate.crawler_domain) {
@@ -839,6 +910,8 @@ pub async fn run_download_selected(
         let logger_file = logger.as_ref().map(|l| l.file.clone());
         let text_conv = config.text_conversion.clone();
         let ebook_conv = config.ebook_conversion.clone();
+        let content_filter_sel = content_filter_sel.clone();
+        let ttks_cfg_sel = ttks_cfg_sel.clone();
 
         tasks.push(tokio::spawn(async move {
             let _permit = novel_sem.acquire().await.unwrap();
@@ -855,6 +928,7 @@ pub async fn run_download_selected(
                 &client, &candidate, &site_cfg, &net_cfg,
                 &base_dir, chapter_sem, cancel,
                 tx.clone(), text_conv, ebook_conv,
+                content_filter_sel, ttks_cfg_sel,
             ).await;
 
             if let Some(f) = &logger_file {

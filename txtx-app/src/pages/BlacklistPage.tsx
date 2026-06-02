@@ -1,5 +1,6 @@
-import { useState, useRef } from "react";
-import { Plus, Trash2, Save, Search } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import Fuse from "fuse.js";
+import { Plus, Trash2, Save, Search, Upload, Download } from "lucide-react";
 import { useConfigStore } from "@/store/configStore";
 import { Button } from "@/components/Button";
 import { Toggle } from "@/components/Toggle";
@@ -11,6 +12,7 @@ export function BlacklistPage() {
   const [search, setSearch] = useState("");
   const [newKeyword, setNewKeyword] = useState("");
   const [newRegex, setNewRegex] = useState("");
+  const [newTag, setNewTag] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (!config) return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>配置加载中...</div>;
@@ -22,6 +24,30 @@ export function BlacklistPage() {
   };
 
   const handleSave = () => saveConfig(config);
+
+  // ── 批量导入：每行一个关键词 ────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const exportKeywords = () => {
+    const content = bl.keywords.join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "blacklist.txt"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importKeywords = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const newKws = text.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+      const merged = [...new Set([...bl.keywords, ...newKws])];
+      update({ keywords: merged });
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // reset for re-import
+  };
 
   const addKeyword = () => {
     const kw = newKeyword.trim();
@@ -46,7 +72,22 @@ export function BlacklistPage() {
     update({ regex_patterns: bl.regex_patterns.filter((p) => p !== r) });
   };
 
-  const filtered = bl.keywords.filter((k) => !search || k.includes(search));
+  const addTag = () => {
+    const t = newTag.trim();
+    if (!t || (bl.filtered_tags ?? []).includes(t)) return;
+    update({ filtered_tags: [...(bl.filtered_tags ?? []), t] });
+    setNewTag("");
+  };
+
+  const removeTag = (t: string) => {
+    update({ filtered_tags: (bl.filtered_tags ?? []).filter((x) => x !== t) });
+  };
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return bl.keywords;
+    const fuse = new Fuse(bl.keywords, { threshold: 0.35, includeScore: true });
+    return fuse.search(search.trim()).map(r => r.item);
+  }, [bl.keywords, search]);
 
   /* ── shared inline input style ── */
   const inlineInputStyle = {
@@ -62,12 +103,27 @@ export function BlacklistPage() {
     <div className="flex flex-col h-full p-5 gap-4 overflow-hidden">
       <PageHeader
         title="黑名单管理"
-        subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则`}
+        subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则 — 支持模糊搜索`}
         actions={
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            <Save className="w-3.5 h-3.5" />
-            {saving ? "保存中..." : "保存"}
-          </Button>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt"
+              className="hidden"
+              onChange={importKeywords}
+            />
+            <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="w-3.5 h-3.5" /> 导入
+            </Button>
+            <Button variant="secondary" size="sm" onClick={exportKeywords}>
+              <Download className="w-3.5 h-3.5" /> 导出
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Save className="w-3.5 h-3.5" />
+              {saving ? "保存中..." : "保存"}
+            </Button>
+          </>
         }
       />
 
@@ -221,6 +277,11 @@ export function BlacklistPage() {
                 onChange={(v) => update({ regex_match: v })}
                 label="启用正则匹配"
               />
+              <Toggle
+                checked={bl.tag_filter ?? false}
+                onChange={(v) => update({ tag_filter: v })}
+                label="启用标签过滤"
+              />
             </div>
           </Card>
 
@@ -288,6 +349,66 @@ export function BlacklistPage() {
               )}
             </div>
           </Card>
+
+          {/* Tag filter */}
+          {bl.tag_filter && (
+            <Card title="标签过滤">
+              <div className="flex gap-2 mb-3">
+                <input
+                  className={`flex-1 ${inlineInputClass}`}
+                  style={inlineInputStyle}
+                  placeholder="输入标签名按 Enter 添加"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTag()}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-accent)";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-accent-muted)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-border)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+                <Button size="sm" onClick={addTag}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(bl.filtered_tags ?? []).map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border"
+                    style={{
+                      background: "var(--color-surface-2)",
+                      borderColor: "var(--color-border)",
+                      color: "var(--color-text)",
+                    }}
+                  >
+                    {t}
+                    <button
+                      onClick={() => removeTag(t)}
+                      className="cursor-pointer"
+                      style={{ color: "var(--color-text-muted)" }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color = "var(--color-danger)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                {(bl.filtered_tags ?? []).length === 0 && (
+                  <p className="text-xs py-2 w-full text-center" style={{ color: "var(--color-text-muted)" }}>
+                    暂无标签规则
+                  </p>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>

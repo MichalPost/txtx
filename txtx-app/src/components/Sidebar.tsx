@@ -72,12 +72,24 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Theme switcher at bottom */}
+      {/* Theme switcher + Cmd+K hint at bottom */}
       <div
-        className="flex items-center justify-center pb-3 pt-2 border-t"
+        className="flex flex-col items-center gap-2 pb-3 pt-2 border-t"
         style={{ borderColor: "var(--color-border)" }}
       >
         <ThemeSwitcher />
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }))}
+          className="w-10 h-7 rounded-lg text-xs font-mono flex items-center justify-center border transition-colors hover:opacity-80"
+          style={{
+            background: "var(--color-surface-2)",
+            borderColor: "var(--color-border)",
+            color: "var(--color-text-muted)",
+          }}
+          title="命令面板 (Ctrl+K)"
+        >
+          ⌘K
+        </button>
       </div>
     </aside>
   );
