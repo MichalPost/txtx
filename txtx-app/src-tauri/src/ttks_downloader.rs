@@ -5,13 +5,13 @@
 //!   - 额外 HTTP headers（Referer / Sec-Fetch / Accept-Language）
 //!   - 专用广告过滤规则（繁体 + 简体双版本）
 //!
-//! 注: wreq/BoringSSL TLS 指纹模拟功能当前以 reqwest 替代，
-//!     可在 CI/Release 环境配置 BoringSSL 后切换回 wreq。
+//! stealth 模式（默认启用）：使用 wreq + BoringSSL 模拟 Chrome TLS 指纹，
+//! 绕过基于 JA3/JA4 的反爬检测（如 Cloudflare）。
+//! 若编译时不带 stealth feature，自动退化为标准 reqwest 客户端。
 
 use anyhow::Result;
 use rand::Rng;
 use regex::Regex;
-use reqwest::Client;
 use scraper::Html;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -19,6 +19,116 @@ use governor::{Quota, RateLimiter};
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
 use tokio::time::sleep;
+
+// ─── TLS 指纹客户端抽象 ────────────────────────────────────────────────────────
+// stealth feature 启用时用 wreq（BoringSSL + Chrome TLS 指纹）；
+// 否则 fallback 到标准 reqwest。对调用方完全透明。
+
+#[cfg(feature = "stealth")]
+mod stealth_client {
+    use anyhow::Result;
+    use wreq::Client;
+    use wreq_util::Emulation;
+
+    /// 根据 UA 字符串选择匹配的浏览器指纹模拟目标
+    fn pick_emulation(ua: &str) -> Emulation {
+        if ua.contains("Edg/") || ua.contains("Edge/") {
+            Emulation::Edge134
+        } else if ua.contains("Firefox/") {
+            Emulation::Firefox136
+        } else {
+            // 默认 Chrome 最新稳定版指纹
+            Emulation::Chrome136
+        }
+    }
+
+    /// 构造 wreq::Client，携带 Chrome TLS 指纹
+    pub fn build(
+        ua: &str,
+        proxy: Option<&str>,
+        timeout: u64,
+    ) -> Result<Client> {
+        let emulation = pick_emulation(ua);
+
+        let mut builder = Client::builder()
+            .emulation(emulation)
+            .user_agent(ua)
+            .timeout(std::time::Duration::from_secs(timeout))
+            .gzip(true);
+
+        if let Some(p) = proxy {
+            if !p.is_empty() {
+                builder = builder.proxy(wreq::Proxy::all(p)?);
+            }
+        }
+
+        Ok(builder.build()?)
+    }
+}
+
+/// 统一客户端类型：stealth 时为 wreq::Client，否则为 reqwest::Client。
+/// 内部通过 enum dispatch 隐藏差异，外部调用 `.get(url).send().await` 统一使用。
+pub enum TtksClient {
+    #[cfg(feature = "stealth")]
+    Stealth(wreq::Client),
+    Standard(reqwest::Client),
+}
+
+impl TtksClient {
+    /// 发起 GET 请求，返回响应 bytes（内部统一处理）
+    pub async fn get_bytes(
+        &self,
+        url: &str,
+        referer: &str,
+        retry_count: u32,
+        retry_delay: u64,
+    ) -> Result<bytes::Bytes> {
+        let mut attempts = 0u32;
+        loop {
+            let result: Result<bytes::Bytes, anyhow::Error> = match self {
+                #[cfg(feature = "stealth")]
+                TtksClient::Stealth(client) => {
+                    client
+                        .get(url)
+                        .header("Referer", referer)
+                        .header("Sec-Fetch-Dest", "document")
+                        .header("Sec-Fetch-Mode", "navigate")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .send()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))?
+                        .bytes()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))
+                }
+                TtksClient::Standard(client) => {
+                    client
+                        .get(url)
+                        .header("Referer", referer)
+                        .header("Sec-Fetch-Dest", "document")
+                        .header("Sec-Fetch-Mode", "navigate")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .send()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))?
+                        .bytes()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))
+                }
+            };
+            match result {
+                Ok(b) => return Ok(b),
+                Err(e) => {
+                    attempts += 1;
+                    if attempts >= retry_count {
+                        return Err(e);
+                    }
+                    sleep(Duration::from_secs(retry_delay * attempts as u64)).await;
+                }
+            }
+        }
+    }
+}
 
 type DirectRl = RateLimiter<
     governor::state::NotKeyed,
@@ -44,21 +154,41 @@ pub fn is_ttks_url(url: &str, ttks_cfg: &crate::models::TtksConfig) -> bool {
     ttks_cfg.domains.iter().any(|d| url.contains(d.as_str()))
 }
 
-/// 构造 TTKS 专用 HTTP 客户端，使用随机 UA 和浏览器特征 headers。
-/// （未来可切换到 wreq 以获得 TLS 指纹模拟）
-pub fn build_ttks_client(proxy: Option<&str>, timeout: u64, ttks_cfg: &crate::models::TtksConfig) -> Result<Client> {
-    // 随机选取 UA
+/// 构造 TTKS 专用 HTTP 客户端。
+///
+/// 启用 stealth feature 时返回 wreq::Client（BoringSSL + Chrome TLS 指纹），
+/// 可绕过基于 JA3/JA4 的反爬检测。否则退化为标准 reqwest::Client。
+pub fn build_ttks_client(
+    proxy: Option<&str>,
+    timeout: u64,
+    ttks_cfg: &crate::models::TtksConfig,
+) -> Result<TtksClient> {
     let idx = rand::thread_rng().gen_range(0..ttks_cfg.ua_pool.len().max(1));
     let ua = ttks_cfg.ua_pool.get(idx).map(|s| s.as_str()).unwrap_or(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
     );
 
+    // stealth 分支：wreq + BoringSSL TLS 指纹
+    #[cfg(feature = "stealth")]
+    {
+        match stealth_client::build(ua, proxy, timeout) {
+            Ok(client) => {
+                tracing::debug!("TTKS: using wreq stealth client (UA: {})", &ua[..ua.len().min(40)]);
+                return Ok(TtksClient::Stealth(client));
+            }
+            Err(e) => {
+                tracing::warn!("TTKS: wreq client build failed ({}), falling back to reqwest", e);
+            }
+        }
+    }
+
+    // fallback：标准 reqwest（或 non-stealth 编译）
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert("Accept-Language", "zh-TW,zh;q=0.9,en;q=0.8".parse().unwrap());
     headers.insert("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".parse().unwrap());
     headers.insert("Cache-Control", "no-cache".parse().unwrap());
 
-    let mut builder = Client::builder()
+    let mut builder = reqwest::Client::builder()
         .user_agent(ua)
         .default_headers(headers)
         .timeout(std::time::Duration::from_secs(timeout))
@@ -69,12 +199,12 @@ pub fn build_ttks_client(proxy: Option<&str>, timeout: u64, ttks_cfg: &crate::mo
             builder = builder.proxy(reqwest::Proxy::all(p)?);
         }
     }
-    Ok(builder.build()?)
+    Ok(TtksClient::Standard(builder.build()?))
 }
 
-/// 下载 TTKS 章节，含随机延迟（从配置读取范围）防封
+/// 下载 TTKS 章节，含精确限速（governor token-bucket）或随机延迟防封
 pub async fn fetch_ttks_chapter(
-    client: &Client,
+    client: &TtksClient,
     url: &str,
     domain: &str,
     content_xpath: &str,
@@ -98,29 +228,7 @@ pub async fn fetch_ttks_chapter(
     }
 
     let referer = format!("{}/", domain.trim_end_matches('/'));
-    let bytes = {
-        let mut attempts = 0u32;
-        loop {
-            let result = client
-                .get(url)
-                .header("Referer", &referer)
-                .header("Sec-Fetch-Dest", "document")
-                .header("Sec-Fetch-Mode", "navigate")
-                .header("Sec-Fetch-Site", "same-origin")
-                .send()
-                .await;
-            match result {
-                Ok(r) => break r.bytes().await?,
-                Err(e) => {
-                    attempts += 1;
-                    if attempts >= retry_count {
-                        return Err(e.into());
-                    }
-                    sleep(Duration::from_secs(retry_delay * attempts as u64)).await;
-                }
-            }
-        }
-    };
+    let bytes = client.get_bytes(url, &referer, retry_count, retry_delay).await?;
 
     let enc_name = encoding_map
         .get(&crate::crawler::extract_domain_pub(url))

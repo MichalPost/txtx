@@ -98,30 +98,36 @@ fn migrate(conn: &Connection) -> Result<()> {
 async fn maybe_migrate_json(base_dir: &Path) -> Result<()> {
     let json_path = base_dir.join("download_history.json");
     if !json_path.exists() { return Ok(()); }
-    let db = db_path(base_dir);
-    // If DB already has entries, skip
-    if db.exists() {
-        let conn = Connection::open(&db)?;
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM history", [], |r| r.get(0)).unwrap_or(0);
-        if count > 0 { return Ok(()); }
-    }
-    // Read JSON
+
+    // Read JSON first (async, no DB connection held across await)
     let data = tokio::fs::read_to_string(&json_path).await?;
     #[derive(Deserialize, Default)]
     struct Hf { entries: Vec<HistoryEntry> }
     let hf: Hf = serde_json::from_str(&data).unwrap_or_default();
     if hf.entries.is_empty() { return Ok(()); }
 
-    let conn = open_db(base_dir)?;
-    let mut stmt = conn.prepare(
-        "INSERT INTO history (name, url, site, downloaded_at, status, message) VALUES (?1,?2,?3,?4,?5,?6)"
-    )?;
-    for e in &hf.entries {
-        stmt.execute(params![e.name, e.url, e.site, e.downloaded_at, e.status, e.message])?;
-    }
-    tracing::info!("Migrated {} history entries from JSON to SQLite", hf.entries.len());
-    // Rename old file
-    let _ = tokio::fs::rename(&json_path, base_dir.join("download_history.json.bak")).await;
+    // All SQLite work in spawn_blocking — rusqlite::Connection is not Send
+    let base_dir_owned = base_dir.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        let db = db_path(&base_dir_owned);
+        if db.exists() {
+            let conn = Connection::open(&db)?;
+            let count: i64 = conn.query_row("SELECT COUNT(*) FROM history", [], |r| r.get(0)).unwrap_or(0);
+            if count > 0 { return Ok(()); }
+        }
+        let conn = open_db(&base_dir_owned)?;
+        let mut stmt = conn.prepare(
+            "INSERT INTO history (name, url, site, downloaded_at, status, message) VALUES (?1,?2,?3,?4,?5,?6)"
+        )?;
+        for e in &hf.entries {
+            stmt.execute(params![e.name, e.url, e.site, e.downloaded_at, e.status, e.message])?;
+        }
+        tracing::info!("Migrated {} history entries from JSON to SQLite", hf.entries.len());
+        Ok::<_, anyhow::Error>(())
+    }).await??;
+
+    // Rename old file after migration
+    let _ = tokio::fs::rename(&json_path, json_path.with_extension("json.bak")).await;
     Ok(())
 }
 

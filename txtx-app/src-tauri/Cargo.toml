@@ -43,10 +43,9 @@ encoding_rs = "0.8"
 bytes = "1"
 epub-builder = "0.8"
 backon = "1"
-kumo = { version = "0.3", features = ["xpath"] }
-# wreq/stealth feature requires BoringSSL and MSVC toolchain — keep optional
-# wreq = "5.3"
-# wreq-util = "2.2"
+kumo = { version = "0.3", features = ["xpath"], default-features = false }
+# To enable wreq TLS fingerprinting (requires cmake + MSVC on Windows):
+#   cargo build --features stealth
 governor = "0.10"
 sxd-document = "0.3"
 sxd-xpath = "0.4"
@@ -64,5 +63,6 @@ path = "src/server_main.rs"
 
 [features]
 default = []
+stealth = ["kumo/stealth"]
 tauri-build = ["tauri", "tauri-plugin-opener", "tauri-plugin-dialog", "tauri-plugin-fs"]
 
