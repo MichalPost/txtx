@@ -1,0 +1,246 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME SYSTEM — txtx-app
+   4 themes: paper (default), warm, sage, dark
+   Applied via data-theme attribute on <html>
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Paper (Default) — Warm Paper + Amber ──────────────────────── */
+/* Like a freshly opened novel: warm whites, amber accents          */
+:root,
+[data-theme="light"] {
+  --color-bg:           #faf8f4;
+  --color-surface:      #fffefb;
+  --color-surface-1:    #f8f5ef;
+  --color-surface-2:    #f3f0ea;
+  --color-border:       #e6e0d5;
+  --color-border-hover: #d0c8bb;
+  --color-accent:       #b07235;
+  --color-accent-hover: #9a6228;
+  --color-accent-muted: #f5ede2;
+  --color-success:      #3a7d55;
+  --color-success-bg:   #edf7f2;
+  --color-warning:      #c07a10;
+  --color-warning-bg:   #fef7ea;
+  --color-danger:       #c0392b;
+  --color-danger-bg:    #fef2f2;
+  --color-text:         #2d2419;
+  --color-text-muted:   #7a6d60;
+  --color-text-subtle:  #afa49a;
+  --shadow-sm:   0 1px 3px rgba(45,36,25,0.07), 0 1px 2px rgba(45,36,25,0.04);
+  --shadow-md:   0 4px 16px rgba(45,36,25,0.09), 0 2px 6px rgba(45,36,25,0.05);
+  --shadow-lg:   0 8px 28px rgba(45,36,25,0.12), 0 4px 10px rgba(45,36,25,0.07);
+  --shadow-accent: 0 4px 14px rgba(176,114,53,0.28);
+}
+
+/* ── Warm — Cream + Terracotta ──────────────────────────────────── */
+[data-theme="warm"] {
+  --color-bg:           #faf6f0;
+  --color-surface:      #fffdf8;
+  --color-surface-1:    #f6f0e6;
+  --color-surface-2:    #f0e9dd;
+  --color-border:       #e4d9c8;
+  --color-border-hover: #cec0ac;
+  --color-accent:       #c2622a;
+  --color-accent-hover: #a8501f;
+  --color-accent-muted: #fdf0e8;
+  --color-success:      #2d7a3a;
+  --color-success-bg:   #f0faf2;
+  --color-warning:      #b45309;
+  --color-warning-bg:   #fef9ec;
+  --color-danger:       #c0392b;
+  --color-danger-bg:    #fef2f2;
+  --color-text:         #2c1f14;
+  --color-text-muted:   #7a6552;
+  --color-text-subtle:  #a89280;
+  --shadow-sm:   0 1px 3px rgba(44,31,20,0.08), 0 1px 2px rgba(44,31,20,0.04);
+  --shadow-md:   0 4px 16px rgba(44,31,20,0.10), 0 2px 6px rgba(44,31,20,0.06);
+  --shadow-lg:   0 8px 28px rgba(44,31,20,0.13), 0 4px 10px rgba(44,31,20,0.08);
+  --shadow-accent: 0 4px 14px rgba(194,98,42,0.28);
+}
+
+/* ── Sage — Mist Green + Stone ──────────────────────────────────── */
+[data-theme="sage"] {
+  --color-bg:           #f4f7f5;
+  --color-surface:      #fafcfb;
+  --color-surface-1:    #eef3f0;
+  --color-surface-2:    #e8eeeb;
+  --color-border:       #d8e4dc;
+  --color-border-hover: #bdd0c4;
+  --color-accent:       #2d7d5a;
+  --color-accent-hover: #236648;
+  --color-accent-muted: #e8f5ee;
+  --color-success:      #1a6b3a;
+  --color-success-bg:   #edfaf3;
+  --color-warning:      #b45309;
+  --color-warning-bg:   #fef9ec;
+  --color-danger:       #c0392b;
+  --color-danger-bg:    #fef2f2;
+  --color-text:         #1a2820;
+  --color-text-muted:   #5a7060;
+  --color-text-subtle:  #8aa090;
+  --shadow-sm:   0 1px 3px rgba(26,40,32,0.08), 0 1px 2px rgba(26,40,32,0.04);
+  --shadow-md:   0 4px 16px rgba(26,40,32,0.10), 0 2px 6px rgba(26,40,32,0.06);
+  --shadow-lg:   0 8px 28px rgba(26,40,32,0.13), 0 4px 10px rgba(26,40,32,0.08);
+  --shadow-accent: 0 4px 14px rgba(45,125,90,0.28);
+}
+
+/* ── Sky — Azure Blue + Slate ───────────────────────────────────── */
+/* Clear daylight: pale sky background, azure-cyan accents          */
+[data-theme="sky"] {
+  --color-bg:           #f0f6fb;
+  --color-surface:      #f8fbfe;
+  --color-surface-1:    #e8f2f9;
+  --color-surface-2:    #dcedf7;
+  --color-border:       #c8dff0;
+  --color-border-hover: #a8c8e2;
+  --color-accent:       #1a85c8;
+  --color-accent-hover: #1270ad;
+  --color-accent-muted: #e0f0fa;
+  --color-success:      #1a7a4a;
+  --color-success-bg:   #e8f7ef;
+  --color-warning:      #c07a10;
+  --color-warning-bg:   #fef7ea;
+  --color-danger:       #c0392b;
+  --color-danger-bg:    #fef2f2;
+  --color-text:         #162435;
+  --color-text-muted:   #506070;
+  --color-text-subtle:  #8aaabf;
+  --shadow-sm:   0 1px 3px rgba(22,36,53,0.07), 0 1px 2px rgba(22,36,53,0.04);
+  --shadow-md:   0 4px 16px rgba(22,36,53,0.09), 0 2px 6px rgba(22,36,53,0.05);
+  --shadow-lg:   0 8px 28px rgba(22,36,53,0.12), 0 4px 10px rgba(22,36,53,0.07);
+  --shadow-accent: 0 4px 14px rgba(26,133,200,0.28);
+}
+
+/* ── Dark — Deep Ink + Indigo ───────────────────────────────────── */
+/* Refined dark: deep navy base, warm indigo accents                */
+[data-theme="dark"] {
+  --color-bg:           #0f1117;
+  --color-surface:      #1a1d27;
+  --color-surface-1:    #1f2235;
+  --color-surface-2:    #22263a;
+  --color-border:       #2e3347;
+  --color-border-hover: #3d4460;
+  --color-accent:       #c8925a;
+  --color-accent-hover: #dba878;
+  --color-accent-muted: #2a1e10;
+  --color-success:      #22c55e;
+  --color-success-bg:   #0d2818;
+  --color-warning:      #f59e0b;
+  --color-warning-bg:   #2a1f08;
+  --color-danger:       #ef4444;
+  --color-danger-bg:    #2a0f0f;
+  --color-text:         #e8e0d5;
+  --color-text-muted:   #8a7e72;
+  --color-text-subtle:  #5a5048;
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-lg:   0 8px 28px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.35);
+  --shadow-accent: 0 4px 14px rgba(200,146,90,0.32);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border radius */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  22px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  /* Windows-first Chinese font stack */
+  font-family:
+    "Inter",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-hover);
+}
+
+/* ── Theme transition ──────────────────────────────────────────── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+button, a, input, textarea, select {
+  transition-duration: 0.1s;
+}
+
+/* ── Focus ring ────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
