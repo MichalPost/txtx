@@ -7,6 +7,7 @@ pub mod server;
 pub mod text_converter;
 pub mod ebook_converter;
 pub mod history;
+pub mod task_manager;
 pub mod single_downloader;
 pub mod ttks_downloader;
 
