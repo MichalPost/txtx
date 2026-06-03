@@ -9,3 +9,4 @@ export * from "./config";
 export * from "./download";
 export * from "./history";
 export * from "./files";
+export * from "./tasks";

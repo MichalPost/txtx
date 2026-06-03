@@ -215,3 +215,59 @@ export interface QueueInfoLoaded {
 }
 
 export type QueueStatus = QueueInfo | QueueInfoLoaded;
+
+// ─── Task Manager ─────────────────────────────────────────────────────────────
+
+export type TaskId = string;
+
+export type TaskKind =
+  | "full_scan"
+  | "batch_download"
+  | "selected_download"
+  | "single_download";
+
+export type TaskStatus =
+  | "queued"
+  | "scanning"
+  | "preview"
+  | "downloading"
+  | "paused"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export interface TaskRecord {
+  id: TaskId;
+  kind: TaskKind;
+  status: TaskStatus;
+  label: string;
+  created_at: string;
+  finished_at: string | null;
+  total: number;
+  completed: number;
+  success_count: number;
+  error_count: number;
+  scan_items: ScanItem[];
+  scan_stats: DownloadStats | null;
+  stats: DownloadStats | null;
+  error_message: string | null;
+}
+
+export interface TaskEvent {
+  task_id: TaskId;
+  type: string;
+  site?: string;
+  novel?: string;
+  total?: number;
+  current?: number;
+  completed?: number;
+  stats?: DownloadStats;
+  items?: ScanItem[];
+  message?: string;
+  level?: string;
+}
+
+export interface ScanTaskOptions {
+  target_date?: string | null;
+  enabled_sites?: string[] | null;
+}
