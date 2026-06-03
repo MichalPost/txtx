@@ -82,3 +82,55 @@ pub enum ProgressEvent {
         stats: DownloadStats,
     },
 }
+
+// ─── Task Manager Types ───────────────────────────────────────────────────────
+
+pub type TaskId = String;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskKind {
+    FullScan,
+    BatchDownload,
+    SelectedDownload,
+    SingleDownload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    Queued,
+    Scanning,
+    Preview,
+    Downloading,
+    Paused,
+    Done,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRecord {
+    pub id: TaskId,
+    pub kind: TaskKind,
+    pub status: TaskStatus,
+    pub label: String,
+    pub created_at: String,
+    pub finished_at: Option<String>,
+    pub total: usize,
+    pub completed: usize,
+    pub success_count: usize,
+    pub error_count: usize,
+    pub scan_items: Vec<ScanItem>,
+    pub scan_stats: Option<DownloadStats>,
+    pub stats: Option<DownloadStats>,
+    pub error_message: Option<String>,
+}
+
+/// Wraps any ProgressEvent with its owning task_id for frontend fan-out
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskEvent {
+    pub task_id: TaskId,
+    #[serde(flatten)]
+    pub event: ProgressEvent,
+}
