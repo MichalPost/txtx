@@ -89,7 +89,7 @@ export function HistoryPage() {
         actions={
           <>
             <button
-              onClick={() => setShowStats(v => !v)}
+              onClick={() => setShowStats(!showStats)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
               style={{
                 background: showStats
@@ -115,14 +115,17 @@ export function HistoryPage() {
 
       {/* Filter bar */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
-        <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: "var(--color-border)" }}>
+        <div
+          className="flex rounded-[10px] overflow-hidden border"
+          style={{ borderColor: "var(--color-border)" }}
+        >
           {([["", "全部"], ["success", "成功"], ["error", "失败"]] as [typeof statusFilter, string][]).map(([v, label]) => (
             <button
               key={v}
               onClick={() => { setStatusFilter(v); setPage(1); }}
               className="px-3 py-1.5 text-xs font-medium transition-colors"
               style={{
-                background: statusFilter === v ? "var(--color-accent)" : "var(--color-surface-1)",
+                background: statusFilter === v ? "var(--color-accent)" : "var(--color-surface-2)",
                 color: statusFilter === v ? "#fff" : "var(--color-text-muted)",
               }}
             >
@@ -147,8 +150,10 @@ export function HistoryPage() {
             className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
             style={{ background: "color-mix(in srgb, var(--color-accent) 12%, transparent)", color: "var(--color-accent)" }}
             onClick={() => { setActiveSearch(""); setSearch(""); setPage(1); }}
+            aria-label={`清除搜索：${activeSearch}`}
           >
-            <Filter className="w-3 h-3" /> {activeSearch} ✕
+            <Filter className="w-3 h-3" /> {activeSearch}
+            <span aria-hidden="true" className="ml-0.5">×</span>
           </button>
         )}
       </div>
@@ -176,8 +181,12 @@ export function HistoryPage() {
                     {hg.headers.map(header => (
                       <th
                         key={header.id}
-                        className="text-left px-3 py-2.5 text-xs font-medium"
-                        style={{ color: "var(--color-text-muted)", width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                        className="text-left px-3 py-2.5 text-xs font-semibold border-b"
+                        style={{
+                          color: "var(--color-text-muted)",
+                          borderColor: "var(--color-border)",
+                          width: header.getSize() !== 150 ? header.getSize() : undefined,
+                        }}
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                       </th>
@@ -186,11 +195,16 @@ export function HistoryPage() {
                 ))}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map(row => (
+                {table.getRowModel().rows.map((row, i) => (
                   <tr
                     key={row.id}
-                    className="group border-t hover:bg-[var(--color-surface-2)] transition-colors"
-                    style={{ borderColor: "var(--color-border)" }}
+                    className="group border-t transition-colors"
+                    style={{
+                      borderColor: "var(--color-border)",
+                      background: i % 2 === 0 ? "var(--color-surface)" : "var(--color-surface-1)",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-surface-2)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "var(--color-surface)" : "var(--color-surface-1)"; }}
                   >
                     {row.getVisibleCells().map(cell => (
                       <td key={cell.id} className="px-3 py-2">

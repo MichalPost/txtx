@@ -7,7 +7,7 @@ import {
 } from "@/lib/api";
 import type {
   DownloadStatus, ScanItem, BookCandidate,
-  SiteProgress, DownloadStats, LogEntry, ProgressEvent,
+  SiteProgress, DownloadStats, LogEntry,
   QueueStatus, ScanOptions,
 } from "@/types";
 import { initialSpeed, type SpeedState } from "./speedTracker";

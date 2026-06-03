@@ -9,6 +9,7 @@ import { BlacklistPage } from "@/pages/blacklist/BlacklistPage";
 import { HistoryPage } from "@/pages/history/HistoryPage";
 import { HealthPage } from "@/pages/HealthPage";
 import { ConverterPage } from "@/pages/ConverterPage";
+import { TaskManagerPage } from "@/pages/tasks/TaskManagerPage";
 import { useConfigStore } from "@/store/configStore";
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
           )}
           <Routes>
             <Route path="/" element={<DownloadPage />} />
+            <Route path="/tasks" element={<TaskManagerPage />} />
             <Route path="/websites" element={<WebsitesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/blacklist" element={<BlacklistPage />} />

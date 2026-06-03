@@ -48,12 +48,12 @@ export const inputFocusHandlers = {
   },
 };
 
-/** 简版（无光晕）focus/blur 处理器 */
+/** 简版（无光晕）focus/blur 处理器 — 兼容 input 和 select */
 export const inputFocusHandlersSimple = {
-  onFocus: (e: React.FocusEvent<HTMLInputElement>) => {
+  onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = "var(--color-accent)";
   },
-  onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
+  onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     e.currentTarget.style.borderColor = "var(--color-border)";
   },
 };
