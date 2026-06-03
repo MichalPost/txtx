@@ -35,7 +35,7 @@ export function QueueResumePanel() {
       <RefreshCw className="w-4 h-4 shrink-0" style={{ color: "var(--color-warning)" }} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
-          发现未完成的下载队列
+          上次下载没有完成
         </p>
         <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           {q.item_count} 本 · 目标日期 {q.target_date} · 创建于 {q.created_at}

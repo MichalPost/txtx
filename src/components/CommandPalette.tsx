@@ -4,7 +4,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Command } from "cmdk";
-import { useNavigate } from "react-router-dom";
+import { useAppNavigate } from "@/router";
 import {
   Download, Globe, Settings, Shield, History, Activity, FileText,
   ScanSearch, Square, RotateCcw, FolderOpen,
@@ -24,7 +24,7 @@ interface CommandItem {
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useAppNavigate();
   const { phase, startScan, stopDownload, reset } = useDownloadStore();
   const isRunning = phase === "scanning" || phase === "downloading";
   const panelRef = useRef<HTMLDivElement>(null);
@@ -58,7 +58,7 @@ export function CommandPalette() {
     { id: "nav-download", label: "下载控制台", group: "页面", icon: <Download className="w-4 h-4" />, action: () => navigate("/"), keywords: ["下载", "download"] },
     { id: "nav-websites", label: "网站配置", group: "页面", icon: <Globe className="w-4 h-4" />, action: () => navigate("/websites"), keywords: ["网站", "站点", "xpath"] },
     { id: "nav-settings", label: "通用设置", group: "页面", icon: <Settings className="w-4 h-4" />, action: () => navigate("/settings"), keywords: ["设置", "配置", "settings"] },
-    { id: "nav-blacklist", label: "黑名单管理", group: "页面", icon: <Shield className="w-4 h-4" />, action: () => navigate("/blacklist"), keywords: ["黑名单", "关键词", "过滤"] },
+    { id: "nav-filter", label: "过滤中心", group: "页面", icon: <Shield className="w-4 h-4" />, action: () => navigate("/filter"), keywords: ["黑名单", "关键词", "过滤", "广告", "内容清洗", "filter"] },
     { id: "nav-history", label: "下载历史", group: "页面", icon: <History className="w-4 h-4" />, action: () => navigate("/history"), keywords: ["历史", "history"] },
     { id: "nav-health", label: "站点健康检测", group: "页面", icon: <Activity className="w-4 h-4" />, action: () => navigate("/health"), keywords: ["健康", "可达", "延迟"] },
     { id: "nav-converter", label: "文本转换", group: "页面", icon: <FileText className="w-4 h-4" />, action: () => navigate("/converter"), keywords: ["转换", "繁简", "converter"] },

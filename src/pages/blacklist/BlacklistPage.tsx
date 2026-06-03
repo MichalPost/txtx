@@ -11,7 +11,7 @@ export function BlacklistPage() {
   const { config, saveConfig, saving } = useConfigStore();
 
   if (!config) {
-    return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>配置加载中...</div>;
+    return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>正在加载...</div>;
   }
 
   const bl = config.blacklist;
@@ -24,7 +24,7 @@ export function BlacklistPage() {
     <div className="flex flex-col h-full p-5 gap-4 overflow-hidden">
       <PageHeader
         title="黑名单管理"
-        subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则 — 支持模糊搜索`}
+        subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则，支持模糊搜索`}
         actions={
           <Button size="sm" onClick={() => saveConfig(config)} disabled={saving}>
             <Save className="w-3.5 h-3.5" />

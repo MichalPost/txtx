@@ -26,6 +26,7 @@ export function HistoryPage() {
   const [page, setPage] = useState(1);
   const [showStats, setShowStats] = usePersistedState<boolean>("history-show-stats", false);
   const [activeSearch, setActiveSearch] = useState("");
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const buildQuery = useCallback((): HistoryQuery => ({
     page,
@@ -54,11 +55,6 @@ export function HistoryPage() {
   const handleSearch = () => {
     setActiveSearch(search);
     setPage(1);
-  };
-
-  const handleClear = () => {
-    if (!confirm("确认清空所有下载历史？")) return;
-    clearMutation.mutate();
   };
 
   const handleRedownload = (url: string, name: string) => {
@@ -104,9 +100,31 @@ export function HistoryPage() {
             <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} /> 刷新
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleClear} disabled={total === 0 || clearMutation.isPending}>
-              <Trash2 className="w-3.5 h-3.5" /> 清空
-            </Button>
+            {confirmingClear ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>确认清空？</span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => { setConfirmingClear(false); clearMutation.mutate(); }}
+                  disabled={clearMutation.isPending}
+                >
+                  清空
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmingClear(false)}>
+                  取消
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmingClear(true)}
+                disabled={total === 0 || clearMutation.isPending}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> 清空
+              </Button>
+            )}
           </>
         }
       />
@@ -167,11 +185,46 @@ export function HistoryPage() {
       <Card className="flex-1 overflow-hidden flex flex-col min-h-0" bodyClassName="flex flex-col flex-1 min-h-0 overflow-hidden p-0">
         <div className="flex-1 overflow-auto">
           {entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2 py-16">
-              <TableIcon className="w-8 h-8" style={{ color: "var(--color-text-subtle)" }} />
-              <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                {isLoading ? "加载中..." : activeSearch ? "没有匹配的记录" : "暂无历史记录"}
-              </p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
+              {isLoading ? (
+                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>加载中...</p>
+              ) : activeSearch ? (
+                <>
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background: "var(--color-surface-2)",
+                      border: "1px solid var(--color-border)",
+                    }}
+                  >
+                    <Search className="w-7 h-7" style={{ color: "var(--color-text-subtle)" }} />
+                  </div>
+                  <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+                    没有匹配「{activeSearch}」的记录
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background: "var(--color-accent-muted)",
+                      border: "1px solid color-mix(in srgb, var(--color-accent) 22%, transparent)",
+                      boxShadow: "var(--shadow-accent)",
+                    }}
+                  >
+                    <TableIcon className="w-7 h-7" style={{ color: "var(--color-accent)" }} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                      还没有下载记录
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
+                      下载完成后，记录会出现在这里
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <table className="w-full text-sm border-collapse">

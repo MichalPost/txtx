@@ -3,21 +3,20 @@ paths:
   temp_dir: E:/Downloads/xs/temp
   log_dir: E:/Downloads/xs/logs
 network:
-  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
-    like Gecko) Chrome/120.0.0.0 Safari/537.36
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
   proxy: null
   retry_count: 5
   retry_delay: 8
   timeout: 45
   encoding_map:
-    ffxs8.com: gbk
-    trxs.cc: gbk
-    trxs.me: gbk
-    tongrenquan.org: utf-8
-    qbtr.cc: utf-8
-    powanjuan.cc: gbk
-    jpxs123.com: gbk
     ttks.tw: utf-8
+    jpxs123.com: gbk
+    ffxs8.com: gbk
+    trxs.me: gbk
+    powanjuan.cc: gbk
+    qbtr.cc: utf-8
+    trxs.cc: gbk
+    tongrenquan.org: utf-8
 concurrency:
   novel_threads: 2
   chapter_threads: 2
@@ -25,16 +24,16 @@ concurrency:
   connection_pool_size: 50
 filtering:
   days_limit: 60
-  last_download_date: '2026-01-31'
+  last_download_date: 2026-01-31
   min_days_limit: 1
   site_priority:
-    https://trxs.cc: 1
-    https://www.qbtr.cc: 2
-    https://www.trxs.me: 3
-    https://tongrenquan.org: 4
     https://ffxs8.com: 5
-    https://powanjuan.cc: 6
     https://jpxs123.com: 7
+    https://www.qbtr.cc: 2
+    https://trxs.cc: 1
+    https://powanjuan.cc: 6
+    https://tongrenquan.org: 4
+    https://www.trxs.me: 3
 blacklist:
   enabled: true
   filter_level: moderate
@@ -42,6 +41,7 @@ blacklist:
   fuzzy_match: true
   regex_match: true
   tag_filter: false
+  filtered_tags: []
   keywords:
   - 斗罗
   - 暗河
@@ -266,28 +266,17 @@ blacklist:
     - 恋爱
     - 言情
     - 青春
-ebook_conversion:
-  enabled: false
-  formats:
-  - epub
-  quality: medium
-  add_toc: true
-  add_chapter_breaks: true
-text_conversion:
-  enabled: false
-  traditional_to_simplified: false
-  auto_detect: true
 websites:
-  web1:
+  web5:
     enabled: true
-    domain_name: https://trxs.cc
+    domain_name: https://tongrenshe.cc
     release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
     release_url: /html/body/div/div/div/div/a/@href
-    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div[2]/h3/text()
+    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div/h3/text()
     novel_content: /html/body/div/div/div/div/p/text()
-    novel_name_x: /html/body/div[3]/div[2]/div[2]/h1/text()
+    novel_name_x: //h1/text()
     chapter_url_x: /html/body/div/div/ul/li/a/@href
-    page_list: &id001
+    page_list:
     - /tongren
     - /tongren/index_2.html
     - /tongren/index_3.html
@@ -318,55 +307,101 @@ websites:
     - /tongren/index_28.html
     - /tongren/index_29.html
     - /tongren/index_30.html
-  web2:
+    special_mode: normal
+    novel_content_fallbacks: []
+  web8:
     enabled: true
-    domain_name: https://www.qbtr.cc
-    release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
-    release_url: /html/body/div/div/div/div/a/@href
-    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div/h3/text()
-    novel_name_x: /html[1]/body[1]/div[3]/div[2]/div[1]/h1/text()
-    chapter_url_x: /html/body/div/div/ul/li/a/@href
-    novel_content: /html/body/div/div/div/div/p/text()
-    page_list: *id001
-  web3:
-    enabled: true
-    domain_name: https://www.trxs.me
+    domain_name: https://jpxs123.com
     release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
     release_url: /html/body/div/div/div/div/a/@href
     list_novel_name: /html/body/div[4]/div/div[1]/div/a/div[2]/h3/text()
+    novel_content: /html/body/div/div/div/div/p/text()
     novel_name_x: /html/body/div[3]/div[2]/div[2]/h1/text()
     chapter_url_x: /html/body/div/div/ul/li/a/@href
-    novel_content: /html/body/div/div/div/div/p/text()
-    page_list: *id001
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
   web4:
     enabled: true
     domain_name: https://tongrenquan.org
     release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
     release_url: /html/body/div/div/div/div/a/@href
     list_novel_name: /html/body/div[4]/div/div[1]/div/a/div[2]/h3/text()
+    novel_content: /html/body/div/div/div/div/p/text()
     novel_name_x: /html[1]/body[1]/div[3]/div[2]/div[2]/h1/text()
     chapter_url_x: /html/body/div/div/ul/li/a/@href
-    novel_content: /html/body/div/div/div/div/p/text()
-    page_list: *id001
-  web5:
-    enabled: true
-    domain_name: https://tongrenshe.cc
-    release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
-    release_url: /html/body/div/div/div/div/a/@href
-    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div/h3/text()
-    novel_name_x: //h1/text()
-    chapter_url_x: /html/body/div/div/ul/li/a/@href
-    novel_content: /html/body/div/div/div/div/p/text()
-    page_list: *id001
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
   web6:
     enabled: true
     domain_name: https://ffxs8.com
     release_date: /html/body/div/div/ul/li/div/div/div/span[2]/text()
     release_url: /html/body/div[4]/div/ul/li/div/div/strong/a/@href
     list_novel_name: /html/body/div[4]/div/ul/li/div/div/strong/a/text()
+    novel_content: /html/body/div/div/p/text()
     novel_name_x: /html/body/div/div/div/div/h1/text()
     chapter_url_x: /html/body/div/div/div/div/ul/li/a/@href
-    novel_content: /html/body/div/div/p/text()
     page_list:
     - /trxs/index.html
     - /trxs/index_2.html
@@ -398,75 +433,227 @@ websites:
     - /trxs/index_28.html
     - /trxs/index_29.html
     - /trxs/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
   web7:
     enabled: true
     domain_name: https://powanjuan.cc
     release_date: /html/body/div/div/ul/li/div/div/div/span[3]/text()
     release_url: /html/body/div[4]/div/ul/li/div/div/strong/a/@href
     list_novel_name: /html/body/div[4]/div/ul/li/div/div/strong/a/text()
+    novel_content: /html/body/div[3]/div/div[2]/div[2]/p/text()
     novel_name_x: /html/body/div[3]/div[2]/div[2]/h1/text()
     chapter_url_x: /html/body/div/div/ul/li/a/@href
-    novel_content: /html/body/div[3]/div/div[2]/div[2]/p/text()
-    page_list: *id001
-  web8:
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
+  web2:
     enabled: true
-    domain_name: https://jpxs123.com
+    domain_name: https://www.qbtr.cc
+    release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
+    release_url: /html/body/div/div/div/div/a/@href
+    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div/h3/text()
+    novel_content: /html/body/div/div/div/div/p/text()
+    novel_name_x: /html[1]/body[1]/div[3]/div[2]/div[1]/h1/text()
+    chapter_url_x: /html/body/div/div/ul/li/a/@href
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
+  web1:
+    enabled: true
+    domain_name: https://trxs.cc
     release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
     release_url: /html/body/div/div/div/div/a/@href
     list_novel_name: /html/body/div[4]/div/div[1]/div/a/div[2]/h3/text()
+    novel_content: /html/body/div/div/div/div/p/text()
     novel_name_x: /html/body/div[3]/div[2]/div[2]/h1/text()
     chapter_url_x: /html/body/div/div/ul/li/a/@href
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
+  web3:
+    enabled: true
+    domain_name: https://www.trxs.me
+    release_date: /html/body/div/div/div/div/a/div/div/label[2]/text()
+    release_url: /html/body/div/div/div/div/a/@href
+    list_novel_name: /html/body/div[4]/div/div[1]/div/a/div[2]/h3/text()
     novel_content: /html/body/div/div/div/div/p/text()
-    page_list: *id001
-logging:
-  level: INFO
-  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  file_enabled: true
-  console_enabled: true
-
+    novel_name_x: /html/body/div[3]/div[2]/div[2]/h1/text()
+    chapter_url_x: /html/body/div/div/ul/li/a/@href
+    page_list:
+    - /tongren
+    - /tongren/index_2.html
+    - /tongren/index_3.html
+    - /tongren/index_4.html
+    - /tongren/index_5.html
+    - /tongren/index_6.html
+    - /tongren/index_7.html
+    - /tongren/index_8.html
+    - /tongren/index_9.html
+    - /tongren/index_10.html
+    - /tongren/index_11.html
+    - /tongren/index_12.html
+    - /tongren/index_13.html
+    - /tongren/index_14.html
+    - /tongren/index_15.html
+    - /tongren/index_16.html
+    - /tongren/index_17.html
+    - /tongren/index_18.html
+    - /tongren/index_19.html
+    - /tongren/index_20.html
+    - /tongren/index_21.html
+    - /tongren/index_22.html
+    - /tongren/index_23.html
+    - /tongren/index_24.html
+    - /tongren/index_25.html
+    - /tongren/index_26.html
+    - /tongren/index_27.html
+    - /tongren/index_28.html
+    - /tongren/index_29.html
+    - /tongren/index_30.html
+    special_mode: normal
+    novel_content_fallbacks: []
+text_conversion:
+  enabled: false
+  traditional_to_simplified: false
+  auto_detect: true
+ebook_conversion:
+  enabled: false
+  formats:
+  - epub
+  calibre_path: null
 content_filter:
   ad_patterns:
-    - 'www\.[a-zA-Z0-9.-]+\.(com|cn|net|org|tw)'
-    - 'QQ[：:]?\s*\d{5,}'
-    - '微信[：:]?\s*[a-zA-Z0-9_-]+'
-    - '关注.*公众号'
-    - '加群.*\d+'
-    - '更新.*最快'
-    - '手机.*阅读'
-    - '上一[篇章][：:]'
-    - '下一[篇章][：:]'
-    - '返回目录'
-    - '章节目录'
-    - '书签.*收藏'
-    - '加入书架'
-    - '本章完'
+  - www\.[a-zA-Z0-9.-]+\.(com|cn|net|org|tw)
+  - QQ[：:]?\s*\d{5,}
+  - 微信[：:]?\s*[a-zA-Z0-9_-]+
+  - 关注.*公众号
+  - 加群.*\d+
+  - 更新.*最快
+  - 手机.*阅读
+  - 上一[篇章][：:]
+  - 下一[篇章][：:]
+  - 返回目录
+  - 章节目录
+  - 书签.*收藏
+  - 加入书架
+  - 本章完
   nav_keywords:
-    - 上一篇
-    - 下一篇
-    - 上一章
-    - 下一章
-    - 返回目录
-    - 章节目录
-    - 下一节
-    - 上一节
-    - 章节列表
+  - 上一篇
+  - 下一篇
+  - 上一章
+  - 下一章
+  - 返回目录
+  - 章节目录
+  - 下一节
+  - 上一节
+  - 章节列表
   safety_threshold: 0.3
   fallback_trim_lines: 2
-
 ttks:
   domains:
-    - ttks.tw
-    - ttks.cc
-    - ttks.me
+  - ttks.tw
+  - ttks.cc
+  - ttks.me
   delay_min_ms: 3000
   delay_max_ms: 8000
+  requests_per_second: 0
   ua_pool:
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0'
-    - 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    - 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
-    - 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-
+  - Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+  - Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0
+  - Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+  - Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0
+  - Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 advanced_network:
   pool_idle_timeout_secs: 90
   tcp_keepalive_secs: 60

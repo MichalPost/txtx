@@ -57,7 +57,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
           style={{ color: "var(--color-text-muted)" }}
           title={info.getValue() ?? ""}
         >
-          {info.getValue() ?? "—"}
+          {info.getValue() ?? ""}
         </span>
       ),
     }),

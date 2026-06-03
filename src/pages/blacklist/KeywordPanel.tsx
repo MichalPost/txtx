@@ -124,7 +124,7 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
           ))}
           {filtered.length === 0 && (
             <p className="text-xs py-4 w-full text-center" style={{ color: "var(--color-text-muted)" }}>
-              {search ? "无匹配关键词" : "暂无关键词"}
+              {search ? `没有匹配「${search}」的关键词` : "在上方输入关键词后按 Enter 添加"}
             </p>
           )}
         </div>

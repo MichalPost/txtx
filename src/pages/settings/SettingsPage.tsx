@@ -13,7 +13,6 @@ import { FilterSection } from "./sections/FilterSection";
 import { EncodingMapSection } from "./sections/EncodingMapSection";
 import { TextConversionSection } from "./sections/TextConversionSection";
 import { EbookSection } from "./sections/EbookSection";
-import { ContentFilterSection } from "./sections/ContentFilterSection";
 import { TtksSection } from "./sections/TtksSection";
 import { AdvancedNetworkSection } from "./sections/AdvancedNetworkSection";
 import { AiSection } from "./sections/AiSection";
@@ -35,7 +34,7 @@ export function SettingsPage() {
   }, [config, reset]);
 
   if (!config) {
-    return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>配置加载中...</div>;
+    return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>正在加载...</div>;
   }
 
   const onSubmit = (form: SettingsForm) => saveConfig(formToConfig(form, config));
@@ -63,7 +62,6 @@ export function SettingsPage() {
             <EncodingMapSection />
             <TextConversionSection />
             <EbookSection />
-            <ContentFilterSection />
             <TtksSection />
             <AdvancedNetworkSection />
             <AiSection />

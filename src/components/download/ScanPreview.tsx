@@ -53,7 +53,8 @@ function ScanRow({
       }}
     >
       <td className="px-3 py-2">
-        <input type="checkbox" checked={checked} onChange={onToggle} className="rounded"
+        <input type="checkbox" checked={checked} onChange={onToggle}
+          className="rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           style={{ accentColor: "var(--color-accent)" }} />
       </td>
       <td className="px-3 py-2 font-medium max-w-xs" style={{ color: "var(--color-text)" }}>
@@ -233,7 +234,8 @@ function GroupedScanTable({
               style={{ background: "var(--color-surface-1)" }} onClick={() => toggleGroup(site)}>
               <input type="checkbox" checked={allGroupSelected}
                 onChange={(e) => { e.stopPropagation(); selectGroup(site, e.target.checked); }}
-                onClick={(e) => e.stopPropagation()} className="rounded"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
                 style={{ accentColor: "var(--color-accent)" }} />
               <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
               <span className="flex-1 text-xs font-semibold truncate" style={{ color: "var(--color-text)" }}>{domain}</span>
@@ -479,7 +481,8 @@ export function ScanPreview() {
                 <tr>
                   <th className="w-10 px-3 py-2.5 text-left">
                     <input type="checkbox" checked={allPendingSelected} onChange={(e) => selectAll(e.target.checked)}
-                      className="rounded" style={{ accentColor: "var(--color-accent)" }} />
+                      className="rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                      style={{ accentColor: "var(--color-accent)" }} />
                   </th>
                   <th className="px-3 py-2.5 text-left font-medium cursor-pointer select-none"
                     style={{ color: "var(--color-text-muted)" }} onClick={() => toggleSort("name")}>
@@ -499,7 +502,7 @@ export function ScanPreview() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={5} className="text-center py-12 text-sm" style={{ color: "var(--color-text-muted)" }}>
-                    {search ? "没有匹配的结果" : "暂无数据"}
+                    {search ? `没有书名或站点匹配「${search}」` : "扫描完成后书单会出现在这里"}
                   </td></tr>
                 ) : filtered.map((item) => (
                   <ScanRow key={item.url} item={item} checked={selectedUrls.has(item.url)}

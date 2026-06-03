@@ -30,10 +30,25 @@ export function HealthPage() {
       />
 
       {!isSuccess && !checking && (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-            点击「开始检查」检测所有启用站点的连通性
-          </p>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{
+              background: "var(--color-accent-muted)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)",
+              boxShadow: "var(--shadow-accent)",
+            }}
+          >
+            <Activity className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+          </div>
+          <div className="text-center">
+            <p className="text-base font-semibold" style={{ color: "var(--color-text)" }}>
+              还没有检查过
+            </p>
+            <p className="text-sm mt-1.5" style={{ color: "var(--color-text-muted)" }}>
+              点击「开始检查」测试所有启用站点的连通性
+            </p>
+          </div>
         </div>
       )}
 

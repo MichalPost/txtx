@@ -146,7 +146,7 @@ function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
       <div className="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] flex flex-col gap-0.5">
         {logs.length === 0 && (
           <p className="text-center py-4" style={{ color: "var(--color-text-muted)" }}>
-            等待日志...
+            任务开始后日志会显示在这里
           </p>
         )}
         {logs.map((log) => (
@@ -240,8 +240,8 @@ function ScanPreviewPanel({
                 {item.name}
               </p>
               <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-                {item.site} · {item.date}
-                {item.excluded_reason && ` · ${item.excluded_reason}`}
+                {item.site}，{item.date}
+                {item.excluded_reason && `，${item.excluded_reason}`}
               </p>
             </div>
           </div>
@@ -271,7 +271,7 @@ function EmptyState() {
           选择任务查看详情
         </p>
         <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
-          从左侧列表点击一个任务
+          从左侧选一个任务
         </p>
       </div>
     </div>
@@ -368,7 +368,7 @@ export function TaskDetailPanel() {
             {task.status === "scanning" && (
               <div className="flex flex-col items-center justify-center h-full gap-3 p-4">
                 <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-accent)" }} />
-                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>正在扫描站点...</p>
+                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>正在扫描，请稍候</p>
               </div>
             )}
             {(task.status === "downloading" || task.status === "paused") && (
@@ -383,7 +383,7 @@ export function TaskDetailPanel() {
             {(task.status === "cancelled" || task.status === "queued") && (
               <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
                 <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                  {task.status === "cancelled" ? "任务已取消" : "等待执行..."}
+                  {task.status === "cancelled" ? "已取消" : "排队中，等待执行"}
                 </p>
               </div>
             )}

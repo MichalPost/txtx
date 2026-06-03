@@ -62,7 +62,7 @@ export function RegexPanel({ patterns, onUpdate }: RegexPanelProps) {
         ))}
         {patterns.length === 0 && (
           <p className="text-xs text-center py-3" style={{ color: "var(--color-text-muted)" }}>
-            暂无正则规则
+            在上方输入正则后按 Enter 添加
           </p>
         )}
       </div>

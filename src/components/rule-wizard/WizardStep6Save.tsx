@@ -43,8 +43,10 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
       novel_content:     buildXPathFromRule(data.chap_content),
       novel_content_fallbacks: data.chap_content_fallbacks.filter(Boolean),
     };
+    // onApply 内部会关闭向导（setEditingKey(null) + setNewSiteKey(null)），
+    // 不应再调 onClose，否则 React 批量 state 尚未落地时 newSiteKey 仍有值，
+    // handleWizardClose 会误判为取消新建而删掉刚保存的规则。
     onApply(patch);
-    onClose();
   };
 
   return (

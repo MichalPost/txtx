@@ -92,7 +92,7 @@ export function DownloadPage() {
       <div className="px-5 pt-5 shrink-0">
         <PageHeader
           title="下载控制台"
-          subtitle={`保存目录：${config?.paths.base_dir ?? "—"}`}
+          subtitle={config?.paths.base_dir ? `保存目录：${config.paths.base_dir}` : undefined}
           actions={headerActions}
         />
       </div>

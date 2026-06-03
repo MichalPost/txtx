@@ -12,7 +12,7 @@
  */
 import { useState } from "react";
 import {
-  Link2, ListTree, FlaskConical, BookOpen, TestTube2, Save, X, ChevronLeft, ChevronRight,
+  Link2, ListTree, FlaskConical, BookOpen, TestTube2, Save, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { WizardStep1Url } from "./WizardStep1Url";
@@ -75,13 +75,6 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {site.domain_name}
         </span>
-        <button
-          className="w-6 h-6 flex items-center justify-center rounded-lg hover:opacity-70 transition-opacity"
-          style={{ color: "var(--color-text-muted)" }}
-          onClick={onClose}
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* ── Step tabs ──────────────────────────────────────────────────────── */}

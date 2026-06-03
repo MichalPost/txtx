@@ -73,7 +73,7 @@ export function LogPanel() {
             </button>
           ))}
           <div className="w-px h-3 mx-1" style={{ background: "var(--color-border)" }} />
-          <Button variant="ghost" size="sm" onClick={clearLogs}>
+          <Button variant="ghost" size="sm" onClick={clearLogs} aria-label="清空日志">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -86,7 +86,7 @@ export function LogPanel() {
       >
         {filtered.length === 0 ? (
           <p className="text-xs text-center py-8" style={{ color: "var(--color-text-muted)" }}>
-            暂无日志
+            运行后日志会显示在这里
           </p>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>

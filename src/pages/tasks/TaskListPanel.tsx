@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, ScanSearch, Download, Link, FileUp, Zap, Cpu, Minus } from "lucide-react";
+import { Plus, ScanSearch, Download, Link, FileUp, Zap, Cpu, Minus, ListTodo } from "lucide-react";
 import { useTaskStore } from "@/store/taskStore";
 import { TaskListItem } from "./TaskListItem";
 import { Input } from "@/components/Input";
@@ -236,11 +236,22 @@ export function TaskListPanel({ onNewScan, onNewBatch, onNewSingle }: Props) {
       {/* Task list */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 p-2">
         {tasks.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
-            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>暂无任务</p>
-            <p className="text-[10px]" style={{ color: "var(--color-text-subtle)" }}>
-              点击"新建"创建任务
-            </p>
+          <div className="flex flex-col items-center justify-center h-full gap-3 py-8">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{
+                background: "var(--color-accent-muted)",
+                border: "1px solid color-mix(in srgb, var(--color-accent) 22%, transparent)",
+              }}
+            >
+              <ListTodo className="w-6 h-6" style={{ color: "var(--color-accent)" }} />
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-medium" style={{ color: "var(--color-text)" }}>还没有任务</p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--color-text-subtle)" }}>
+                点击「新建」开始
+              </p>
+            </div>
           </div>
         )}
         {tasks.map((task) => (

@@ -1,18 +1,20 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Download, Globe, Settings, Shield, BookOpen,
-  History, Activity, FileText, ListTodo,
-  PanelLeftClose, PanelLeftOpen,
+  Download, Globe, Settings, BookOpen,
+  History, Activity, FileText, ListTodo, Wand2,
+  PanelLeftClose, PanelLeftOpen, Filter,
 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useSidebarStore } from "@/store/sidebarStore";
+import type { AppRoute } from "@/router";
 
-const navItems = [
+const navItems: Array<{ to: AppRoute; icon: React.ComponentType<{ className?: string }>; label: string }> = [
   { to: "/",          icon: Download,  label: "下载"     },
   { to: "/tasks",     icon: ListTodo,  label: "任务管理" },
+  { to: "/rules",     icon: Wand2,     label: "规则管理" },
   { to: "/websites",  icon: Globe,     label: "网站配置" },
   { to: "/settings",  icon: Settings,  label: "通用设置" },
-  { to: "/blacklist", icon: Shield,    label: "黑名单"   },
+  { to: "/filter",    icon: Filter,    label: "过滤中心" },
   { to: "/history",   icon: History,   label: "下载历史" },
   { to: "/health",    icon: Activity,  label: "站点健康" },
   { to: "/converter", icon: FileText,  label: "文本转换" },
@@ -106,7 +108,7 @@ export function Sidebar() {
               to={to}
               end={to === "/"}
               title={collapsed ? label : undefined}
-              className="relative flex items-center rounded-lg transition-all"
+              className="relative flex items-center rounded-lg transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-1"
               style={{
                 height: 36,
                 padding: collapsed ? "0 10px" : "0 10px",
@@ -134,16 +136,6 @@ export function Sidebar() {
                 }
               }}
             >
-              {/* Active left indicator bar */}
-              {isActive && !collapsed && (
-                <span
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full"
-                  style={{
-                    background: "var(--color-accent)",
-                    boxShadow: "0 0 5px var(--color-accent)",
-                  }}
-                />
-              )}
               <Icon className="w-4 h-4 shrink-0" />
               {!collapsed && (
                 <span className="text-xs font-medium truncate">{label}</span>

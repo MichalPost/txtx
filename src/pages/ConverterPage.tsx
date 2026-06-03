@@ -84,9 +84,21 @@ export function ConverterPage() {
           </div>
         </Card>
 
-        {results.length > 0 && (
+        {(results.length > 0 || running) && (
           <Card title="转换结果" className="w-80 shrink-0 flex flex-col min-h-0">
             <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
+              {running && results.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
+                  <div
+                    className="w-8 h-8 rounded-full border-2 animate-spin"
+                    style={{
+                      borderColor: "var(--color-border)",
+                      borderTopColor: "var(--color-accent)",
+                    }}
+                  />
+                  <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>转换中...</p>
+                </div>
+              )}
               {results.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
                   <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0"

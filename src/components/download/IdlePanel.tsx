@@ -53,20 +53,20 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
           <ScanSearch className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
         </div>
         <p className="text-base font-semibold mb-1" style={{ color: "var(--color-text)" }}>
-          准备好了
+          开始新的一次扫描
         </p>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          将扫描{" "}
+          将检索{" "}
           <span className="font-semibold" style={{ color: "var(--color-text)" }}>
             {siteCount}
           </span>{" "}
-          个站点的最新章节
+          个站点的最新更新
         </p>
       </div>
 
       <div
         ref={panelRef}
-        className="w-full max-w-md flex flex-col gap-4 px-5 py-5 rounded-2xl border"
+        className="w-full max-w-md flex flex-col gap-5 px-5 py-5 rounded-2xl border"
         style={{
           opacity: 0,
           background: "var(--color-surface)",
@@ -84,8 +84,6 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
             onChange={(d) => setScanOptions({ target_date: d })}
           />
         </div>
-
-        <div className="h-px" style={{ background: "var(--color-border)" }} />
 
         <div>
           <div className="flex items-center gap-1.5 mb-2">
@@ -106,9 +104,10 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
 
       <div className="flex flex-col items-center gap-2">
         <Button
+          size="lg"
           onClick={onScan}
           disabled={disabled || (scanOptions.enabled_sites?.length === 0)}
-          className="px-10 py-2.5 text-sm"
+          className="px-12"
         >
           <ScanSearch className="w-4 h-4" /> 开始扫描
         </Button>

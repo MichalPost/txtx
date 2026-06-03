@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import type React from "react";
-import { Plus, Trash2, ChevronDown, ChevronRight, Save, GripVertical, Upload, FileDown, Wand2, Code2, Sparkles, ListChecks } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronRight, Save, GripVertical, Upload, FileDown, Wand2, Code2, Sparkles, ListChecks, Globe } from "lucide-react";
 import { SourceViewer } from "@/components/SourceViewer";
 import { toast } from "sonner";
 import { apiSaveTextFile } from "@/lib/api";
@@ -17,7 +17,6 @@ import { useConfigStore } from "@/store/configStore";
 import { Button } from "@/components/Button";
 import { Input, Textarea } from "@/components/Input";
 import { Toggle } from "@/components/Toggle";
-import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { RuleTemplateSelector } from "@/components/RuleTemplateSelector";
 import { AiXPathAnalyzer } from "@/components/AiXPathAnalyzer";
@@ -196,10 +195,19 @@ function WebsiteEditor({
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>下载模式</label>
             <select
-              className="border rounded-lg px-3 py-2 text-sm focus:outline-none"
+              className="border rounded-[10px] px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] transition-colors cursor-pointer"
               style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
               value={site.special_mode ?? "normal"}
-              onChange={(e) => onChange({ ...site, special_mode: e.target.value })}>
+              onChange={(e) => onChange({ ...site, special_mode: e.target.value })}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--color-accent)";
+                e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-accent-muted)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--color-border)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
               <option value="normal">通用模式</option>
               <option value="ttks">TTKS 专用（随机延迟 + UA 轮换）</option>
             </select>
@@ -288,9 +296,11 @@ export function WebsitesPage() {
 
   // Sync orderedKeys when config changes externally
   const websites = useMemo(() => config?.websites ?? {}, [config]);
-  const syncedKeys = orderedKeys.filter(k => k in websites);
-  const newKeys = Object.keys(websites).filter(k => !orderedKeys.includes(k));
-  const effectiveKeys = useMemo(() => [...syncedKeys, ...newKeys], [syncedKeys, newKeys]);
+  const effectiveKeys = useMemo(() => {
+    const synced = orderedKeys.filter(k => k in websites);
+    const added = Object.keys(websites).filter(k => !orderedKeys.includes(k));
+    return [...synced, ...added];
+  }, [orderedKeys, websites]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     if (!config) return;
@@ -310,16 +320,16 @@ export function WebsitesPage() {
     saveConfig({
       ...config,
       filtering: { ...config.filtering, site_priority: updatedPriority },
-    });
+    }, true); // silent — drag reorder auto-saves without toast
   }, [effectiveKeys, websites, config, saveConfig]);
 
-  if (!config) return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>配置加载中...</div>;
+  if (!config) return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>正在加载...</div>;
 
   const addSite = () => {
     const key = `web${Object.keys(websites).length + 1}`;
     const newConfig = { ...config, websites: { ...websites, [key]: { ...defaultWebsite } } };
     setOrderedKeys(prev => [...prev, key]);
-    saveConfig(newConfig);
+    saveConfig(newConfig, true); // silent — user will edit and then click Save
   };
 
   const handleExport = async () => {
@@ -353,7 +363,7 @@ export function WebsitesPage() {
           const newKeys = keys.filter(k => !prev.includes(k));
           return [...prev, ...newKeys];
         });
-        await saveConfig({ ...config, websites: merged });
+        await saveConfig({ ...config, websites: merged }, true); // silent — we show our own toast below
         toast.success(`已导入 ${keys.length} 个站点（${Object.keys(config.websites).length} 个已有站点保留）`);
       } catch (e) {
         toast.error(`导入失败：${String(e)}`);
@@ -363,14 +373,14 @@ export function WebsitesPage() {
   };
 
   const updateSite = (key: string, site: WebsiteConfig) => {
-    saveConfig({ ...config, websites: { ...websites, [key]: site } });
+    saveConfig({ ...config, websites: { ...websites, [key]: site } }, true); // silent — auto-saves on field change
   };
 
   const deleteSite = (key: string) => {
     const updated = { ...websites };
     delete updated[key];
     setOrderedKeys(prev => prev.filter(k => k !== key));
-    saveConfig({ ...config, websites: updated });
+    saveConfig({ ...config, websites: updated }, true); // silent
   };
 
   return (
@@ -412,11 +422,29 @@ export function WebsitesPage() {
           </SortableContext>
         </DndContext>
         {effectiveKeys.length === 0 && (
-          <Card>
-            <p className="text-center text-sm py-8" style={{ color: "var(--color-text-muted)" }}>
-              暂无站点配置，点击「添加站点」开始
-            </p>
-          </Card>
+          <div className="flex flex-col items-center justify-center gap-4 py-20">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{
+                background: "var(--color-accent-muted)",
+                border: "1px solid color-mix(in srgb, var(--color-accent) 22%, transparent)",
+                boxShadow: "var(--shadow-accent)",
+              }}
+            >
+              <Globe className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+            </div>
+            <div className="text-center">
+              <p className="font-semibold" style={{ color: "var(--color-text)", fontSize: "var(--text-lg)" }}>
+                还没有站点
+              </p>
+              <p className="text-sm mt-1.5" style={{ color: "var(--color-text-muted)" }}>
+                添加一个站点，配置好规则就能开始下载
+              </p>
+            </div>
+            <Button size="sm" onClick={addSite}>
+              <Plus className="w-3.5 h-3.5" /> 添加站点
+            </Button>
+          </div>
         )}
       </div>
     </div>

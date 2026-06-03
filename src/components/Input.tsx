@@ -17,7 +17,7 @@ const baseStyle = {
 } as const;
 
 const baseClass =
-  "w-full border rounded-[10px] px-3 py-2 text-sm focus:outline-none transition-colors placeholder:text-[var(--color-text-subtle)]";
+  "w-full border rounded-[10px] px-3 py-2 text-sm focus:outline-none transition-colors placeholder:text-[var(--color-text-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1";
 
 export function Input({ label, error, className = "", style, ...props }: InputProps) {
   return (

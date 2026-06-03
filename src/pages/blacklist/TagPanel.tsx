@@ -60,7 +60,7 @@ export function TagPanel({ tags, onUpdate }: TagPanelProps) {
         ))}
         {tags.length === 0 && (
           <p className="text-xs py-2 w-full text-center" style={{ color: "var(--color-text-muted)" }}>
-            暂无标签规则
+            在上方输入标签后按 Enter 添加
           </p>
         )}
       </div>

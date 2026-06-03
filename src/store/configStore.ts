@@ -9,7 +9,8 @@ interface ConfigState {
   saving: boolean;
   error: string | null;
   loadConfig: () => Promise<void>;
-  saveConfig: (config: AppConfig) => Promise<void>;
+  /** silent=true 时不弹 toast，用于自动保存（拖拽、删除、切换等） */
+  saveConfig: (config: AppConfig, silent?: boolean) => Promise<void>;
   updateConfig: (updater: (c: AppConfig) => AppConfig) => void;
 }
 
@@ -20,6 +21,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   error: null,
 
   loadConfig: async () => {
+    // 已加载过则跳过，避免重复请求
+    if (get().config !== null) return;
     set({ loading: true, error: null });
     try {
       const config = await apiLoadConfig();
@@ -29,12 +32,12 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     }
   },
 
-  saveConfig: async (config: AppConfig) => {
+  saveConfig: async (config: AppConfig, silent = false) => {
     set({ saving: true, error: null });
     try {
       await apiSaveConfig(config);
       set({ config, saving: false });
-      toast.success("配置已保存");
+      if (!silent) toast.success("配置已保存");
     } catch (e) {
       set({ error: String(e), saving: false });
       toast.error(`保存失败: ${String(e)}`);
