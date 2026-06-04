@@ -102,12 +102,19 @@ jobs:
           node -e "
             const fs = require('fs');
             const v = '$VERSION';
+
+            // Update tauri.conf.json
             const conf = 'src-tauri/tauri.conf.json';
             const data = JSON.parse(fs.readFileSync(conf, 'utf8'));
             data.version = v;
             fs.writeFileSync(conf, JSON.stringify(data, null, 2));
+
+            // Update Cargo.toml (cross-platform, avoids BSD sed -i issue on macOS)
+            const cargo = 'src-tauri/Cargo.toml';
+            const updated = fs.readFileSync(cargo, 'utf8')
+              .replace(/^version = \".*\"/m, \`version = \"\${v}\"\`);
+            fs.writeFileSync(cargo, updated);
           "
-          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 
       - name: 构建并上传到 Release
         uses: tauri-apps/tauri-action@v0
