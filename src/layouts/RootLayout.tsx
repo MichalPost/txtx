@@ -1,9 +1,11 @@
 import { Outlet, useNavigation, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { SetupWizard } from "@/components/onboarding/SetupWizard";
 import { useConfigStore } from "@/store/configStore";
+import { apiCheckFirstRun } from "@/lib/api";
 
 // 页面切换动画变体：轻微向上淡入，向下淡出
 const pageVariants = {
@@ -20,14 +22,34 @@ const pageTransition = {
 export function RootLayout() {
   const location = useLocation();
   const { error, loadConfig } = useConfigStore();
+  const [firstRun, setFirstRun] = useState<boolean | null>(null); // null = checking
 
-  // 应用启动时加载 config（内部有幂等保护，重复调用安全）
+  // 检测首次运行
+  useEffect(() => {
+    apiCheckFirstRun().then(isFirst => {
+      setFirstRun(isFirst);
+      if (!isFirst) loadConfig();
+    }).catch(() => {
+      setFirstRun(false);
+      loadConfig();
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadConfig(); }, []);
+  }, []);
+
+  // 向导完成后加载配置
+  const handleSetupComplete = () => {
+    setFirstRun(false);
+    loadConfig();
+  };
 
   // 路由跳转状态 — 用于顶部进度条
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
+
+  // 首次运行：全屏向导（不渲染 Sidebar/主内容）
+  if (firstRun === true) {
+    return <SetupWizard onComplete={handleSetupComplete} />;
+  }
 
   return (
     <div

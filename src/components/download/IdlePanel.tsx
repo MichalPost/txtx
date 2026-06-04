@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScanSearch, Calendar, Globe } from "lucide-react";
+import { ScanSearch, Calendar, Globe, BookOpen } from "lucide-react";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useConfigStore } from "@/store/configStore";
 import { Button } from "@/components/Button";
@@ -7,12 +7,64 @@ import { DateRangePicker } from "@/components/DateRangePicker";
 import { SiteSelector } from "@/components/download/SiteSelector";
 import { SiteHealthChecker } from "@/components/download/SiteHealthChecker";
 import { animateFadeInUp } from "@/lib/animations";
+import { useAppNavigate } from "@/router";
 import type { SiteHealth } from "@/types";
 
 interface IdlePanelProps {
   onScan: () => void;
   disabled: boolean;
 }
+
+// ─── Empty state when no sites are configured ─────────────────────────────────
+
+function NoSitesState() {
+  const navigate = useAppNavigate();
+  const iconRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (iconRef.current) animateFadeInUp(iconRef.current, 0);
+    if (bodyRef.current) animateFadeInUp(bodyRef.current, 80);
+  }, []);
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
+      <div
+        ref={iconRef}
+        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+        style={{
+          opacity: 0,
+          background: "var(--color-accent-muted)",
+          border: "1px solid color-mix(in srgb, var(--color-accent) 22%, transparent)",
+          boxShadow: "var(--shadow-accent)",
+        }}
+      >
+        <BookOpen className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+      </div>
+
+      <div ref={bodyRef} className="flex flex-col items-center gap-2 text-center" style={{ opacity: 0 }}>
+        <p
+          className="font-semibold"
+          style={{ color: "var(--color-text)", fontSize: "var(--text-xl)" }}
+        >
+          还没有配置站点
+        </p>
+        <p
+          className="text-sm leading-relaxed"
+          style={{ color: "var(--color-text-muted)", maxWidth: "30ch" }}
+        >
+          先去「规则管理」添加一个站点，向导会帮你完成配置。
+        </p>
+      </div>
+
+      <Button onClick={() => navigate("/rules")}>
+        去添加站点
+      </Button>
+    </div>
+  );
+}
+
+// ─── Main idle panel ──────────────────────────────────────────────────────────
 
 export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
   const { config } = useConfigStore();
@@ -33,6 +85,11 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
     if (iconRef.current) animateFadeInUp(iconRef.current, 100);
     if (panelRef.current) animateFadeInUp(panelRef.current, 200);
   }, []);
+
+  // No sites configured yet — show onboarding nudge
+  if (config && allSites.length === 0) {
+    return <NoSitesState />;
+  }
 
   const siteCount = scanOptions.enabled_sites?.length ?? allSites.length;
 

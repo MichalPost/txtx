@@ -37,7 +37,12 @@ impl Default for AiConfigRecord {
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
 fn open_db(base_dir: &Path) -> Result<Connection> {
-    let path = base_dir.join("download_history.db");
+    // Use the unified app.db under {appDataDir}/txtx/ (same DB as config_db).
+    // base_dir here is actually the appDataDir, not the download base dir.
+    let path = base_dir.join("txtx").join("app.db");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let conn = Connection::open(&path)?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
     migrate(&conn)?;

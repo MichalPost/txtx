@@ -1,5 +1,6 @@
 pub mod models;
 pub mod config;
+pub mod config_db;
 pub mod ai;
 pub mod ai_config_db;
 pub mod blacklist;
@@ -24,7 +25,7 @@ pub mod kumo_scanner;
 mod tauri_app {
     use std::sync::Arc;
     use tokio::sync::{mpsc, Mutex, Notify};
-    use tauri::{AppHandle, Emitter, State};
+    use tauri::{AppHandle, Emitter, Manager, State};
     use crate::models::{ProgressEvent, TaskId, TaskKind, TaskRecord, TaskStatus, TaskEvent};
     use crate::task_manager::{TaskManager, SharedTaskManager};
 
@@ -136,14 +137,78 @@ mod tauri_app {
 
     // ── Config ────────────────────────────────────────────────────────────────
 
-    #[tauri::command]
-    async fn load_config() -> Result<crate::models::AppConfig, String> {
-        crate::config::load_config().map_err(|e| e.to_string())
+    /// Get the Tauri app data directory, used as root for app.db.
+    fn app_data_dir(app: &AppHandle) -> std::path::PathBuf {
+        app.path().app_data_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
     }
 
     #[tauri::command]
-    async fn save_config(config: crate::models::AppConfig) -> Result<(), String> {
-        crate::config::save_config(&config).map_err(|e| e.to_string())
+    async fn load_config(app: AppHandle) -> Result<crate::models::AppConfig, String> {
+        let dir = app_data_dir(&app);
+        tokio::task::spawn_blocking(move || {
+            crate::config_db::load_config(&dir)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    async fn save_config(app: AppHandle, config: crate::models::AppConfig) -> Result<(), String> {
+        let dir = app_data_dir(&app);
+        tokio::task::spawn_blocking(move || {
+            crate::config_db::save_config(&dir, &config)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+    }
+
+    /// Returns true when the user has not yet finished the setup wizard.
+    #[tauri::command]
+    async fn check_first_run(app: AppHandle) -> bool {
+        let dir = app_data_dir(&app);
+        tokio::task::spawn_blocking(move || crate::config_db::is_first_run(&dir))
+            .await
+            .unwrap_or(true)
+    }
+
+    /// Called by the setup wizard when the user finishes onboarding.
+    /// Writes the chosen base_dir to the DB and marks setup as complete.
+    #[tauri::command]
+    async fn complete_setup(app: AppHandle, base_dir: String) -> Result<(), String> {
+        let dir = app_data_dir(&app);
+        let base_dir_clone = base_dir.clone();
+        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            // Migrate legacy config.yml if present
+            crate::config_db::maybe_migrate_from_yaml(&dir);
+
+            // Load existing config (or default) and inject the chosen base_dir
+            let mut cfg = crate::config_db::load_config(&dir)?;
+            if cfg.paths.base_dir.is_empty() {
+                cfg.paths.base_dir = base_dir_clone.clone();
+                let temp = std::path::Path::new(&base_dir_clone).join("temp");
+                let logs = std::path::Path::new(&base_dir_clone).join("logs");
+                cfg.paths.temp_dir = temp.to_string_lossy().to_string();
+                cfg.paths.log_dir = logs.to_string_lossy().to_string();
+            }
+            crate::config_db::save_config(&dir, &cfg)?;
+            crate::config_db::mark_setup_complete(&dir)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+    }
+
+    /// Select a directory via native dialog (alias for tauri_plugin_dialog,
+    /// kept for compatibility if called via invoke from legacy code).
+    #[tauri::command]
+    async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
+        use tauri_plugin_dialog::DialogExt;
+        let path = app.dialog().file().blocking_pick_folder();
+        Ok(path.map(|p| p.to_string()))
     }
 
     // ── Task Manager Commands ─────────────────────────────────────────────────
@@ -154,7 +219,11 @@ mod tauri_app {
         tm: State<'_, SharedTaskManager>,
         options: Option<crate::downloader::ScanOptions>,
     ) -> Result<TaskId, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let cfg = {
+            let dir = app_data_dir(&app);
+            tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+                .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+        };
         let task_id = TaskManager::new_task_id();
         let cancel = Arc::new(Notify::new());
         let label = TaskManager::make_label(&TaskKind::FullScan, "");
@@ -184,7 +253,11 @@ mod tauri_app {
         tm: State<'_, SharedTaskManager>,
         options: Option<crate::downloader::ScanOptions>,
     ) -> Result<TaskId, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let cfg = {
+            let dir = app_data_dir(&app);
+            tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+                .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+        };
         let task_id = TaskManager::new_task_id();
         let cancel = Arc::new(Notify::new());
         let label = TaskManager::make_label(&TaskKind::BatchDownload, "");
@@ -224,7 +297,11 @@ mod tauri_app {
         tm: State<'_, SharedTaskManager>,
         url: String,
     ) -> Result<TaskId, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let cfg = {
+            let dir = app_data_dir(&app);
+            tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+                .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+        };
         let task_id = TaskManager::new_task_id();
         let cancel = Arc::new(Notify::new());
         let url_label = url.trim_end_matches('/')
@@ -259,7 +336,11 @@ mod tauri_app {
         task_id: TaskId,
         selected: Vec<crate::models::BookCandidate>,
     ) -> Result<(), String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let cfg = {
+            let dir = app_data_dir(&app);
+            tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+                .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+        };
         let cancel = Arc::new(Notify::new());
         let n = selected.len();
         {
@@ -370,7 +451,11 @@ mod tauri_app {
         tm: State<'_, SharedTaskManager>,
         selected: Vec<crate::models::BookCandidate>,
     ) -> Result<(), String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let cfg = {
+            let dir = app_data_dir(&app);
+            tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+                .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+        };
         let task_id = TaskManager::new_task_id();
         let cancel = Arc::new(Notify::new());
         let n = selected.len();
@@ -425,15 +510,19 @@ mod tauri_app {
     // ── History ───────────────────────────────────────────────────────────────
 
     #[tauri::command]
-    async fn get_history() -> Result<Vec<crate::history::HistoryEntry>, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn get_history(app: AppHandle) -> Result<Vec<crate::history::HistoryEntry>, String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
         crate::history::load_history(&base_dir).await.map_err(|e| e.to_string())
     }
 
     #[tauri::command]
-    async fn clear_history() -> Result<(), String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn clear_history(app: AppHandle) -> Result<(), String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
         crate::history::clear_history(&base_dir).await.map_err(|e| e.to_string())
     }
@@ -441,8 +530,10 @@ mod tauri_app {
     // ── Site health check ─────────────────────────────────────────────────────
 
     #[tauri::command]
-    async fn check_sites() -> Result<Vec<crate::models::SiteHealth>, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn check_sites(app: AppHandle) -> Result<Vec<crate::models::SiteHealth>, String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         crate::crawler::check_site_health(&cfg).await.map_err(|e| e.to_string())
     }
 
@@ -466,8 +557,10 @@ mod tauri_app {
     // ── Queue ─────────────────────────────────────────────────────────────────
 
     #[tauri::command]
-    async fn get_queue() -> Result<serde_json::Value, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn get_queue(app: AppHandle) -> Result<serde_json::Value, String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
         let path = base_dir.join("download_queue.json");
         if !path.exists() {
@@ -485,8 +578,10 @@ mod tauri_app {
     }
 
     #[tauri::command]
-    async fn clear_queue() -> Result<(), String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn clear_queue(app: AppHandle) -> Result<(), String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
         let path = base_dir.join("download_queue.json");
         if path.exists() {
@@ -498,8 +593,10 @@ mod tauri_app {
     // ── Novel name preview ────────────────────────────────────────────────────
 
     #[tauri::command]
-    async fn preview_novel_name(url: String) -> Result<serde_json::Value, String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+    async fn preview_novel_name(app: AppHandle, url: String) -> Result<serde_json::Value, String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         let client = std::sync::Arc::new(
             crate::crawler::build_client(&cfg.network).map_err(|e| e.to_string())?
         );
@@ -521,25 +618,20 @@ mod tauri_app {
 
     // ── AI ────────────────────────────────────────────────────────────────────
 
-    fn ai_base_dir() -> std::path::PathBuf {
-        crate::config::load_config()
-            .map(|c| std::path::PathBuf::from(&c.paths.base_dir))
-            .unwrap_or_else(|_| std::path::PathBuf::from("."))
-    }
-
-    /// Load AI config from SQLite.
+    /// Load AI config from SQLite (uses app.db under appDataDir).
     #[tauri::command]
-    async fn load_ai_config() -> Result<crate::ai_config_db::AiConfigRecord, String> {
-        let base_dir = ai_base_dir();
+    async fn load_ai_config(app: AppHandle) -> Result<crate::ai_config_db::AiConfigRecord, String> {
+        let base_dir = app_data_dir(&app);
         crate::ai_config_db::load(&base_dir).await.map_err(|e| e.to_string())
     }
 
     /// Save AI config to SQLite.
     #[tauri::command]
     async fn save_ai_config(
+        app: AppHandle,
         config: crate::ai_config_db::AiConfigRecord,
     ) -> Result<(), String> {
-        let base_dir = ai_base_dir();
+        let base_dir = app_data_dir(&app);
         crate::ai_config_db::save(&base_dir, &config).await.map_err(|e| e.to_string())
     }
 
@@ -619,28 +711,44 @@ mod tauri_app {
 
     #[tauri::command]
     async fn open_output_dir(app: tauri::AppHandle) -> Result<(), String> {
-        let cfg = crate::config::load_config().map_err(|e| e.to_string())?;
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
         use tauri_plugin_opener::OpenerExt;
         app.opener().open_path(&cfg.paths.base_dir, None::<&str>)
             .map_err(|e| e.to_string())
     }
 
     pub fn run() {
-        let task_manager: SharedTaskManager = {
-            let base_dir = crate::config::load_config()
-                .map(|c| std::path::PathBuf::from(&c.paths.base_dir))
-                .unwrap_or_else(|_| std::path::PathBuf::from("."));
-            Arc::new(Mutex::new(TaskManager::new(base_dir)))
-        };
+        let task_manager: SharedTaskManager =
+            Arc::new(Mutex::new(TaskManager::new(std::path::PathBuf::from("."))));
 
         tauri::Builder::default()
             .plugin(tauri_plugin_opener::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_fs::init())
             .manage(task_manager)
+            .setup(|app| {
+                // Re-initialize task manager base_dir after app is running
+                // (app_data_dir is now available via the app handle)
+                let tm = app.state::<SharedTaskManager>();
+                let data_dir = app.path().app_data_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                if let Ok(cfg) = crate::config_db::load_config(&data_dir) {
+                    if !cfg.paths.base_dir.is_empty() {
+                        let base = std::path::PathBuf::from(&cfg.paths.base_dir);
+                        let mut mgr = tm.blocking_lock();
+                        mgr.base_dir = base;
+                    }
+                }
+                Ok(())
+            })
             .invoke_handler(tauri::generate_handler![
                 load_config,
                 save_config,
+                check_first_run,
+                complete_setup,
+                pick_directory,
                 // New task manager commands
                 create_scan_task,
                 create_batch_download_task,

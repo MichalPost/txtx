@@ -23,3 +23,25 @@ export async function apiSaveConfig(config: AppConfig): Promise<void> {
   });
   if (!res.ok) throw new Error(await res.text());
 }
+
+/** Returns true if this is the first time the app has been launched (setup not complete). */
+export async function apiCheckFirstRun(): Promise<boolean> {
+  if (IS_TAURI) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<boolean>("check_first_run");
+  }
+  // In server/dev mode, never show the wizard.
+  return false;
+}
+
+/** Called by the setup wizard to write base_dir and mark setup complete. */
+export async function apiCompleteSetup(baseDir: string): Promise<void> {
+  if (IS_TAURI) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke("complete_setup", { baseDir });
+  }
+  // No-op in server mode.
+}
+
+/** Open a native folder-picker dialog; returns the chosen path or null. */
+// Note: apiPickDirectory is already exported from ./files — import from "@/lib/api" directly.
