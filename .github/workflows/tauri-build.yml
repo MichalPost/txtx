@@ -1,66 +1,91 @@
-name: Build Tauri App
+name: 构建并发布桌面端
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # ── 1. 生成版本号 + 创建草稿 Release ───────────────────────────────────────
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release_id: ${{ steps.create_release.outputs.id }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 生成版本号
+        id: version
+        run: |
+          YEAR=$(date +'%y')
+          MONTH=$(date +'%-m')
+          VERSION="${YEAR}.${MONTH}.${{ github.run_number }}"
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: 创建 Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }} 2>/dev/null || echo "Tag 已存在，跳过"
+          git push origin ${{ steps.version.outputs.tag }} 2>/dev/null || echo "Tag 已在远端，跳过"
+
+      - name: 创建草稿 Release
+        id: create_release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: txtx ${{ steps.version.outputs.tag }}
+          body: |
+            自动构建版本 ${{ steps.version.outputs.tag }}
+            提交：${{ github.sha }}
+          draft: true
+          prerelease: false
+
+  # ── 2. 三平台并行构建 ───────────────────────────────────────────────────────
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
           - platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+            artifact-name: linux-deb
+          - platform: windows-latest
+            artifact-name: windows-installer
           - platform: macos-latest
-            target: aarch64-apple-darwin
+            artifact-name: macos-dmg
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v5
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: 配置 Node.js & pnpm
+        uses: ./.github/actions/setup-node-pnpm
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Cache pnpm
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
-
-      - name: Install frontend dependencies
-        working-directory: txtx-app
-        run: pnpm install
-
-      - name: Install Rust stable
+      - name: 安装 Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+      - name: 缓存 Rust
+        uses: swatinem/rust-cache@v2
         with:
-          workspaces: "txtx-app/src-tauri -> target"
+          workspaces: 'src-tauri -> target'
 
-      - name: Install Linux dependencies
+      - name: 安装 Linux 系统依赖
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
@@ -70,16 +95,65 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Build Tauri app
+      - name: 注入版本号
+        shell: bash
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          node -e "
+            const fs = require('fs');
+            const v = '$VERSION';
+            const conf = 'src-tauri/tauri.conf.json';
+            const data = JSON.parse(fs.readFileSync(conf, 'utf8'));
+            data.version = v;
+            fs.writeFileSync(conf, JSON.stringify(data, null, 2));
+          "
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+
+      - name: 构建并上传到 Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_TAURI_MODE: "true"
+          VITE_TAURI_MODE: 'true'
         with:
-          projectPath: txtx-app
-          tagName: ${{ github.ref_name }}
-          releaseName: "txtx ${{ github.ref_name }}"
-          releaseBody: "See CHANGELOG for details."
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: txtx ${{ needs.prepare.outputs.tag }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.target }} --features tauri-build
+          args: --features tauri-build
+
+  # ── 3. 发布 Release ────────────────────────────────────────────────────────
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    if: needs.build.result == 'success'
+
+    steps:
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ needs.prepare.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --draft=false \
+            --latest
+
+  # ── 4. 构建摘要 ────────────────────────────────────────────────────────────
+  summary:
+    needs: [prepare, build, publish]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 输出构建摘要
+        run: |
+          {
+            echo "## txtx 发布摘要"
+            echo
+            echo "- Tag: \`${{ needs.prepare.outputs.tag }}\`"
+            echo "- Release: https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag }}"
+            echo
+            echo "构建状态："
+            echo "- Windows / macOS / Linux: ${{ needs.build.result }}"
+            echo "- 发布: ${{ needs.publish.result }}"
+          } >> $GITHUB_STEP_SUMMARY
