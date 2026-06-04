@@ -17,8 +17,12 @@ runs:
     - name: 配置 pnpm
       uses: pnpm/action-setup@v5
       with:
-        version: latest
+        version: 10
 
     - name: 安装依赖
       shell: bash
-      run: pnpm install
+      run: pnpm install --ignore-scripts
+
+    - name: 构建 esbuild 原生模块
+      shell: bash
+      run: pnpm rebuild esbuild
