@@ -57,3 +57,10 @@ desktop.ini
 
 # ── Local subprojects ─────────────────────────────────────────────────────────
 cs/
+
+# ── Codegraph (runtime files) ─────────────────────────────────────────────────
+.codegraph/daemon.pid
+.codegraph/daemon.log
+.codegraph/errors.log
+.codegraph/codegraph.db-shm
+.codegraph/codegraph.db-wal
