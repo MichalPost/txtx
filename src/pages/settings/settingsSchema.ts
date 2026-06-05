@@ -7,6 +7,8 @@ const encodingEntrySchema = z.object({ domain: z.string(), encoding: z.string() 
 
 export const settingsSchema = z.object({
   base_dir: z.string().min(1, "下载目录不能为空"),
+  temp_dir: z.string().min(1, "临时目录不能为空"),
+  log_dir: z.string().min(1, "日志目录不能为空"),
   user_agent: z.string().min(10, "User-Agent 过短"),
   proxy: z.string().nullable().optional(),
   timeout: z.coerce.number().int().min(5).max(120),
@@ -15,6 +17,7 @@ export const settingsSchema = z.object({
   novel_threads: z.coerce.number().int().min(1).max(10),
   chapter_threads: z.coerce.number().int().min(1).max(30),
   max_connections_per_host: z.coerce.number().int().min(1).max(50),
+  connection_pool_size: z.coerce.number().int().min(1).max(500),
   days_limit: z.coerce.number().int().min(1).max(365),
   min_days_limit: z.coerce.number().int().min(1).max(60),
   last_download_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "格式 YYYY-MM-DD").nullable().optional()
@@ -50,6 +53,8 @@ export type SettingsForm = z.infer<typeof settingsSchema>;
 export function configToForm(config: AppConfig): SettingsForm {
   return {
     base_dir: config.paths.base_dir,
+    temp_dir: config.paths.temp_dir,
+    log_dir: config.paths.log_dir,
     user_agent: config.network.user_agent,
     proxy: config.network.proxy ?? "",
     timeout: config.network.timeout,
@@ -58,6 +63,7 @@ export function configToForm(config: AppConfig): SettingsForm {
     novel_threads: config.concurrency.novel_threads,
     chapter_threads: config.concurrency.chapter_threads,
     max_connections_per_host: config.concurrency.max_connections_per_host,
+    connection_pool_size: config.concurrency.connection_pool_size,
     days_limit: config.filtering.days_limit,
     min_days_limit: config.filtering.min_days_limit,
     last_download_date: config.filtering.last_download_date ?? "",
@@ -88,7 +94,12 @@ export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig
   form.encoding_map.forEach(({ domain, encoding }) => { if (domain) enc[domain] = encoding; });
   return {
     ...original,
-    paths: { ...original.paths, base_dir: form.base_dir },
+    paths: {
+      ...original.paths,
+      base_dir: form.base_dir,
+      temp_dir: form.temp_dir,
+      log_dir: form.log_dir,
+    },
     network: {
       ...original.network,
       user_agent: form.user_agent,
@@ -103,6 +114,7 @@ export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig
       novel_threads: form.novel_threads,
       chapter_threads: form.chapter_threads,
       max_connections_per_host: form.max_connections_per_host,
+      connection_pool_size: form.connection_pool_size,
     },
     filtering: {
       ...original.filtering,

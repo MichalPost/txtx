@@ -10,6 +10,7 @@ import {
   Plus, Wand2, Globe, ChevronRight, Trash2,
   ToggleLeft, ToggleRight, Edit3, CheckCircle2, ChevronLeft,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useConfigStore } from "@/store/configStore";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
@@ -31,13 +32,25 @@ const DEFAULT_SITE: WebsiteConfig = {
   page_list: ["/tongren"],
   special_mode: "normal",
   novel_content_fallbacks: [],
+  encoding: "",
 };
+
+function generateSiteKey(existingKeys: string[]): string {
+  let index = existingKeys.length + 1;
+  let key = `web${index}`;
+  while (existingKeys.includes(key)) {
+    index += 1;
+    key = `web${index}`;
+  }
+  return key;
+}
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export function RulesPage() {
   const { config, saveConfig, saving } = useConfigStore();
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [recentlySavedKey, setRecentlySavedKey] = useState<string | null>(null);
 
   if (!config) {
     return (
@@ -51,16 +64,56 @@ export function RulesPage() {
   const siteKeys = Object.keys(websites);
 
   const handleNewSite = () => {
-    const key = `web${siteKeys.length + 1}`;
+    const key = generateSiteKey(siteKeys);
     setEditingKey(key);
   };
 
   const handleWizardApply = (key: string, patch: Partial<WebsiteConfig>) => {
     const base = websites[key] ?? { ...DEFAULT_SITE };
+    const updatedSite: WebsiteConfig = { ...base, ...patch };
+    let hostname = "";
+
+    // Sync encoding to network.encoding_map
+    // Extract the hostname from domain_name to use as the map key
+    const encodingMap = { ...(config.network.encoding_map ?? {}) };
+    try {
+      hostname = new URL(updatedSite.domain_name).hostname;
+    } catch {
+      hostname = updatedSite.domain_name.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+
+    const duplicateKey = Object.entries(websites).find(([siteKey, site]) => {
+      if (siteKey === key) return false;
+      const siteHostname = (() => {
+        try {
+          return new URL(site.domain_name).hostname;
+        } catch {
+          return site.domain_name.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+        }
+      })();
+      return hostname && siteHostname && siteHostname === hostname;
+    })?.[0];
+
+    if (duplicateKey) {
+      toast.error(`已存在相同域名规则：${duplicateKey}`);
+      return;
+    }
+
+    if (hostname) {
+      if (updatedSite.encoding?.trim()) {
+        encodingMap[hostname] = updatedSite.encoding.trim();
+      } else {
+        // Remove the entry if encoding was cleared
+        delete encodingMap[hostname];
+      }
+    }
+
     saveConfig({
       ...config,
-      websites: { ...websites, [key]: { ...base, ...patch } },
+      network: { ...config.network, encoding_map: encodingMap },
+      websites: { ...websites, [key]: updatedSite },
     });
+    setRecentlySavedKey(key);
     setEditingKey(null);
   };
 
@@ -77,20 +130,40 @@ export function RulesPage() {
   };
 
   const deleteSite = (key: string) => {
+    const confirmed = confirm(`确认删除规则「${key}」吗？删除后无法恢复。`);
+    if (!confirmed) return;
     const updated = { ...websites };
     delete updated[key];
-    saveConfig({ ...config, websites: updated }, true);
+    const encodingMap = { ...(config.network.encoding_map ?? {}) };
+    try {
+      const hostname = new URL(websites[key].domain_name).hostname;
+      if (hostname) delete encodingMap[hostname];
+    } catch {
+      const hostname = websites[key].domain_name.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+      if (hostname) delete encodingMap[hostname];
+    }
+    saveConfig({
+      ...config,
+      network: { ...config.network, encoding_map: encodingMap },
+      websites: updated,
+    }, true);
     if (editingKey === key) setEditingKey(null);
   };
 
   const getRuleStatus = (site: WebsiteConfig) => {
-    const required = [site.list_novel_name, site.release_url, site.novel_content];
+    const required = [
+      site.domain_name,
+      site.list_novel_name,
+      site.release_url,
+      site.novel_content,
+    ];
     const filled = required.filter(Boolean).length;
     return { filled, total: required.length, complete: filled === required.length };
   };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <div className="px-5 pt-5 shrink-0">
       <PageHeader
         title={editingKey ? (websites[editingKey] ? "编辑规则" : "新建规则") : "规则管理"}
         subtitle={
@@ -112,6 +185,7 @@ export function RulesPage() {
           )
         }
       />
+      </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4">
 
@@ -135,6 +209,7 @@ export function RulesPage() {
             siteKeys={siteKeys}
             websites={websites}
             getRuleStatus={getRuleStatus}
+            recentlySavedKey={recentlySavedKey}
             onEdit={(key) => setEditingKey(key)}
             onToggle={toggleEnabled}
             onDelete={deleteSite}
@@ -204,12 +279,13 @@ interface SiteListProps {
   siteKeys: string[];
   websites: Record<string, WebsiteConfig>;
   getRuleStatus: (site: WebsiteConfig) => { filled: number; total: number; complete: boolean };
+  recentlySavedKey: string | null;
   onEdit: (key: string) => void;
   onToggle: (key: string) => void;
   onDelete: (key: string) => void;
 }
 
-function SiteList({ siteKeys, websites, getRuleStatus, onEdit, onToggle, onDelete }: SiteListProps) {
+function SiteList({ siteKeys, websites, getRuleStatus, recentlySavedKey, onEdit, onToggle, onDelete }: SiteListProps) {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -251,6 +327,7 @@ function SiteList({ siteKeys, websites, getRuleStatus, onEdit, onToggle, onDelet
               siteKey={key}
               site={site}
               status={status}
+              highlighted={recentlySavedKey === key}
               onEdit={() => onEdit(key)}
               onToggle={() => onToggle(key)}
               onDelete={() => onDelete(key)}
@@ -272,10 +349,12 @@ interface CardStatus {
 
 function SiteRuleCard({
   siteKey, site, status, onEdit, onToggle, onDelete,
+  highlighted,
 }: {
   siteKey: string;
   site: WebsiteConfig;
   status: CardStatus;
+  highlighted?: boolean;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
@@ -294,8 +373,12 @@ function SiteRuleCard({
       className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-all"
       style={{
         background: isEnabled ? "var(--color-surface)" : "var(--color-surface-1)",
-        borderColor: hovered ? "var(--color-border-hover)" : "var(--color-border)",
-        boxShadow: hovered ? "var(--shadow-md)" : "var(--shadow-sm)",
+        borderColor: highlighted
+          ? "color-mix(in srgb, var(--color-accent) 48%, transparent)"
+          : hovered ? "var(--color-border-hover)" : "var(--color-border)",
+        boxShadow: highlighted
+          ? "var(--shadow-accent)"
+          : hovered ? "var(--shadow-md)" : "var(--shadow-sm)",
         transform: hovered ? "translateY(-1px)" : "translateY(0)",
         transition: "border-color 120ms ease, box-shadow 150ms ease, transform 150ms ease, background 150ms ease",
         // Start invisible — stagger animation sets opacity to 1
@@ -397,6 +480,47 @@ function SiteRuleCard({
               }}
             >
               已停用
+            </span>
+          )}
+
+          {highlighted && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{
+                background: "var(--color-accent-muted)",
+                color: "var(--color-accent)",
+                fontSize: "11px",
+              }}
+            >
+              刚保存
+            </span>
+          )}
+
+          {site.encoding?.trim() && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{
+                background: "var(--color-surface-2)",
+                color: "var(--color-text-muted)",
+                fontSize: "11px",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              {site.encoding}
+            </span>
+          )}
+
+          {site.page_list.length > 1 && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full"
+              style={{
+                background: "var(--color-surface-2)",
+                color: "var(--color-text-muted)",
+                fontSize: "11px",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              {site.page_list.length} 页
             </span>
           )}
         </div>

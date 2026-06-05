@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Search, ChevronDown, ChevronUp, Download, RotateCcw,
+  Search, ChevronDown, ChevronUp, Download, RotateCcw, ArrowRight,
   ListChecks, Filter, PlusCircle, Globe,
   FileJson, FileText, BarChart2,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { animateCountUp } from "@/lib/animations";
 import { usePersistedState } from "@/lib/persist";
+import { useAppNavigate } from "@/router";
 import type { ScanItem } from "@/types";
 
 // ─── ExcludedBadge ────────────────────────────────────────────────────────────
@@ -276,7 +277,7 @@ type FilterTab = "all" | "pending" | "excluded";
 type ViewMode = "flat" | "grouped";
 
 export function ScanPreview() {
-  const { scanItems, selectedUrls, scanStats, toggleSelect, selectAll, startSelectedDownload, startScan, stopDownload } = useDownloadStore();
+  const { scanItems, selectedUrls, scanStats, toggleSelect, selectAll, startSelectedDownload, reset } = useDownloadStore();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<FilterTab>("pending");
   const [sortField, setSortField] = useState<"name" | "site" | "date">("date");
@@ -286,6 +287,7 @@ export function ScanPreview() {
   const [viewMode, setViewMode] = usePersistedState<ViewMode>("scan-view-mode", "grouped");
   const [showChart, setShowChart] = usePersistedState<boolean>("scan-show-chart", false);  const selectedCountRef = useRef<HTMLSpanElement>(null);
   const prevSelectedCount = useRef(0);
+  const navigate = useAppNavigate();
 
   const pendingCount = scanItems.filter((i) => !i.excluded_reason).length;
   const excludedCount = scanItems.filter((i) => !!i.excluded_reason).length;
@@ -464,8 +466,8 @@ export function ScanPreview() {
               <ExportDropdown scanItems={scanItems} selectedUrls={selectedUrls} onClose={() => setShowExport(false)} />
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={() => startScan()}>
-            <RotateCcw className="w-3.5 h-3.5" /> 重新扫描
+          <Button variant="ghost" size="sm" onClick={() => { reset(); navigate("/"); }}>
+            <RotateCcw className="w-3.5 h-3.5" /> 返回任务发起台
           </Button>
         </div>
       </div>
@@ -527,8 +529,8 @@ export function ScanPreview() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => stopDownload()}>
-            <Download className="w-3.5 h-3.5" /> 取消
+          <Button variant="secondary" size="sm" onClick={() => { reset(); navigate("/tasks"); }}>
+            <ArrowRight className="w-3.5 h-3.5" /> 去任务管理
           </Button>
           <Button size="sm" onClick={startSelectedDownload} disabled={selectedCount === 0}>
             <Download className="w-3.5 h-3.5" /> 开始下载 {selectedCount > 0 ? `(${selectedCount})` : ""}

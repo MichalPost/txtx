@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useEffect } from "react";
 import { Link, Loader2, ChevronRight } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
 import { Button } from "@/components/Button";
 import { apiPreviewNovelName } from "@/lib/api";
 import { animateDropdownOpen } from "@/lib/animations";
@@ -21,10 +20,10 @@ function pushUrlHistory(url: string) {
 
 interface SingleDownloadInputProps {
   disabled: boolean;
+  onSubmit?: (url: string) => void | Promise<void>;
 }
 
-export function SingleDownloadInput({ disabled }: SingleDownloadInputProps) {
-  const { startSingleDownload, reset } = useDownloadStore();
+export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputProps) {
   const [url, setUrl] = useState("");
   const [history, setHistory] = useState<string[]>(loadUrlHistory);
   const [showHistory, setShowHistory] = useState(false);
@@ -66,8 +65,8 @@ export function SingleDownloadInput({ disabled }: SingleDownloadInputProps) {
     if (!u) return;
     pushUrlHistory(u);
     setHistory(loadUrlHistory());
-    reset();
-    startSingleDownload(u);
+    void onSubmit?.(u);
+    setUrl("");
     setShowHistory(false);
     setPreviewName(null);
   };

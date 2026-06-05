@@ -99,7 +99,8 @@ const AI_BATCH_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专�
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps) {
-  const { config: aiConfig } = useAiStore();
+  const aiEnabled = useAiStore((s) => s.config.enabled);
+  const aiConfig = useAiStore((s) => s.activeConfig());
   const [mode, setMode] = useState<AnalysisMode>("xpath");
   const [phase, setPhase] = useState<"idle" | "fetching" | "analyzing" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -260,7 +261,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
               <span>{errorMsg}</span>
             </div>
           )}
-          <Button size="sm" onClick={startAnalysis} disabled={!aiConfig.enabled}>
+          <Button size="sm" onClick={startAnalysis} disabled={!aiEnabled}>
             <Sparkles className="w-3.5 h-3.5" />
             {phase === "error" ? "重新分析" : "开始 AI 分析"}
           </Button>

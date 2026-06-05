@@ -1,24 +1,48 @@
 /**
- * Step 1 — 目录链接
- * 用户输入目录页 URL，可点击"查询"预拉取并验证页面可达性
+ * Step 3 — 目录链接
+ * 用户确认目录页 URL，可点击"查询"预拉取并验证页面可达性
+ * 支持 AI 一键分析后续目录规则（需在设置中启用 AI）
  */
 import { useState } from "react";
-import { Globe, Loader2, CheckCircle2, AlertCircle, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Globe, Loader2, CheckCircle2, AlertCircle, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
 import { apiFetchSource } from "@/lib/api/files";
-import type { WizardData } from "./ruleUtils";
+import { aiComplete, preprocessHtml, extractJson } from "@/lib/ai";
+import { useAiStore } from "@/store/aiStore";
+import { detectCharset } from "./ruleUtils";
+import type { WizardData, FieldRule } from "./ruleUtils";
 
 interface Props {
   data: WizardData;
   onChange: (d: WizardData) => void;
 }
 
+const AI_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专家。
+分析目录页HTML，为以下字段生成XPath，严格输出JSON，不含其他内容：
+{
+  "list_novel_name":   {"xpath":"...","explanation":"..."},
+  "list_release_date": {"xpath":"...","explanation":"..."},
+  "list_release_url":  {"xpath":"...","explanation":"..."}
+}
+规则：优先用 id/class 属性，文本加 /text()，链接加 /@href，用 // 全局路径。无把握的字段 xpath 留空字符串。`;
+
+function applyAiResult(existing: FieldRule, result?: { xpath?: string }): FieldRule {
+  const xpath = result?.xpath ?? "";
+  if (!xpath) return existing;
+  return { ...existing, mode: "ai", xpath };
+}
+
 type Status = "idle" | "loading" | "ok" | "error";
 
 export function WizardStep1Url({ data, onChange }: Props) {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const aiEnabled = useAiStore((s) => s.config.enabled);
 
   const handleFetch = async () => {
     const url = data.catalog_url.trim();
@@ -27,11 +51,57 @@ export function WizardStep1Url({ data, onChange }: Props) {
     setErrorMsg("");
     try {
       const html = await apiFetchSource(url);
-      onChange({ ...data, catalog_html: html });
+      const detectedEncoding = detectCharset(html);
+      onChange({
+        ...data,
+        catalog_html: html,
+        // Only fill if not already set (step 1 may have detected it first)
+        encoding: data.encoding || detectedEncoding,
+      });
       setStatus("ok");
     } catch (e) {
       setErrorMsg(String(e));
       setStatus("error");
+    }
+  };
+
+  const ensureHtml = async (): Promise<string> => {
+    if (data.catalog_html) return data.catalog_html;
+    const url = data.catalog_url.trim();
+    if (!url || url === "https://") throw new Error("请先填写目录页网址");
+    const html = await apiFetchSource(url);
+    const detectedEncoding = detectCharset(html);
+    onChange({ ...data, catalog_html: html, encoding: data.encoding || detectedEncoding });
+    return html;
+  };
+
+  const runAiAnalyze = async () => {
+    if (!aiEnabled) return;
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const html = await ensureHtml();
+      if (status !== "ok") setStatus("ok");
+      const aiConfig = useAiStore.getState().activeConfig();
+      const processed = preprocessHtml(html);
+      const reply = await aiComplete(
+        `网站：${data.catalog_url}\n\n分析以下目录页 HTML，为章节列表规则生成 XPath：\n${processed}`,
+        AI_SYSTEM,
+        aiConfig,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const parsed = extractJson(reply) as any;
+      onChange({
+        ...data,
+        catalog_html: html,
+        list_novel_name:   applyAiResult(data.list_novel_name,   parsed?.list_novel_name),
+        list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
+        list_release_url:  applyAiResult(data.list_release_url,  parsed?.list_release_url),
+      });
+    } catch (e) {
+      setAiError(String(e));
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -45,10 +115,10 @@ export function WizardStep1Url({ data, onChange }: Props) {
         <Globe className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium" style={{ color: "var(--color-accent)" }}>
-            第一步：粘贴目录页的网址
+            第三步：确认目录页链接
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            目录页必须包含各章节的链接列表。粘贴好链接后点击"查询"可预拉取页面，验证后向导步骤会自动带入 HTML 源码，省去后续重复请求。
+            这里填写的是某本书的目录页，页面里应包含章节列表。查询成功后会缓存 HTML，供下一步配置目录规则与测试使用。
           </p>
         </div>
       </div>
@@ -99,6 +169,52 @@ export function WizardStep1Url({ data, onChange }: Props) {
           <span>{errorMsg || "页面请求失败，请检查网址是否正确"}</span>
         </div>
       )}
+
+      {/* AI error */}
+      {aiError && (
+        <div
+          className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+        >
+          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>{aiError}</span>
+        </div>
+      )}
+
+      {/* AI analyze button — always shown when AI configured */}
+      <div className="flex items-center gap-2">
+        {aiEnabled ? (
+          <Button
+            size="sm"
+            onClick={runAiAnalyze}
+            disabled={aiLoading || (!data.catalog_html && (!data.catalog_url.trim() || data.catalog_url === "https://"))}
+          >
+            {aiLoading
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Sparkles className="w-3.5 h-3.5" />
+            }
+            {aiLoading ? "AI 分析中..." : "AI 分析目录规则"}
+          </Button>
+        ) : (
+          <button
+            onClick={() => navigate("/settings?tab=ai")}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors shrink-0"
+            style={{
+              background: "var(--color-surface-1)",
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-subtle)",
+            }}
+          >
+            <Sparkles className="w-3 h-3" style={{ color: "var(--color-text-subtle)" }} />
+            AI 未启用（点此开启）
+          </button>
+        )}
+        {aiEnabled && (
+          <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+            自动生成下一步要用的目录规则
+          </span>
+        )}
+      </div>
 
       {/* Search helper hint */}
       <div

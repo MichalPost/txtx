@@ -60,6 +60,10 @@ export interface WebsiteConfig {
   special_mode: string;
   /** Fallback XPath rules for content extraction */
   novel_content_fallbacks: string[];
+  /** Per-site response encoding override, e.g. "gbk". Empty = use server charset / UTF-8. */
+  encoding?: string;
+  /** XPath to locate the "next page" link inside a chapter page. Empty = single-page chapters. */
+  chapter_next_page_xpath?: string;
 }
 
 export interface TextConversionConfig {
@@ -241,6 +245,7 @@ export interface TaskRecord {
   kind: TaskKind;
   status: TaskStatus;
   label: string;
+  source_url?: string | null;
   created_at: string;
   finished_at: string | null;
   total: number;

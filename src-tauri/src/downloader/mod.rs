@@ -110,7 +110,8 @@ pub async fn run_download(
     ).await;
 
     remove_queue(&base_dir).await;
-    let _ = crate::config::update_last_download_date(
+    let _ = crate::config_db::update_last_download_date(
+        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
         &Local::now().format("%Y-%m-%d").to_string()
     );
 
@@ -160,7 +161,8 @@ pub async fn run_download_selected(
         &target_date, &tx, &logger, &cancel,
     ).await;
 
-    let _ = crate::config::update_last_download_date(
+    let _ = crate::config_db::update_last_download_date(
+        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
         &Local::now().format("%Y-%m-%d").to_string()
     );
 

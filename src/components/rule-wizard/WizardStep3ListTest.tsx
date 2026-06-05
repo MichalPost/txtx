@@ -1,16 +1,16 @@
 /**
- * Step 3 — 目录页测试
- * 拉取目录页 HTML，运行三条规则，展示命中预览 + 源码高亮
- * 同时从"书目链接"结果中挑选第一条，供步骤5章节测试使用
+ * Step 4 — 目录测试
+ * 运行目录规则，展示命中预览 + 章节列表选择
+ * （更新日期规则为可选，校验时不计入必须通过项）
  */
 import { useState, useEffect, useMemo } from "react";
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, CheckCircle2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/Button";
 import { TestPanel } from "./TestPanel";
 import { apiFetchSource } from "@/lib/api/files";
 import { validateXPath } from "@/lib/ai";
 import { buildXPathFromRule } from "./ruleUtils";
-import type { WizardData } from "./ruleUtils";
+import type { ChapterListItem, WizardData } from "./ruleUtils";
 
 interface Props {
   data: WizardData;
@@ -20,11 +20,15 @@ interface Props {
 export function WizardStep3ListTest({ data, onChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [summary, setSummary] = useState<{ passed: number; total: number } | null>(null);
 
   const fields = useMemo(() => [
-    { label: "列表页书名",   xpath: buildXPathFromRule(data.list_novel_name) },
-    { label: "更新日期",     xpath: buildXPathFromRule(data.list_release_date) },
-    { label: "书目链接",     xpath: buildXPathFromRule(data.list_release_url) },
+    { label: "章节名称", xpath: buildXPathFromRule(data.list_novel_name) },
+    { label: "章节链接", xpath: buildXPathFromRule(data.list_release_url) },
+    // 更新日期为可选，有规则才显示
+    ...(buildXPathFromRule(data.list_release_date)
+      ? [{ label: "更新日期（可选）", xpath: buildXPathFromRule(data.list_release_date) }]
+      : []),
   ], [data.list_novel_name, data.list_release_date, data.list_release_url]);
 
   // Auto-run when entering the step if html is already cached
@@ -41,26 +45,40 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
 
       // Extract first chapter URL for step 5
       const urlXpath = buildXPathFromRule(data.list_release_url);
+      const titleXpath = buildXPathFromRule(data.list_novel_name);
+      const dateXpath = buildXPathFromRule(data.list_release_date);
       let chapterTestUrl = data.chapter_test_url;
+      let chapterItems: ChapterListItem[] = data.chapter_items;
       if (urlXpath) {
         const v = validateXPath(html, urlXpath);
+        const passCount = [
+          validateXPath(html, buildXPathFromRule(data.list_novel_name)).count > 0,
+          v.count > 0,
+        ].filter(Boolean).length;
+        setSummary({ passed: passCount, total: 2 });
         if (v.samples.length > 0) {
+          const titles = titleXpath ? validateXPath(html, titleXpath).samples : [];
+          const dates = dateXpath ? validateXPath(html, dateXpath).samples : [];
+          chapterItems = v.samples.map((rawUrl, index) => ({
+            title: titles[index] || `章节 ${index + 1}`,
+            url: resolveChapterUrl(rawUrl, data.catalog_url),
+            date: dates[index],
+          })).filter((item) => item.url);
           const rawUrl = v.samples[0];
           // Resolve relative URL
-          if (rawUrl.startsWith("http")) {
-            chapterTestUrl = rawUrl;
-          } else {
-            try {
-              const base = new URL(data.catalog_url);
-              chapterTestUrl = new URL(rawUrl, base).href;
-            } catch {
-              chapterTestUrl = rawUrl;
-            }
-          }
+          chapterTestUrl = resolveChapterUrl(rawUrl, data.catalog_url);
         }
+      } else {
+        setSummary({ passed: 0, total: 3 });
       }
 
-      onChange({ ...data, catalog_html: html, chapter_test_url: chapterTestUrl });
+      onChange({
+        ...data,
+        catalog_html: html,
+        chapter_test_url: chapterTestUrl,
+        chapter_items: chapterItems,
+        selected_chapter_title: chapterItems.find((item) => item.url === chapterTestUrl)?.title ?? data.selected_chapter_title,
+      });
     } catch (e) {
       setErrorMsg(String(e));
     } finally {
@@ -82,7 +100,7 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
       <div className="flex items-center gap-2">
         <div className="flex-1">
           <p className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
-            第三步：目录页测试
+            第四步：目录测试
           </p>
           <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
             目标：<code style={{ color: "var(--color-accent)" }}>{data.catalog_url}</code>
@@ -123,17 +141,32 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
         </div>
       )}
 
-      {/* Chapter URL hint */}
-      {data.chapter_test_url && (
+      {summary && !loading && (
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
-          style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
+          style={{
+            background: summary.passed === summary.total ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+            color: summary.passed === summary.total ? "var(--color-success)" : "var(--color-warning)",
+          }}
         >
-          <span className="shrink-0 font-medium">已提取章节测试 URL：</span>
-          <span className="truncate" style={{ color: "var(--color-text-muted)" }}>
-            {data.chapter_test_url}
+          <span>规则校验通过 {summary.passed}/{summary.total}</span>
+          <span style={{ color: "var(--color-text-muted)" }}>
+            目录规则命中后，请在下方章节列表中选中一个章节继续
           </span>
         </div>
+      )}
+
+      {data.chapter_items.length > 0 && (
+        <ChapterPicker
+          items={data.chapter_items}
+          selectedUrl={data.chapter_test_url}
+          onSelect={(item) => onChange({
+            ...data,
+            chapter_test_url: item.url,
+            selected_chapter_title: item.title,
+            chapter_html: "",
+          })}
+        />
       )}
 
       {/* Test results */}
@@ -141,17 +174,90 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
         <TestPanel
           html={data.catalog_html}
           fields={fields}
-          page="catalog"
-          onXPathToolApply={(res) => {
-            // Map TargetField → WizardData keys
-            const patch: Partial<typeof data> = {};
-            if (res.chapter_name) patch.list_novel_name   = { ...data.list_novel_name,   mode: "xpath", xpath: res.chapter_name };
-            if (res.chapter_url)  patch.list_release_url  = { ...data.list_release_url,  mode: "xpath", xpath: res.chapter_url };
-            if (res.book_name)    patch.list_release_date = { ...data.list_release_date, mode: "xpath", xpath: res.book_name };
-            onChange({ ...data, ...patch });
-          }}
         />
       )}
+    </div>
+  );
+}
+
+function resolveChapterUrl(rawUrl: string, baseUrl: string): string {
+  if (!rawUrl) return "";
+  if (rawUrl.startsWith("http")) return rawUrl;
+  try {
+    return new URL(rawUrl, baseUrl).href;
+  } catch {
+    return rawUrl;
+  }
+}
+
+function ChapterPicker({
+  items,
+  selectedUrl,
+  onSelect,
+}: {
+  items: ChapterListItem[];
+  selectedUrl: string;
+  onSelect: (item: ChapterListItem) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-semibold flex-1" style={{ color: "var(--color-text)" }}>
+          目录章节列表
+        </p>
+        <span
+          className="text-xs px-2 py-0.5 rounded-full"
+          style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
+        >
+          {items.length} 章
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-0.5">
+        {items.map((item, index) => {
+          const selected = item.url === selectedUrl;
+          return (
+            <button
+              key={`${item.url}-${index}`}
+              type="button"
+              onClick={() => onSelect(item)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all"
+              style={{
+                background: selected
+                  ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))"
+                  : "var(--color-surface)",
+                borderColor: selected ? "var(--color-accent)" : "var(--color-border)",
+              }}
+            >
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
+                style={{
+                  background: selected ? "var(--color-accent)" : "var(--color-surface-2)",
+                  color: selected ? "#fff" : "var(--color-text-subtle)",
+                }}
+              >
+                {index + 1}
+              </span>
+              <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                <span className="text-xs font-medium truncate" style={{ color: selected ? "var(--color-accent)" : "var(--color-text)" }}>
+                  {item.title}
+                </span>
+                <span className="text-xs truncate font-mono" style={{ color: "var(--color-text-subtle)", fontSize: 10 }} title={item.url}>
+                  {item.url.replace(/^https?:\/\/[^/]+/, "") || item.url}
+                </span>
+              </div>
+              {item.date && (
+                <span className="shrink-0 text-xs px-1.5 py-0.5 rounded" style={{ background: "var(--color-surface-2)", color: "var(--color-text-subtle)", fontSize: 10 }}>
+                  {item.date}
+                </span>
+              )}
+              {selected
+                ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+                : <ChevronRight className="w-4 h-4 shrink-0 opacity-40" style={{ color: "var(--color-text-subtle)" }} />
+              }
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

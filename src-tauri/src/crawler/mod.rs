@@ -137,7 +137,8 @@ pub async fn get_chapter_urls(
 // ─── download_chapter ─────────────────────────────────────────────────────────
 
 /// Download a single chapter and return its text content.
-/// Tries primary xpath first, then fallbacks in order.
+/// If `next_page_xpath` is non-empty, follows pagination links and concatenates
+/// content from all sub-pages (up to 20 pages to avoid infinite loops).
 pub async fn download_chapter(
     client: &Client,
     url: &str,
@@ -148,21 +149,101 @@ pub async fn download_chapter(
     retry_delay: u64,
     filter: &ContentFilterConfig,
 ) -> Result<String> {
+    download_chapter_with_pagination(
+        client, url, content_xpath, xpath_fallbacks,
+        encoding_map, retry_count, retry_delay, filter, "", 0,
+    ).await
+}
+
+/// Internal recursive helper that also handles chapter-level pagination.
+pub async fn download_chapter_paged(
+    client: &Client,
+    url: &str,
+    content_xpath: &str,
+    xpath_fallbacks: &[String],
+    encoding_map: &HashMap<String, String>,
+    retry_count: u32,
+    retry_delay: u64,
+    filter: &ContentFilterConfig,
+    next_page_xpath: &str,
+) -> Result<String> {
+    download_chapter_with_pagination(
+        client, url, content_xpath, xpath_fallbacks,
+        encoding_map, retry_count, retry_delay, filter, next_page_xpath, 0,
+    ).await
+}
+
+async fn download_chapter_with_pagination(
+    client: &Client,
+    url: &str,
+    content_xpath: &str,
+    xpath_fallbacks: &[String],
+    encoding_map: &HashMap<String, String>,
+    retry_count: u32,
+    retry_delay: u64,
+    filter: &ContentFilterConfig,
+    next_page_xpath: &str,
+    depth: usize,
+) -> Result<String> {
+    const MAX_PAGES: usize = 20;
+    if depth >= MAX_PAGES { return Ok(String::new()); }
+
     let html_str = fp(client, url, encoding_map, retry_count, retry_delay).await?;
-    let primary = xtn(&html_str, content_xpath);
-    if !primary.is_empty() {
-        return Ok(optimize_content(primary, filter));
-    }
 
-    for fallback_xpath in xpath_fallbacks {
-        if fallback_xpath.trim().is_empty() { continue; }
-        let parts = xtn(&html_str, fallback_xpath.trim());
-        if !parts.is_empty() {
-            return Ok(optimize_content(parts, filter));
+    // Extract content using primary xpath or fallbacks
+    let content = {
+        let primary = xtn(&html_str, content_xpath);
+        if !primary.is_empty() {
+            primary
+        } else {
+            let mut found = vec![];
+            for fallback_xpath in xpath_fallbacks {
+                if fallback_xpath.trim().is_empty() { continue; }
+                let parts = xtn(&html_str, fallback_xpath.trim());
+                if !parts.is_empty() { found = parts; break; }
+            }
+            found
         }
+    };
+
+    let this_page = optimize_content(content, filter);
+
+    // Follow next-page link if configured
+    if next_page_xpath.trim().is_empty() || this_page.is_empty() {
+        return Ok(this_page);
     }
 
-    Ok(String::new())
+    let next_urls = xtn(&html_str, next_page_xpath);
+    let next_url = next_urls.into_iter().next().unwrap_or_default();
+    let next_url = next_url.trim().to_string();
+
+    if next_url.is_empty() || next_url == url {
+        return Ok(this_page);
+    }
+
+    // Resolve relative URL
+    let next_abs = if next_url.starts_with("http") {
+        next_url
+    } else {
+        // Extract base (scheme + host) from current url
+        let base = url.split('/').take(3).collect::<Vec<_>>().join("/");
+        if next_url.starts_with('/') {
+            format!("{}{}", base, next_url)
+        } else {
+            format!("{}/{}", url.trim_end_matches('/'), next_url)
+        }
+    };
+
+    let next_content = Box::pin(download_chapter_with_pagination(
+        client, &next_abs, content_xpath, xpath_fallbacks,
+        encoding_map, retry_count, retry_delay, filter, next_page_xpath, depth + 1,
+    )).await?;
+
+    if next_content.is_empty() {
+        Ok(this_page)
+    } else {
+        Ok(format!("{}\n{}", this_page, next_content))
+    }
 }
 
 // ─── check_site_health ────────────────────────────────────────────────────────

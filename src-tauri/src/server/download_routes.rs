@@ -9,7 +9,6 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::{mpsc, Notify};
 
-use crate::config;
 use crate::downloader;
 use crate::downloader::ScanOptions;
 use crate::models::{BookCandidate, ProgressEvent};
@@ -35,7 +34,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
         return;
     }
 
-    let cfg = match config::load_config() {
+    let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
         Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
     };
@@ -79,7 +78,7 @@ async fn handle_ws_single(mut socket: WebSocket, state: AppState, url: String) {
         return;
     }
 
-    let cfg = match config::load_config() {
+    let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
         Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
     };
@@ -114,7 +113,7 @@ async fn handle_ws_scan(mut socket: WebSocket, state: AppState) {
         return;
     }
 
-    let cfg = match config::load_config() {
+    let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
         Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
     };
@@ -178,7 +177,7 @@ async fn handle_ws_download_selected(mut socket: WebSocket, state: AppState) {
         return;
     }
 
-    let cfg = match config::load_config() {
+    let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
         Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
     };

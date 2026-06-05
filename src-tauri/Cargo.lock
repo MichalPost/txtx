@@ -6202,6 +6202,7 @@ dependencies = [
  "async-openai",
  "async-trait",
  "axum",
+ "backoff",
  "backon",
  "bytes",
  "chrono",

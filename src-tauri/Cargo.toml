@@ -58,6 +58,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 uuid = { version = "1", features = ["v4"] }
 async-openai = "0.28"
+backoff = "0.4"
 
 [[bin]]
 name = "txtx-app"

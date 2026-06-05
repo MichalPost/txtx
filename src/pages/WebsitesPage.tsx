@@ -53,7 +53,7 @@ function WebsiteEditor({
   const [showSourceViewer, setShowSourceViewer] = useState(false);
   const [showAiAnalyzer, setShowAiAnalyzer] = useState(false);
   const [showRuleWizard, setShowRuleWizard] = useState(false);
-  const { config: aiConfig } = useAiStore();
+  const aiEnabled = useAiStore((s) => s.config.enabled);
 
   const field = (key: keyof WebsiteConfig, label: string, placeholder?: string) => (
     <Input
@@ -132,7 +132,7 @@ function WebsiteEditor({
                   <Code2 className="w-3.5 h-3.5" />
                   源码查看器
                 </button>
-                {aiConfig.enabled && (
+                {aiEnabled && (
                   <button
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
                     style={{

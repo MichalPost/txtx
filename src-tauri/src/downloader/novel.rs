@@ -9,7 +9,7 @@ use crate::models::{
     BookCandidate, EbookConversionConfig, NetworkConfig, ProgressEvent,
     TextConversionConfig, WebsiteConfig,
 };
-use crate::crawler::{download_chapter, get_chapter_urls};
+use crate::crawler::{download_chapter_paged, get_chapter_urls};
 use crate::text_converter;
 use crate::ebook_converter;
 
@@ -105,6 +105,7 @@ async fn run_first_pass(
         let client = client.clone();
         let url = url.clone();
         let xpath = site_cfg.novel_content.clone();
+        let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
         let enc = net_cfg.encoding_map.clone();
         let rc = net_cfg.retry_count;
         let rd = net_cfg.retry_delay;
@@ -154,16 +155,16 @@ async fn run_first_pass(
                         ).await?
                     }
                     Err(_) => {
-                        download_chapter(
+                        download_chapter_paged(
                             &client, &url, &xpath, &xpath_fallbacks,
-                            &enc, rc, rd, &content_filter,
+                            &enc, rc, rd, &content_filter, &next_page_xpath,
                         ).await?
                     }
                 }
             } else {
-                download_chapter(
+                download_chapter_paged(
                     &client, &url, &xpath, &xpath_fallbacks,
-                    &enc, rc, rd, &content_filter,
+                    &enc, rc, rd, &content_filter, &next_page_xpath,
                 ).await?
             };
 
@@ -241,10 +242,11 @@ async fn run_repair_pass(
             tokio::spawn(async move {
                 let _p = sem.acquire().await.unwrap();
                 let result = (|| async {
-                    let text = download_chapter(
+                    let text = download_chapter_paged(
                         &client, &url, &xpath, &[],
                         &enc, rc, rd,
                         &crate::models::ContentFilterConfig::default(),
+                        "",
                     ).await?;
                     if text.is_empty() {
                         return Err(anyhow::anyhow!("empty chapter"));

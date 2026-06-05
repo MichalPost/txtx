@@ -19,6 +19,7 @@ fn migrate(conn: &Connection) -> Result<()> {
             kind            TEXT NOT NULL,
             status          TEXT NOT NULL,
             label           TEXT NOT NULL,
+            source_url      TEXT,
             created_at      TEXT NOT NULL,
             finished_at     TEXT,
             total           INTEGER DEFAULT 0,
@@ -56,12 +57,13 @@ pub async fn save_task(base_dir: &Path, task: &TaskRecord) -> Result<()> {
         conn.execute(
             "INSERT OR REPLACE INTO task_sessions
              (id,kind,status,label,created_at,finished_at,total,completed,
-              success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+              source_url,success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
             params![
                 task.id, kind, status, task.label,
                 task.created_at, task.finished_at,
                 task.total as i64, task.completed as i64,
+                task.source_url,
                 task.success_count as i64, task.error_count as i64,
                 stats_json, scan_items_json, scan_stats_json,
                 task.error_message
@@ -85,7 +87,7 @@ pub async fn load_all_tasks(base_dir: &Path) -> Result<Vec<TaskRecord>> {
         if !table_exists { return Ok(vec![]); }
 
         let mut stmt = conn.prepare(
-            "SELECT id,kind,status,label,created_at,finished_at,total,completed,
+            "SELECT id,kind,status,label,source_url,created_at,finished_at,total,completed,
                     success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message
              FROM task_sessions ORDER BY created_at DESC LIMIT 100"
         )?;
@@ -95,36 +97,37 @@ pub async fn load_all_tasks(base_dir: &Path) -> Result<Vec<TaskRecord>> {
                 row.get::<_, String>(1)?,   // kind
                 row.get::<_, String>(2)?,   // status
                 row.get::<_, String>(3)?,   // label
-                row.get::<_, String>(4)?,   // created_at
-                row.get::<_, Option<String>>(5)?,  // finished_at
-                row.get::<_, i64>(6)? as usize,    // total
-                row.get::<_, i64>(7)? as usize,    // completed
-                row.get::<_, i64>(8)? as usize,    // success_count
-                row.get::<_, i64>(9)? as usize,    // error_count
-                row.get::<_, Option<String>>(10)?, // stats_json
-                row.get::<_, Option<String>>(11)?, // scan_items_json
-                row.get::<_, Option<String>>(12)?, // scan_stats_json
-                row.get::<_, Option<String>>(13)?, // error_message
+                row.get::<_, Option<String>>(4)?,  // source_url
+                row.get::<_, String>(5)?,   // created_at
+                row.get::<_, Option<String>>(6)?,  // finished_at
+                row.get::<_, i64>(7)? as usize,    // total
+                row.get::<_, i64>(8)? as usize,    // completed
+                row.get::<_, i64>(9)? as usize,    // success_count
+                row.get::<_, i64>(10)? as usize,   // error_count
+                row.get::<_, Option<String>>(11)?, // stats_json
+                row.get::<_, Option<String>>(12)?, // scan_items_json
+                row.get::<_, Option<String>>(13)?, // scan_stats_json
+                row.get::<_, Option<String>>(14)?, // error_message
             ))
         })?.filter_map(|r| r.ok()).map(|t| {
             let kind: TaskKind = serde_json::from_str(&format!("\"{}\"", t.1))
                 .unwrap_or(TaskKind::BatchDownload);
             let status: TaskStatus = serde_json::from_str(&format!("\"{}\"", t.2))
                 .unwrap_or(TaskStatus::Done);
-            let stats: Option<DownloadStats> = t.10.as_ref()
+            let stats: Option<DownloadStats> = t.11.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
-            let scan_items: Vec<ScanItem> = t.11.as_ref()
+            let scan_items: Vec<ScanItem> = t.12.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok())
                 .unwrap_or_default();
-            let scan_stats: Option<DownloadStats> = t.12.as_ref()
+            let scan_stats: Option<DownloadStats> = t.13.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
             TaskRecord {
                 id: t.0, kind, status,
-                label: t.3, created_at: t.4, finished_at: t.5,
-                total: t.6, completed: t.7,
-                success_count: t.8, error_count: t.9,
+                label: t.3, source_url: t.4, created_at: t.5, finished_at: t.6,
+                total: t.7, completed: t.8,
+                success_count: t.9, error_count: t.10,
                 stats, scan_items, scan_stats,
-                error_message: t.13,
+                error_message: t.14,
             }
         }).collect();
         Ok(tasks)

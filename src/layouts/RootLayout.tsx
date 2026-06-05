@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SetupWizard } from "@/components/onboarding/SetupWizard";
 import { useConfigStore } from "@/store/configStore";
+import { useAiStore } from "@/store/aiStore";
 import { apiCheckFirstRun } from "@/lib/api";
 
 // 页面切换动画变体：轻微向上淡入，向下淡出
@@ -22,6 +23,7 @@ const pageTransition = {
 export function RootLayout() {
   const location = useLocation();
   const { error, loadConfig } = useConfigStore();
+  const { loaded: aiLoaded, load: loadAi } = useAiStore();
   const [firstRun, setFirstRun] = useState<boolean | null>(null); // null = checking
 
   // 检测首次运行
@@ -33,6 +35,12 @@ export function RootLayout() {
       setFirstRun(false);
       loadConfig();
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 全局加载 AI 配置（与页面无关，启动时就加载）
+  useEffect(() => {
+    if (!aiLoaded) loadAi();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

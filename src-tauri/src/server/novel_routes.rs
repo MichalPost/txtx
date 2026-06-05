@@ -1,10 +1,10 @@
 use std::sync::Arc;
-use axum::{extract::Query, Json};
+use axum::{extract::{Query, State}, Json};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::config;
 use super::error::AppError;
+use super::state::AppState;
 
 #[derive(Deserialize)]
 pub struct NovelNameQuery {
@@ -12,9 +12,10 @@ pub struct NovelNameQuery {
 }
 
 pub async fn get_novel_name(
+    State(state): State<AppState>,
     Query(q): Query<NovelNameQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = config::load_config()?;
+    let cfg = crate::config_db::load_config(&state.base_dir)?;
     let client = Arc::new(crate::crawler::build_client(&cfg.network)?);
 
     let site_cfg = cfg.websites.values()

@@ -6,6 +6,7 @@ pub mod health_routes;
 pub mod history_routes;
 pub mod novel_routes;
 pub mod queue_routes;
+pub mod source_routes;
 pub mod state;
 pub mod ai_routes;
 
@@ -22,6 +23,7 @@ use health_routes::get_health;
 use convert_routes::post_convert_text;
 use queue_routes::{delete_queue, get_queue};
 use novel_routes::{get_novel_name, post_open_dir};
+use source_routes::get_source;
 use ai_routes::{get_ai_config, put_ai_config, post_ai_complete, post_ai_stream, post_ai_extract};
 
 pub async fn run_server() {
@@ -33,9 +35,7 @@ pub async fn run_server() {
         running: false,
     }));
 
-    let base_dir = crate::config::load_config()
-        .map(|c| std::path::PathBuf::from(&c.paths.base_dir))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let base_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
     let app_state = AppState { download: download_state, base_dir };
 
@@ -59,6 +59,7 @@ pub async fn run_server() {
         .route("/api/queue",               get(get_queue).delete(delete_queue))
         .route("/api/novel-name",          get(get_novel_name))
         .route("/api/open-dir",            post(post_open_dir))
+        .route("/api/source",              get(get_source))
         .route("/api/ai/config",           get(get_ai_config).put(put_ai_config))
         .route("/api/ai/complete",         post(post_ai_complete))
         .route("/api/ai/stream",           post(post_ai_stream))

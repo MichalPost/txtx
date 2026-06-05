@@ -2,8 +2,10 @@
  * Step 6 — 保存确认
  * 汇总所有规则，确认后应用到 WebsiteConfig
  */
-import { CheckCircle2, AlertCircle, Save } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, AlertCircle, Save, Info } from "lucide-react";
 import { Button } from "@/components/Button";
+import { Input } from "@/components/Input";
 import { buildXPathFromRule } from "./ruleUtils";
 import type { WizardData } from "./ruleUtils";
 import type { WebsiteConfig } from "@/types";
@@ -14,38 +16,163 @@ interface Props {
   onClose: () => void;
 }
 
+function isLikelyHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function WizardStep6Save({ data, onApply, onClose }: Props) {
-  const summary = [
-    { label: "目录页链接",       value: data.catalog_url },
-    { label: "列表页书名 XPath", value: buildXPathFromRule(data.list_novel_name) },
-    { label: "更新日期 XPath",   value: buildXPathFromRule(data.list_release_date) },
-    { label: "书目链接 XPath",   value: buildXPathFromRule(data.list_release_url) },
-    { label: "详情页书名 XPath", value: buildXPathFromRule(data.chap_novel_name) },
-    { label: "章节链接 XPath",   value: buildXPathFromRule(data.chap_chapter_url) },
-    { label: "正文内容 XPath",   value: buildXPathFromRule(data.chap_content) },
-    { label: "内容备用规则",     value: data.chap_content_fallbacks.join("\n") },
+  const [encoding, setEncoding] = useState(data.encoding ?? "");
+  const autoDetected = data.encoding?.trim() ?? "";  // what was auto-detected on fetch
+  const listNameXPath = buildXPathFromRule(data.list_novel_name);
+  const listUrlXPath = buildXPathFromRule(data.list_release_url);
+  const listDateXPath = buildXPathFromRule(data.list_release_date);
+  const chapterNameXPath = buildXPathFromRule(data.chap_novel_name);
+  const chapterUrlXPath = buildXPathFromRule(data.chap_chapter_url);
+  const chapterContentXPath = buildXPathFromRule(data.chap_content);
+  const domainRoot = (() => {
+    try {
+      const src = data.update_list_url || data.catalog_url;
+      return src.startsWith("http") ? new URL(src).origin + "/" : src;
+    } catch {
+      return data.catalog_url;
+    }
+  })();
+  const domainHostname = (() => {
+    try {
+      return new URL(domainRoot).hostname;
+    } catch {
+      return domainRoot.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    }
+  })();
+  const fallbackCount = data.chap_content_fallbacks.filter(Boolean).length;
+  const invalidDomain = !isLikelyHttpUrl(domainRoot);
+  const invalidCatalogUrl = !isLikelyHttpUrl(data.catalog_url);
+
+  const pageListPreview = (() => {
+    if (!data.has_pagination || data.page_total <= 1) return null;
+    // Show at most 3 entries for display
+    const basePath = (() => {
+      try {
+        const u = new URL(data.update_list_url);
+        return u.pathname + (u.search || "");
+      } catch { return data.update_list_url; }
+    })();
+    const part = data.page_insert_part.trim();
+    if (!part) return null;
+    const pages = Array.from({ length: Math.min(data.page_total, 3) }, (_, i) => {
+      const n = i + 1;
+      if (n === 1) return basePath;
+      const pagePart = part.replace(/\d+/, String(n));
+      const digitMatch = basePath.match(/(\d+)([^0-9]*)$/);
+      if (digitMatch) return basePath.replace(/(\d+)([^0-9]*)$/, `${n}$2`);
+      return basePath.replace(/(\/?)(\.[\w]+)?$/, `${pagePart}$1$2`);
+    });
+    return pages.join("\n") + (data.page_total > 3 ? `\n…共 ${data.page_total} 页` : "");
+  })();
+
+  const summary: { label: string; value: string; required?: boolean }[] = [
+    { label: "站点根域名",       value: domainRoot,         required: true },
+    { label: "分页",             value: pageListPreview ?? "单页，无分页" },
+    { label: "章节名称 XPath",   value: listNameXPath,      required: true },
+    { label: "章节链接 XPath",   value: listUrlXPath,       required: true },
+    ...(listDateXPath   ? [{ label: "更新日期 XPath",   value: listDateXPath }]   : []),
+    ...(chapterNameXPath ? [{ label: "详情页书名 XPath", value: chapterNameXPath }] : []),
+    ...(data.chapter_next_page_xpath?.trim()
+      ? [{ label: "章节内分页 XPath",  value: data.chapter_next_page_xpath }]
+      : []),
+    { label: "正文内容 XPath",   value: chapterContentXPath, required: true },
+    ...(data.chap_content_fallbacks.filter(Boolean).length > 0
+      ? [{ label: `备用规则（${data.chap_content_fallbacks.filter(Boolean).length} 条）`, value: data.chap_content_fallbacks.filter(Boolean).join("\n") }]
+      : []),
   ];
 
   // Validation: must-have fields
   const missingRequired = !data.catalog_url
-    || !buildXPathFromRule(data.list_novel_name)
-    || !buildXPathFromRule(data.list_release_url)
-    || !buildXPathFromRule(data.chap_content);
+    || !listNameXPath
+    || !listUrlXPath
+    || !chapterContentXPath;
+  const hasBlockingValidation = missingRequired || invalidDomain || invalidCatalogUrl;
 
   const handleApply = () => {
+    // ── Build page_list from pagination settings ───────────────────────────────
+    // page_list entries are paths that get appended to domain_name by the crawler.
+    // We derive them from update_list_url: extract the path relative to domain_name,
+    // then generate N variants by replacing (or appending) the page number.
+    let page_list: string[] = [];
+
+    if (data.has_pagination && data.page_total > 1 && data.page_insert_part.trim()) {
+      const basePath = (() => {
+        try {
+          const u = new URL(data.update_list_url);
+          // path relative to origin, e.g. "/top/lastupdate_1/"
+          return u.pathname + (u.search || "");
+        } catch {
+          return data.update_list_url;
+        }
+      })();
+
+      const part = data.page_insert_part.trim(); // e.g. "_2" or "?page=2"
+
+      page_list = Array.from({ length: data.page_total }, (_, i) => {
+        const pageNum = i + 1;
+        if (pageNum === 1) {
+          // Page 1 is the original URL path as-is
+          return basePath;
+        }
+        // Replace the page number in the insert_part template
+        const pagePart = part.replace(/\d+/, String(pageNum));
+
+        if (data.page_url_mode === "insert") {
+          // Insert into URL (e.g. query string ?page=N): append to basePath
+          // Strip any existing same param first to avoid duplication
+          const paramKey = part.match(/[?&]([^=]+)=/)?.[1];
+          if (paramKey) {
+            const stripped = basePath.replace(new RegExp(`[?&]${paramKey}=\\d+`, "i"), "");
+            const sep = stripped.includes("?") ? "&" : "?";
+            return `${stripped}${sep}${paramKey}=${pageNum}`;
+          }
+          return basePath + pagePart;
+        } else {
+          // suffix mode: replace the number part inside basePath
+          // Try to replace an existing digit sequence that matches the insert_part pattern
+          const digitMatch = basePath.match(/(\d+)([^0-9]*)$/);
+          if (digitMatch) {
+            // Replace the last number in the path with the new page number
+            return basePath.replace(/(\d+)([^0-9]*)$/, `${pageNum}$2`);
+          }
+          // No existing digit — append the pagePart before trailing slash/extension
+          return basePath.replace(/(\/?)(\.[\w]+)?$/, `${pagePart}$1$2`);
+        }
+      });
+    } else {
+      // No pagination: use the update_list_url path as the single entry
+      try {
+        const u = new URL(data.update_list_url);
+        page_list = [u.pathname + (u.search || "")];
+      } catch {
+        page_list = [data.update_list_url];
+      }
+    }
+
+    // Use the site root (from update list URL) as domain_name; fall back to catalog URL
     const patch: Partial<WebsiteConfig> = {
-      domain_name:   data.catalog_url,
-      list_novel_name:   buildXPathFromRule(data.list_novel_name),
-      release_date:      buildXPathFromRule(data.list_release_date),
-      release_url:       buildXPathFromRule(data.list_release_url),
-      novel_name_x:      buildXPathFromRule(data.chap_novel_name),
-      chapter_url_x:     buildXPathFromRule(data.chap_chapter_url),
-      novel_content:     buildXPathFromRule(data.chap_content),
+      domain_name:   domainRoot,
+      list_novel_name:   listNameXPath,
+      release_date:      listDateXPath,
+      release_url:       listUrlXPath,
+      novel_name_x:      chapterNameXPath,
+      chapter_url_x:     chapterUrlXPath,
+      novel_content:     chapterContentXPath,
       novel_content_fallbacks: data.chap_content_fallbacks.filter(Boolean),
+      page_list,
+      encoding:          encoding.trim() || undefined,
+      chapter_next_page_xpath: data.chapter_next_page_xpath?.trim() || "",
     };
-    // onApply 内部会关闭向导（setEditingKey(null) + setNewSiteKey(null)），
-    // 不应再调 onClose，否则 React 批量 state 尚未落地时 newSiteKey 仍有值，
-    // handleWizardClose 会误判为取消新建而删掉刚保存的规则。
     onApply(patch);
   };
 
@@ -73,9 +200,24 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             {missingRequired
               ? "必填项：目录页链接、列表页书名、书目链接、正文内容"
-              : '向导配置完成，点击"应用到网站配置"将规则写入站点设置，然后可在网站页面测试下载。'
+              : '向导配置完成，点击"应用到网站配置"将规则写入站点设置。已有站点会直接覆盖为最新规则。'
             }
           </p>
+          {invalidDomain && (
+            <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+              站点根域名无法识别为合法的 http/https 地址，请回到前面步骤检查更新列表页或目录页链接。
+            </p>
+          )}
+          {invalidCatalogUrl && (
+            <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+              目录页链接格式不合法，当前不能保存。
+            </p>
+          )}
+          {!missingRequired && (
+            <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+              将保存到站点 `{domainHostname || "未识别域名"}`，正文备用规则 {fallbackCount} 条。
+            </p>
+          )}
         </div>
       </div>
 
@@ -88,29 +230,91 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           规则汇总
         </span>
         {summary.map((item) => (
-          <div key={item.label} className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+          <div key={item.label} className="flex items-start gap-2">
+            <span
+              className="text-xs font-medium shrink-0 mt-0.5 w-28"
+              style={{ color: item.required ? "var(--color-text)" : "var(--color-text-muted)" }}
+            >
               {item.label}
+              {item.required && <span style={{ color: "var(--color-danger)" }}> *</span>}
             </span>
             {item.value ? (
               <code
-                className="text-xs font-mono break-all px-2 py-1 rounded"
+                className="text-xs font-mono break-all flex-1 px-2 py-1 rounded"
                 style={{ background: "var(--color-surface-2)", color: "var(--color-text)" }}
               >
                 {item.value}
               </code>
             ) : (
-              <span className="text-xs px-2 py-1" style={{ color: "var(--color-text-subtle)" }}>
-                未设置（可选）
+              <span className="text-xs flex-1 px-2 py-1" style={{ color: "var(--color-text-subtle)" }}>
+                未设置
               </span>
             )}
           </div>
         ))}
       </div>
 
+      {/* Encoding input */}
+      <div
+        className="flex flex-col gap-2 rounded-xl p-3 border"
+        style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+            站点编码
+          </span>
+          {autoDetected ? (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded-full"
+              style={{ background: "var(--color-success-bg)", color: "var(--color-success)", border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)" }}
+            >
+              已自动检测
+            </span>
+          ) : (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded-full"
+              style={{ background: "var(--color-surface-2)", color: "var(--color-text-subtle)", border: "1px solid var(--color-border)" }}
+            >
+              可选
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            className="w-36"
+            placeholder="如 gbk、big5，留空自动"
+            value={encoding}
+            onChange={(e) => setEncoding(e.target.value)}
+          />
+          {encoding.trim() && encoding.trim() !== autoDetected && (
+            <button
+              className="text-xs px-2 py-1 rounded-lg border transition-colors"
+              style={{
+                background: "var(--color-surface-2)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-text-muted)",
+              }}
+              onClick={() => setEncoding(autoDetected)}
+              title="恢复自动检测结果"
+            >
+              恢复检测值
+            </button>
+          )}
+        </div>
+        <div className="flex items-start gap-1.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
+          <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+          <span>
+            {autoDetected
+              ? `从页面 <meta charset> 自动检测到 "${autoDetected}"，如无乱码可保持不变。留空则跟随 HTTP 响应头。`
+              : "大多数现代站点无需填写（UTF-8）。如内容乱码，填入 gbk 或 big5 覆盖响应头的字符集声明。"
+            }
+          </span>
+        </div>
+      </div>
+
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={handleApply} disabled={missingRequired}>
+        <Button size="sm" onClick={handleApply} disabled={hasBlockingValidation}>
           <Save className="w-3.5 h-3.5" />
           应用到网站配置
         </Button>

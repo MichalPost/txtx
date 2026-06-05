@@ -22,6 +22,10 @@ export function ConcurrencySection() {
           <Input label="每主机最大连接数" type="number" {...register("max_connections_per_host")} />
           <FieldError msg={errors.max_connections_per_host?.message} />
         </div>
+        <div>
+          <Input label="连接池大小" type="number" {...register("connection_pool_size")} />
+          <FieldError msg={errors.connection_pool_size?.message} />
+        </div>
       </div>
     </Card>
   );

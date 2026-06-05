@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
-import { RefreshCw, XCircle, Download } from "lucide-react";
+import { RefreshCw, XCircle, ListTodo } from "lucide-react";
 import { useDownloadStore } from "@/store/downloadStore";
 import { Button } from "@/components/Button";
 import { animateFadeInUp } from "@/lib/animations";
+import { useAppNavigate } from "@/router";
 
 export function QueueResumePanel() {
-  const { queueStatus, loadQueueStatus, clearQueueFile, startDownload } = useDownloadStore();
+  const { queueStatus, loadQueueStatus, clearQueueFile } = useDownloadStore();
   const panelRef = useRef<HTMLDivElement>(null);
+  const navigate = useAppNavigate();
 
   useEffect(() => {
     loadQueueStatus();
@@ -47,10 +49,10 @@ export function QueueResumePanel() {
         </Button>
         <Button
           size="sm"
-          onClick={startDownload}
+          onClick={() => navigate("/tasks")}
           style={{ background: "var(--color-warning)", color: "#fff", border: "none" }}
         >
-          <Download className="w-3.5 h-3.5" /> 恢复下载
+          <ListTodo className="w-3.5 h-3.5" /> 去任务管理
         </Button>
       </div>
     </div>

@@ -129,7 +129,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
   } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const aiAbortRef = useRef<AbortController | null>(null);
-  const { config: aiConfig } = useAiStore();
+  const aiEnabled = useAiStore((s) => s.config.enabled);
 
   // Derived
   const lines = useMemo(() => (html ? html.split("\n") : []), [html]);
@@ -188,6 +188,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
 {"xpath":"...","explanation":"...","alternatives":["..."]}`;
 
   const runAiAnalysis = async () => {
+    const aiConfig = useAiStore.getState().activeConfig();
     if (!aiConfig.enabled || !aiConfig.base_url || !aiIntent.trim() || !html) return;
 
     aiAbortRef.current?.abort();
@@ -370,7 +371,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
           </div>
 
           {/* ── AI panel ──────────────────────────────── */}
-          {aiConfig.enabled ? (
+          {aiEnabled ? (
             <div style={{ borderTop: "1px solid var(--color-border)" }}>
               {/* Toggle header */}
               <button

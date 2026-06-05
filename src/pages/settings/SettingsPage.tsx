@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
+import { toast } from "sonner";
 import { useConfigStore } from "@/store/configStore";
+import { useAiStore } from "@/store/aiStore";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
 import { settingsSchema, configToForm, formToConfig, type SettingsForm } from "./settingsSchema";
@@ -10,6 +12,7 @@ import { PathSection } from "./sections/PathSection";
 import { NetworkSection } from "./sections/NetworkSection";
 import { ConcurrencySection } from "./sections/ConcurrencySection";
 import { FilterSection } from "./sections/FilterSection";
+import { ContentFilterSection } from "./sections/ContentFilterSection";
 import { EncodingMapSection } from "./sections/EncodingMapSection";
 import { TextConversionSection } from "./sections/TextConversionSection";
 import { EbookSection } from "./sections/EbookSection";
@@ -19,6 +22,7 @@ import { AiSection } from "./sections/AiSection";
 
 export function SettingsPage() {
   const { config, saveConfig, saving } = useConfigStore();
+  const flushAiSave = useAiStore((s) => s.flushSave);
 
   const methods = useForm<SettingsForm>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,16 +32,30 @@ export function SettingsPage() {
 
   const { handleSubmit, reset, formState: { isDirty } } = methods;
 
-  // Sync when config loads
+  // Only reset when config is first loaded (not on every reference change)
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (config) reset(configToForm(config));
+    if (config && !initializedRef.current) {
+      initializedRef.current = true;
+      reset(configToForm(config));
+    }
   }, [config, reset]);
 
   if (!config) {
     return <div className="p-5" style={{ color: "var(--color-text-muted)" }}>正在加载...</div>;
   }
 
-  const onSubmit = (form: SettingsForm) => saveConfig(formToConfig(form, config));
+  const onSubmit = async (form: SettingsForm) => {
+    try {
+      await Promise.all([
+        saveConfig(formToConfig(form, config)),
+        flushAiSave(),
+      ]);
+      reset(form); // Mark form as clean after successful save
+    } catch {
+      toast.error("部分设置保存失败，请检查上方提示后重试");
+    }
+  };
 
   return (
     <FormProvider {...methods}>
@@ -59,6 +77,7 @@ export function SettingsPage() {
             <NetworkSection />
             <ConcurrencySection />
             <FilterSection />
+            <ContentFilterSection />
             <EncodingMapSection />
             <TextConversionSection />
             <EbookSection />

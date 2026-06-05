@@ -121,6 +121,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       kind: "full_scan",
       status: "scanning",
       label: `扫描 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`,
+      source_url: null,
       created_at: now,
       finished_at: null,
       total: 0,
@@ -144,6 +145,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       kind: "batch_download",
       status: "scanning",
       label: `批量下载 ${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`,
+      source_url: null,
       created_at: now,
       finished_at: null,
       total: 0,
@@ -168,6 +170,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       kind: "single_download",
       status: "downloading",
       label: `单本: ${label}`,
+      source_url: url,
       created_at: now,
       finished_at: null,
       total: 1,
@@ -226,7 +229,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return null;
     if (task.kind === "single_download") {
-      const url = task.scan_items[0]?.url ?? "";
+      const url = task.source_url ?? task.scan_items[0]?.url ?? "";
       if (!url) return null;
       return get().createSingleTask(url);
     }

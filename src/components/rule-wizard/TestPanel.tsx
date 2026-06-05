@@ -3,10 +3,8 @@
  * 展示命中列表预览 + HTML 源码高亮视图 + XPath 工具入口
  */
 import { useState, useMemo } from "react";
-import { List, Code2, AlertCircle, CheckCircle2, XCircle, Wand2 } from "lucide-react";
+import { List, Code2, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { validateXPath } from "@/lib/ai";
-import { XPathToolPanel } from "./XPathToolPanel";
-import type { TargetField } from "./xpathTool";
 
 interface TestField {
   label: string;
@@ -16,10 +14,6 @@ interface TestField {
 interface TestPanelProps {
   html: string;
   fields: TestField[];
-  /** Which wizard page context (for XPath tool target list) */
-  page: "catalog" | "chapter";
-  /** Called when XPath tool applies results — map field key to xpath string */
-  onXPathToolApply?: (results: Partial<Record<TargetField, string>>) => void;
 }
 
 type TabId = "results" | "source";
@@ -32,10 +26,9 @@ interface FieldResult {
   error?: string;
 }
 
-export function TestPanel({ html, fields, page, onXPathToolApply }: TestPanelProps) {
+export function TestPanel({ html, fields }: TestPanelProps) {
   const [tab, setTab] = useState<TabId>("results");
   const [selectedField, setSelectedField] = useState<string | null>(null);
-  const [showXPathTool, setShowXPathTool] = useState(false);
 
   // Run all XPath validations
   const results: FieldResult[] = useMemo(() => {
@@ -91,7 +84,7 @@ export function TestPanel({ html, fields, page, onXPathToolApply }: TestPanelPro
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Tab bar + XPath tool toggle */}
+      {/* Tab bar */}
       <div className="flex items-center gap-2 flex-wrap">
         <div
           className="flex rounded-lg p-0.5 gap-0.5"
@@ -118,39 +111,7 @@ export function TestPanel({ html, fields, page, onXPathToolApply }: TestPanelPro
             );
           })}
         </div>
-
-        {/* XPath tool button */}
-        <button
-          onClick={() => setShowXPathTool((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
-          style={{
-            background: showXPathTool
-              ? "color-mix(in srgb, var(--color-accent) 12%, var(--color-surface))"
-              : "var(--color-surface-1)",
-            borderColor: showXPathTool
-              ? "color-mix(in srgb, var(--color-accent) 45%, transparent)"
-              : "var(--color-border)",
-            color: showXPathTool ? "var(--color-accent)" : "var(--color-text-muted)",
-            fontWeight: showXPathTool ? 600 : 400,
-          }}
-        >
-          <Wand2 className="w-3 h-3" />
-          XPath 工具
-        </button>
       </div>
-
-      {/* XPath tool panel */}
-      {showXPathTool && onXPathToolApply && (
-        <XPathToolPanel
-          html={html}
-          page={page}
-          onApply={(res) => {
-            onXPathToolApply(res);
-            setShowXPathTool(false);
-          }}
-          onClose={() => setShowXPathTool(false)}
-        />
-      )}
 
       {/* Results tab */}
       {tab === "results" && (

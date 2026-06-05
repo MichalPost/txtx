@@ -15,14 +15,14 @@ use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::models::{AiCompleteRequest, AiCompleteResponse, AiExtractRequest, AiExtractResponse};
-use crate::ai_config_db::AiConfigRecord;
+use crate::ai_config_db::AiMultiConfig;
 use super::error::AppError;
 use super::state::AppState;
 
 /// Load AI config from SQLite.
 pub async fn get_ai_config(
     State(state): State<AppState>,
-) -> Result<Json<AiConfigRecord>, AppError> {
+) -> Result<Json<AiMultiConfig>, AppError> {
     let cfg = crate::ai_config_db::load(&state.base_dir).await?;
     Ok(Json(cfg))
 }
@@ -30,7 +30,7 @@ pub async fn get_ai_config(
 /// Save AI config to SQLite.
 pub async fn put_ai_config(
     State(state): State<AppState>,
-    Json(cfg): Json<AiConfigRecord>,
+    Json(cfg): Json<AiMultiConfig>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     crate::ai_config_db::save(&state.base_dir, &cfg).await?;
     Ok(Json(serde_json::json!({ "ok": true })))

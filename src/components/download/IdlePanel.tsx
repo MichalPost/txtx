@@ -11,8 +11,9 @@ import { useAppNavigate } from "@/router";
 import type { SiteHealth } from "@/types";
 
 interface IdlePanelProps {
-  onScan: () => void;
+  onScan: () => void | Promise<void>;
   disabled: boolean;
+  taskMode?: boolean;
 }
 
 // ─── Empty state when no sites are configured ─────────────────────────────────
@@ -66,7 +67,7 @@ function NoSitesState() {
 
 // ─── Main idle panel ──────────────────────────────────────────────────────────
 
-export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
+export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps) {
   const { config } = useConfigStore();
   const { scanOptions, setScanOptions } = useDownloadStore();
   const [healthMap, setHealthMap] = useState<Record<string, SiteHealth>>({});
@@ -110,10 +111,10 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
           <ScanSearch className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
         </div>
         <p className="text-base font-semibold mb-1" style={{ color: "var(--color-text)" }}>
-          开始新的一次扫描
+          {taskMode ? "创建新的扫描任务" : "开始新的一次扫描"}
         </p>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          将检索{" "}
+          {taskMode ? "会创建一个扫描任务，并在任务管理里继续后续流程，检索" : "将检索"}{" "}
           <span className="font-semibold" style={{ color: "var(--color-text)" }}>
             {siteCount}
           </span>{" "}
@@ -162,11 +163,11 @@ export function IdlePanel({ onScan, disabled }: IdlePanelProps) {
       <div className="flex flex-col items-center gap-2">
         <Button
           size="lg"
-          onClick={onScan}
+          onClick={() => { void onScan(); }}
           disabled={disabled || (scanOptions.enabled_sites?.length === 0)}
           className="px-12"
         >
-          <ScanSearch className="w-4 h-4" /> 开始扫描
+          <ScanSearch className="w-4 h-4" /> {taskMode ? "创建扫描任务" : "开始扫描"}
         </Button>
         {scanOptions.enabled_sites?.length === 0 && (
           <p className="text-xs" style={{ color: "var(--color-warning)" }}>请至少选择一个站点</p>

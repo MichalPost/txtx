@@ -7,9 +7,11 @@ import { Command } from "cmdk";
 import { useAppNavigate } from "@/router";
 import {
   Download, Globe, Settings, Shield, History, Activity, FileText,
-  ScanSearch, Square, RotateCcw, FolderOpen,
+  ScanSearch, FolderOpen, ListTodo,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useDownloadStore } from "@/store/downloadStore";
+import { useTaskStore } from "@/store/taskStore";
 import { apiOpenOutputDir } from "@/lib/api";
 import { animateModalOpen } from "@/lib/animations";
 
@@ -25,8 +27,8 @@ interface CommandItem {
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useAppNavigate();
-  const { phase, startScan, stopDownload, reset } = useDownloadStore();
-  const isRunning = phase === "scanning" || phase === "downloading";
+  const { createScanTask, setActive, tasks, activeTaskId, cancelTask } = useTaskStore();
+  const isRunning = tasks.some((task) => task.status === "scanning" || task.status === "downloading");
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Open on Ctrl+K or Cmd+K
@@ -56,6 +58,7 @@ export function CommandPalette() {
 
   const navItems: CommandItem[] = [
     { id: "nav-download", label: "下载控制台", group: "页面", icon: <Download className="w-4 h-4" />, action: () => navigate("/"), keywords: ["下载", "download"] },
+    { id: "nav-tasks", label: "任务管理", group: "页面", icon: <ListTodo className="w-4 h-4" />, action: () => navigate("/tasks"), keywords: ["任务", "tasks", "下载队列"] },
     { id: "nav-websites", label: "网站配置", group: "页面", icon: <Globe className="w-4 h-4" />, action: () => navigate("/websites"), keywords: ["网站", "站点", "xpath"] },
     { id: "nav-settings", label: "通用设置", group: "页面", icon: <Settings className="w-4 h-4" />, action: () => navigate("/settings"), keywords: ["设置", "配置", "settings"] },
     { id: "nav-filter", label: "过滤中心", group: "页面", icon: <Shield className="w-4 h-4" />, action: () => navigate("/filter"), keywords: ["黑名单", "关键词", "过滤", "广告", "内容清洗", "filter"] },
@@ -67,28 +70,39 @@ export function CommandPalette() {
   const actionItems: CommandItem[] = [
     {
       id: "action-scan",
-      label: "开始扫描",
+      label: "新建扫描任务",
       group: "操作",
       icon: <ScanSearch className="w-4 h-4" />,
-      action: () => { navigate("/"); reset(); startScan(); },
-      keywords: ["扫描", "scan", "开始"],
+      action: () => {
+        const opts = useDownloadStore.getState().scanOptions;
+        void createScanTask(Object.keys(opts).length > 0 ? opts : undefined).then((taskId) => {
+          setActive(taskId);
+          navigate("/tasks");
+          toast.success("已创建扫描任务");
+        });
+      },
+      keywords: ["扫描", "scan", "开始", "任务"],
     },
     ...(isRunning ? [{
-      id: "action-stop",
-      label: "停止下载",
+      id: "action-open-running",
+      label: "查看运行中的任务",
       group: "操作",
-      icon: <Square className="w-4 h-4" />,
-      action: () => { navigate("/"); stopDownload(); },
-      keywords: ["停止", "stop"],
+      icon: <ListTodo className="w-4 h-4" />,
+      action: () => { navigate("/tasks"); },
+      keywords: ["运行中", "任务", "下载中", "扫描中"],
     }] : []),
-    {
-      id: "action-reset",
-      label: "重置下载状态",
+    ...(activeTaskId ? [{
+      id: "action-cancel-active-task",
+      label: "取消当前选中任务",
       group: "操作",
-      icon: <RotateCcw className="w-4 h-4" />,
-      action: () => { navigate("/"); reset(); },
-      keywords: ["重置", "reset", "清除"],
-    },
+      icon: <ListTodo className="w-4 h-4" />,
+      action: () => {
+        void cancelTask(activeTaskId);
+        navigate("/tasks");
+        toast.success("已取消当前任务");
+      },
+      keywords: ["取消", "任务", "停止"],
+    }] : []),
     {
       id: "action-open-dir",
       label: "打开下载目录",

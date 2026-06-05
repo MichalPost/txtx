@@ -1,11 +1,11 @@
-use axum::Json;
+use axum::{extract::State, Json};
 use serde_json::json;
 
-use crate::config;
 use super::error::AppError;
+use super::state::AppState;
 
-pub async fn get_queue() -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = config::load_config()?;
+pub async fn get_queue(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = crate::config_db::load_config(&state.base_dir)?;
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
     let path = base_dir.join("download_queue.json");
     if !path.exists() {
@@ -24,8 +24,8 @@ pub async fn get_queue() -> Result<Json<serde_json::Value>, AppError> {
     })))
 }
 
-pub async fn delete_queue() -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = config::load_config()?;
+pub async fn delete_queue(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = crate::config_db::load_config(&state.base_dir)?;
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
     let path = base_dir.join("download_queue.json");
     if path.exists() {

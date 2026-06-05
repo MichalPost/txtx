@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import {
   CheckCircle, XCircle, AlertCircle, RefreshCw, RotateCcw,
-  ScanSearch, FolderOpen,
+  ListTodo, FolderOpen,
 } from "lucide-react";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useConfigStore } from "@/store/configStore";
@@ -11,10 +11,12 @@ import {
   animateResultCard, animateCountUp, animateCelebration, animateStagger,
 } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
+import { useAppNavigate } from "@/router";
 
 export function DownloadResultSummary() {
-  const { novelResults, overallTotal, overallCompleted, reset, startScan, retryFailed } = useDownloadStore();
+  const { novelResults, overallTotal, overallCompleted, reset, retryFailed } = useDownloadStore();
   const { config } = useConfigStore();
+  const navigate = useAppNavigate();
   const successCount = novelResults.filter((r) => r.status === "success").length;
   const errorCount = novelResults.filter((r) => r.status === "error").length;
   const errors = novelResults.filter((r) => r.status === "error");
@@ -145,10 +147,13 @@ export function DownloadResultSummary() {
           <Button variant="secondary" size="sm" className="flex-1" onClick={reset}>
             <RotateCcw className="w-3.5 h-3.5" /> 重置
           </Button>
-          <Button size="sm" className="flex-1" onClick={() => { reset(); startScan(); }}>
-            <ScanSearch className="w-3.5 h-3.5" /> 再次扫描
+          <Button size="sm" className="flex-1" onClick={() => { reset(); navigate("/"); }}>
+            <ListTodo className="w-3.5 h-3.5" /> 返回任务发起台
           </Button>
         </div>
+        <Button variant="ghost" size="sm" className="w-full" onClick={() => navigate("/tasks")}>
+          <ListTodo className="w-3.5 h-3.5" /> 去任务管理
+        </Button>
         {config?.paths.base_dir && (
           <Button variant="ghost" size="sm" className="w-full" onClick={handleOpenDir}>
             <FolderOpen className="w-3.5 h-3.5" /> 打开输出目录

@@ -2,10 +2,10 @@
  * FieldRuleEditor — 单个字段的规则编辑器
  * 支持 8 种模式：tag_name / attr_name / attr_value / tag_attr_value /
  *               link_keyword / text_keyword / xpath / ai
- * 实时预览转换后的 XPath 表达式
+ * 实时预览转换后的 XPath 表达式，可点击预览查看实际命中结果
  */
-import { useMemo } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Sparkles, Loader2, ChevronDown, ChevronUp, CheckCircle2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
 import {
@@ -22,6 +22,34 @@ interface FieldRuleEditorProps {
   /** Called when user clicks AI button — parent handles the async */
   onAiRequest?: () => void;
   aiLoading?: boolean;
+  /** Cached HTML for live preview of XPath hits */
+  html?: string;
+}
+
+// ─── XPath eval helper ────────────────────────────────────────────────────────
+
+function evalXPathSamples(html: string, xpath: string, max = 8): string[] {
+  if (!xpath || !html) return [];
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const snap = doc.evaluate(xpath, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    const out: string[] = [];
+    for (let i = 0; i < Math.min(snap.snapshotLength, max); i++) {
+      const node = snap.snapshotItem(i);
+      const v = (node?.textContent ?? (node as Attr | null)?.value ?? "").trim();
+      if (v) out.push(v);
+    }
+    return out;
+  } catch { return []; }
+}
+
+function countXPathHits(html: string, xpath: string): number {
+  if (!xpath || !html) return 0;
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const snap = doc.evaluate(xpath, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return snap.snapshotLength;
+  } catch { return 0; }
 }
 
 const EXTRACT_OPTIONS: { value: ExtractAs; label: string }[] = [
@@ -32,10 +60,19 @@ const EXTRACT_OPTIONS: { value: ExtractAs; label: string }[] = [
 ];
 
 export function FieldRuleEditor({
-  label, rule, onChange, aiEnabled, onAiRequest, aiLoading,
+  label, rule, onChange, aiEnabled, onAiRequest, aiLoading, html,
 }: FieldRuleEditorProps) {
   const vis = getVisibleInputs(rule.mode);
   const preview = useMemo(() => buildXPathFromRule(rule), [rule]);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Compute hits lazily when preview is opened
+  const previewSamples = useMemo(() => {
+    if (!previewOpen || !html || !preview) return null;
+    const samples = evalXPathSamples(html, preview);
+    const total = countXPathHits(html, preview);
+    return { samples, total };
+  }, [previewOpen, html, preview]);
 
   const patch = (p: Partial<FieldRule>) => onChange({ ...rule, ...p });
 
@@ -64,7 +101,7 @@ export function FieldRuleEditor({
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
-        {aiEnabled && rule.mode === "ai" && (
+        {aiEnabled && onAiRequest && (
           <Button
             size="sm"
             onClick={onAiRequest}
@@ -183,21 +220,77 @@ export function FieldRuleEditor({
         )}
       </div>
 
-      {/* Live XPath preview */}
+      {/* Live XPath preview — clickable to show actual hits */}
       {preview && rule.mode !== "xpath" && (
-        <div
-          className="flex items-start gap-2 px-3 py-2 rounded-lg"
-          style={{ background: "var(--color-surface-2)" }}
-        >
-          <span className="text-xs shrink-0 mt-0.5" style={{ color: "var(--color-text-subtle)" }}>
-            预览
-          </span>
-          <code
-            className="text-xs font-mono break-all flex-1"
-            style={{ color: "var(--color-accent)" }}
+        <div className="flex flex-col gap-0">
+          <button
+            type="button"
+            onClick={() => html && setPreviewOpen((v) => !v)}
+            className="flex items-start gap-2 px-3 py-2 rounded-lg transition-colors text-left w-full"
+            style={{
+              background: previewOpen ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-2))" : "var(--color-surface-2)",
+              cursor: html ? "pointer" : "default",
+              borderRadius: previewOpen ? "8px 8px 0 0" : 8,
+            }}
+            title={html ? (previewOpen ? "收起预览结果" : "点击查看实际命中结果") : "获取页面后可查看命中结果"}
           >
-            {preview}
-          </code>
+            <span className="text-xs shrink-0 mt-0.5" style={{ color: "var(--color-text-subtle)" }}>
+              预览
+            </span>
+            <code
+              className="text-xs font-mono break-all flex-1"
+              style={{ color: "var(--color-accent)" }}
+            >
+              {preview}
+            </code>
+            {html && (
+              previewOpen
+                ? <ChevronUp className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "var(--color-text-subtle)" }} />
+                : <ChevronDown className="w-3 h-3 shrink-0 mt-0.5" style={{ color: "var(--color-text-subtle)" }} />
+            )}
+          </button>
+
+          {/* Expanded hit results */}
+          {previewOpen && html && (
+            <div
+              className="flex flex-col gap-1 px-3 py-2 rounded-b-lg border-t"
+              style={{
+                background: "var(--color-surface-2)",
+                borderColor: "var(--color-border)",
+              }}
+            >
+              {previewSamples === null ? null
+                : previewSamples.total === 0 ? (
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-warning)" }}>
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    未命中任何结果
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-success)" }}>
+                      <CheckCircle2 className="w-3 h-3 shrink-0" />
+                      命中 {previewSamples.total} 个
+                    </div>
+                    {previewSamples.samples.map((s, i) => (
+                      <span
+                        key={i}
+                        className="text-xs truncate pl-4"
+                        style={{ color: "var(--color-text-muted)" }}
+                        title={s}
+                      >
+                        {i + 1}. {s}
+                      </span>
+                    ))}
+                    {previewSamples.total > previewSamples.samples.length && (
+                      <span className="text-xs pl-4" style={{ color: "var(--color-text-subtle)" }}>
+                        …还有 {previewSamples.total - previewSamples.samples.length} 条
+                      </span>
+                    )}
+                  </>
+                )
+              }
+            </div>
+          )}
         </div>
       )}
     </div>

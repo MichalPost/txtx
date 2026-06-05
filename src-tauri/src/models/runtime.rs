@@ -115,6 +115,7 @@ pub struct TaskRecord {
     pub kind: TaskKind,
     pub status: TaskStatus,
     pub label: String,
+    pub source_url: Option<String>,
     pub created_at: String,
     pub finished_at: Option<String>,
     pub total: usize,

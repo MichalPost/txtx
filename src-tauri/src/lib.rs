@@ -211,6 +211,25 @@ mod tauri_app {
         Ok(path.map(|p| p.to_string()))
     }
 
+    #[tauri::command]
+    async fn fetch_source(app: AppHandle, url: String) -> Result<String, String> {
+        let dir = app_data_dir(&app);
+        let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        let client = crate::crawler::build_client(&cfg.network).map_err(|e| e.to_string())?;
+        crate::crawler::http_client::fetch_page(
+            &client,
+            &url,
+            &cfg.network.encoding_map,
+            cfg.network.retry_count,
+            cfg.network.retry_delay,
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
+
     // ── Task Manager Commands ─────────────────────────────────────────────────
 
     #[tauri::command]
@@ -230,6 +249,7 @@ mod tauri_app {
         let record = TaskRecord {
             id: task_id.clone(), kind: TaskKind::FullScan,
             status: TaskStatus::Scanning, label,
+            source_url: None,
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             finished_at: None, total: 0, completed: 0,
             success_count: 0, error_count: 0,
@@ -264,6 +284,7 @@ mod tauri_app {
         let record = TaskRecord {
             id: task_id.clone(), kind: TaskKind::BatchDownload,
             status: TaskStatus::Scanning, label,
+            source_url: None,
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             finished_at: None, total: 0, completed: 0,
             success_count: 0, error_count: 0,
@@ -313,6 +334,7 @@ mod tauri_app {
         let record = TaskRecord {
             id: task_id.clone(), kind: TaskKind::SingleDownload,
             status: TaskStatus::Downloading, label,
+            source_url: Some(url.clone()),
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             finished_at: None, total: 1, completed: 0,
             success_count: 0, error_count: 0,
@@ -463,6 +485,7 @@ mod tauri_app {
         let record = TaskRecord {
             id: task_id.clone(), kind: TaskKind::SelectedDownload,
             status: TaskStatus::Downloading, label,
+            source_url: None,
             created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             finished_at: None, total: n, completed: 0,
             success_count: 0, error_count: 0,
@@ -620,7 +643,7 @@ mod tauri_app {
 
     /// Load AI config from SQLite (uses app.db under appDataDir).
     #[tauri::command]
-    async fn load_ai_config(app: AppHandle) -> Result<crate::ai_config_db::AiConfigRecord, String> {
+    async fn load_ai_config(app: AppHandle) -> Result<crate::ai_config_db::AiMultiConfig, String> {
         let base_dir = app_data_dir(&app);
         crate::ai_config_db::load(&base_dir).await.map_err(|e| e.to_string())
     }
@@ -629,7 +652,7 @@ mod tauri_app {
     #[tauri::command]
     async fn save_ai_config(
         app: AppHandle,
-        config: crate::ai_config_db::AiConfigRecord,
+        config: crate::ai_config_db::AiMultiConfig,
     ) -> Result<(), String> {
         let base_dir = app_data_dir(&app);
         crate::ai_config_db::save(&base_dir, &config).await.map_err(|e| e.to_string())
@@ -749,6 +772,7 @@ mod tauri_app {
                 check_first_run,
                 complete_setup,
                 pick_directory,
+                fetch_source,
                 // New task manager commands
                 create_scan_task,
                 create_batch_download_task,

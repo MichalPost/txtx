@@ -172,6 +172,13 @@ pub struct WebsiteConfig {
     pub special_mode: String,
     #[serde(default)]
     pub novel_content_fallbacks: Vec<String>,
+    #[serde(default)]
+    pub encoding: String,
+    /// XPath to locate the "next page" link within a chapter page.
+    /// When non-empty, the downloader follows these links and concatenates
+    /// content across all sub-pages before writing the chapter file.
+    #[serde(default)]
+    pub chapter_next_page_xpath: String,
 }
 
 fn default_special_mode() -> String { "normal".into() }

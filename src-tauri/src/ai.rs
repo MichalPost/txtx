@@ -22,11 +22,21 @@ use serde_json::Value;
 use crate::models::AiCallConfig;
 
 /// Build an async-openai client from our config struct.
+///
+/// Backoff/retry is explicitly disabled: async-openai's default behaviour is
+/// to silently retry 429 responses with exponential back-off (potentially
+/// hundreds of times). For a settings "test connection" call — or any
+/// single-shot AI call — one failure should surface immediately to the UI.
 fn build_client(cfg: &AiCallConfig) -> Client<OpenAIConfig> {
     let openai_cfg = OpenAIConfig::new()
         .with_api_base(&cfg.base_url)
         .with_api_key(&cfg.api_key);
-    Client::with_config(openai_cfg)
+    // max_elapsed_time = Some(Duration::ZERO) → the very first 429 is treated
+    // as permanent; no background retry loop is started.
+    let no_retry = backoff::ExponentialBackoffBuilder::new()
+        .with_max_elapsed_time(Some(std::time::Duration::ZERO))
+        .build();
+    Client::with_config(openai_cfg).with_backoff(no_retry)
 }
 
 /// Non-streaming chat completion — returns the full assistant message.

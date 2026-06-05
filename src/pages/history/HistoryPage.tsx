@@ -5,11 +5,13 @@ import { Trash2, RefreshCw, BarChart2, TableIcon, Search, Filter } from "lucide-
 import { toast } from "sonner";
 import { apiQueryHistory, apiClearHistory, type HistoryQuery } from "@/lib/api";
 import { useDownloadStore } from "@/store/downloadStore";
+import { useTaskStore } from "@/store/taskStore";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { usePersistedState } from "@/lib/persist";
+import { useAppNavigate } from "@/router";
 import { HistoryStatsPanel } from "./HistoryStatsPanel";
 import { HistoryPagination } from "./HistoryPagination";
 import { buildHistoryColumns } from "./historyColumns";
@@ -18,7 +20,9 @@ const PAGE_SIZE = 50;
 
 export function HistoryPage() {
   const qc = useQueryClient();
-  const { startSingleDownload, phase } = useDownloadStore();
+  const { phase } = useDownloadStore();
+  const { createSingleTask } = useTaskStore();
+  const navigate = useAppNavigate();
   const isRunning = phase === "scanning" || phase === "downloading";
 
   const [search, setSearch] = useState("");
@@ -57,10 +61,11 @@ export function HistoryPage() {
     setPage(1);
   };
 
-  const handleRedownload = (url: string, name: string) => {
+  const handleRedownload = async (url: string, name: string) => {
     if (isRunning) { toast.error("当前有任务正在运行"); return; }
-    startSingleDownload(url);
-    toast.success(`开始重新下载：${name}`);
+    await createSingleTask(url);
+    toast.success(`已创建重新下载任务：${name}`);
+    navigate("/tasks");
   };
 
   const entries = data?.entries ?? [];

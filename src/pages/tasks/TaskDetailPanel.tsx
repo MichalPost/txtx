@@ -302,6 +302,10 @@ export function TaskDetailPanel() {
     confirmDownload(task.id, candidates);
   };
 
+  const handleRetry = () => {
+    void retryTask(task.id);
+  };
+
   const statusColor =
     task.status === "done" ? "var(--color-success)"
     : task.status === "failed" ? "var(--color-danger)"
@@ -375,10 +379,10 @@ export function TaskDetailPanel() {
               <DownloadingView task={task} />
             )}
             {task.status === "done" && (
-              <DoneView task={task} onRetry={() => retryTask(task.id)} />
+              <DoneView task={task} onRetry={handleRetry} />
             )}
             {task.status === "failed" && (
-              <FailedView task={task} onRetry={() => retryTask(task.id)} />
+              <FailedView task={task} onRetry={handleRetry} />
             )}
             {(task.status === "cancelled" || task.status === "queued") && (
               <div className="flex flex-col items-center justify-center h-full gap-2 p-4">

@@ -20,6 +20,7 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [customUrl, setCustomUrl] = useState(data.chapter_test_url);
+  const [summary, setSummary] = useState<{ passed: number; total: number } | null>(null);
 
   const fields = useMemo(() => [
     { label: "详情页书名",  xpath: buildXPathFromRule(data.chap_novel_name) },
@@ -37,6 +38,12 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       if (!html || forceRefetch || customUrl !== data.chapter_test_url) {
         html = await apiFetchSource(url);
       }
+      const passCount = [
+        !buildXPathFromRule(data.chap_novel_name) || validateField(html, buildXPathFromRule(data.chap_novel_name)),
+        !buildXPathFromRule(data.chap_chapter_url) || validateField(html, buildXPathFromRule(data.chap_chapter_url)),
+        validateField(html, buildXPathFromRule(data.chap_content)),
+      ].filter(Boolean).length;
+      setSummary({ passed: passCount, total: 3 });
       onChange({ ...data, chapter_html: html, chapter_test_url: url });
     } catch (e) {
       setErrorMsg(String(e));
@@ -104,6 +111,21 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
         </div>
       )}
 
+      {summary && !loading && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+          style={{
+            background: summary.passed === summary.total ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+            color: summary.passed === summary.total ? "var(--color-success)" : "var(--color-warning)",
+          }}
+        >
+          <span>章节规则校验通过 {summary.passed}/{summary.total}</span>
+          <span style={{ color: "var(--color-text-muted)" }}>
+            正文内容为必填，建议至少命中一个稳定节点后再保存
+          </span>
+        </div>
+      )}
+
       {/* No URL hint */}
       {!customUrl && !data.chapter_test_url && (
         <div
@@ -120,15 +142,20 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
         <TestPanel
           html={data.chapter_html}
           fields={fields}
-          page="chapter"
-          onXPathToolApply={(res) => {
-            const patch: Partial<typeof data> = {};
-            if (res.novel_content) patch.chap_content    = { ...data.chap_content,    mode: "xpath", xpath: res.novel_content };
-            if (res.book_name)     patch.chap_novel_name = { ...data.chap_novel_name, mode: "xpath", xpath: res.book_name };
-            onChange({ ...data, ...patch });
-          }}
         />
       )}
     </div>
   );
+}
+
+function validateField(html: string, xpath: string): boolean {
+  if (!xpath.trim()) return false;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const snap = doc.evaluate(xpath, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return snap.snapshotLength > 0;
+  } catch {
+    return false;
+  }
 }

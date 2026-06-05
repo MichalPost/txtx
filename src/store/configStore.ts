@@ -3,6 +3,22 @@ import { toast } from "sonner";
 import { apiLoadConfig, apiSaveConfig } from "@/lib/api";
 import type { AppConfig } from "@/types";
 
+/** 后端刚启动时可能还没就绪，最多重试 10 次，每次间隔 800ms */
+async function loadConfigWithRetry(maxRetries = 10, delayMs = 800): Promise<AppConfig> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await apiLoadConfig();
+    } catch (e) {
+      const isNetworkError =
+        e instanceof TypeError && /fetch|network/i.test(String(e));
+      if (!isNetworkError || i === maxRetries - 1) throw e;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  // unreachable, but satisfies TS
+  return apiLoadConfig();
+}
+
 interface ConfigState {
   config: AppConfig | null;
   loading: boolean;
@@ -25,7 +41,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     if (get().config !== null) return;
     set({ loading: true, error: null });
     try {
-      const config = await apiLoadConfig();
+      const config = await loadConfigWithRetry();
       set({ config, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
@@ -41,6 +57,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     } catch (e) {
       set({ error: String(e), saving: false });
       toast.error(`保存失败: ${String(e)}`);
+      throw e;
     }
   },
 
