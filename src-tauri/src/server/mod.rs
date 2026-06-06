@@ -1,3 +1,4 @@
+pub mod bookshelf_routes;
 pub mod config_routes;
 pub mod convert_routes;
 pub mod download_routes;
@@ -9,6 +10,7 @@ pub mod queue_routes;
 pub mod source_routes;
 pub mod state;
 pub mod ai_routes;
+pub mod task_routes;
 
 use std::sync::Arc;
 use axum::{routing::{get, post}, Router};
@@ -16,6 +18,7 @@ use tokio::sync::{Mutex, Notify};
 use tower_http::cors::{Any, CorsLayer};
 
 use state::{AppState, DownloadState};
+use bookshelf_routes::{delete_book_route, get_books, get_calibre_detect};
 use config_routes::{get_config, put_config};
 use download_routes::{post_stop, ws_download, ws_download_selected, ws_scan, ws_single};
 use history_routes::{delete_history, get_history, get_history_page, get_history_stats};
@@ -25,6 +28,12 @@ use queue_routes::{delete_queue, get_queue};
 use novel_routes::{get_novel_name, post_open_dir};
 use source_routes::get_source;
 use ai_routes::{get_ai_config, put_ai_config, post_ai_complete, post_ai_stream, post_ai_extract};
+use task_routes::{
+    post_scan_task, post_batch_task, post_single_task,
+    get_tasks, get_task, post_confirm_task,
+    post_cancel_task, post_pause_task, delete_task as delete_task_route,
+};
+use crate::task_manager::{TaskManager, SharedTaskManager};
 
 pub async fn run_server() {
     let port: u16 = std::env::var("TXTX_PORT")
@@ -37,7 +46,10 @@ pub async fn run_server() {
 
     let base_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-    let app_state = AppState { download: download_state, base_dir };
+    // Task manager (mirrors Tauri mode)
+    let task_manager: SharedTaskManager = Arc::new(Mutex::new(TaskManager::new(base_dir.clone())));
+
+    let app_state = AppState { download: download_state, base_dir, task_manager };
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -64,6 +76,18 @@ pub async fn run_server() {
         .route("/api/ai/complete",         post(post_ai_complete))
         .route("/api/ai/stream",           post(post_ai_stream))
         .route("/api/ai/extract",          post(post_ai_extract))
+        // ── Task manager routes ──────────────────────────────────────────────
+        .route("/api/tasks",               get(get_tasks))
+        .route("/api/tasks/scan",          post(post_scan_task))
+        .route("/api/tasks/batch",         post(post_batch_task))
+        .route("/api/tasks/single",        post(post_single_task))
+        .route("/api/tasks/:id",           get(get_task).delete(delete_task_route))
+        .route("/api/tasks/:id/confirm",   post(post_confirm_task))
+        .route("/api/tasks/:id/cancel",    post(post_cancel_task))
+        .route("/api/tasks/:id/pause",     post(post_pause_task))
+        // ── Bookshelf routes ─────────────────────────────────────────────────
+        .route("/api/books",               get(get_books).delete(delete_book_route))
+        .route("/api/calibre/detect",      get(get_calibre_detect))
         .with_state(app_state)
         .layer(cors);
 

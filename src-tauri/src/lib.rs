@@ -4,6 +4,7 @@ pub mod config_db;
 pub mod ai;
 pub mod ai_config_db;
 pub mod blacklist;
+pub mod bookshelf;
 pub mod crawler;
 pub mod downloader;
 pub mod server;
@@ -730,6 +731,39 @@ mod tauri_app {
         }
     }
 
+    // ── Bookshelf ─────────────────────────────────────────────────────────────
+
+    #[tauri::command]
+    async fn list_books(app: AppHandle, dir: String) -> Result<Vec<crate::bookshelf::BookFile>, String> {
+        let effective_dir = if dir.is_empty() {
+            let data_dir = app_data_dir(&app);
+            let cfg = tokio::task::spawn_blocking(move || crate::config_db::load_config(&data_dir))
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())?;
+            cfg.paths.base_dir
+        } else {
+            dir
+        };
+        crate::bookshelf::list_books(&effective_dir).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    async fn delete_book(path: String) -> Result<(), String> {
+        crate::bookshelf::delete_book(&path).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    async fn open_book(app: AppHandle, path: String) -> Result<(), String> {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener().open_path(&path, None::<&str>).map_err(|e| e.to_string())
+    }
+
+    #[tauri::command]
+    async fn detect_calibre() -> Result<Option<String>, String> {
+        Ok(crate::bookshelf::detect_calibre())
+    }
+
     // ── Open output directory ─────────────────────────────────────────────────
 
     #[tauri::command]
@@ -799,6 +833,11 @@ mod tauri_app {
                 clear_queue,
                 preview_novel_name,
                 open_output_dir,
+                // Bookshelf
+                list_books,
+                delete_book,
+                open_book,
+                detect_calibre,
                 // AI
                 ai_complete,
                 ai_stream_complete,
