@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScanSearch, FileUp, ListTodo, ArrowRight } from "lucide-react";
+import { ScanSearch, FileUp, ListTodo, ArrowRight, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useTaskStore } from "@/store/taskStore";
@@ -118,7 +118,39 @@ export function DownloadPage() {
 
       {/* ── Main content area ────────────────────────────────────────── */}
       <div className="flex gap-4 flex-1 min-h-0 px-5 mt-4 pb-5">
-        {phase === "idle" ? (
+        {phase === "idle" && config && Object.keys(config.websites).length === 0 ? (
+          /* No sites configured yet — show onboarding nudge */
+          <div
+            className="flex-1 flex flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-12 text-center"
+            style={{
+              background: "var(--color-surface)",
+              borderColor: "var(--color-border)",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{
+                background: "var(--color-accent-muted)",
+                border: "1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)",
+                boxShadow: "var(--shadow-accent)",
+              }}
+            >
+              <Globe className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+            </div>
+            <div className="flex flex-col gap-2 max-w-sm">
+              <p className="text-base font-semibold" style={{ color: "var(--color-text)" }}>
+                还没有配置站点
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                先去网站配置页面添加一个站点，设置好规则就能开始下载。
+              </p>
+            </div>
+            <Button size="md" onClick={() => navigate("/websites")}>
+              <Globe className="w-4 h-4" /> 去配置站点
+            </Button>
+          </div>
+        ) : phase === "idle" ? (
           <IdlePanel
             onScan={handleCreateScanTask}
             disabled={!config}

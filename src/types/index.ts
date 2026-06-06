@@ -44,6 +44,8 @@ export interface BlacklistConfig {
     moderate: string[];
     mild: string[];
   };
+  /** Book titles that bypass the blacklist filter. */
+  whitelist?: string[];
 }
 
 export interface WebsiteConfig {
@@ -85,11 +87,18 @@ export interface ContentFilterConfig {
   fallback_trim_lines: number;
 }
 
-export interface TtksConfig {
+export interface RateLimitRule {
+  name: string;
   domains: string[];
   delay_min_ms: number;
   delay_max_ms: number;
+  requests_per_second: number;
   ua_pool: string[];
+  stealth: boolean;
+}
+
+export interface RateLimitConfig {
+  rules: RateLimitRule[];
 }
 
 export interface AdvancedNetworkConfig {
@@ -109,7 +118,7 @@ export interface AppConfig {
   text_conversion: TextConversionConfig;
   ebook_conversion: EbookConversionConfig;
   content_filter: ContentFilterConfig;
-  ttks: TtksConfig;
+  rate_limit: RateLimitConfig;
   advanced_network: AdvancedNetworkConfig;
 }
 
@@ -280,4 +289,14 @@ export interface ScanTaskOptions {
   enabled_sites?: string[] | null;
   /** Download mode: smart (default), multi (force multi-thread), single (stable single-thread) */
   download_mode?: DownloadMode | null;
+}
+
+// ─── Bookshelf ────────────────────────────────────────────────────────────────
+
+export interface BookFile {
+  name: string;       // filename without extension
+  path: string;       // full path
+  size: number;       // bytes
+  modified: string;   // ISO timestamp or locale string
+  extension: string;  // "txt" | "epub" etc.
 }

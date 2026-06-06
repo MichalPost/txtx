@@ -34,11 +34,16 @@ export const settingsSchema = z.object({
   nav_keywords: z.string(),
   safety_threshold: z.coerce.number().min(0).max(1),
   fallback_trim_lines: z.coerce.number().int().min(0).max(10),
-  // TTKS
-  ttks_domains: z.string(),
-  ttks_delay_min: z.coerce.number().int().min(0),
-  ttks_delay_max: z.coerce.number().int().min(0),
-  ttks_ua_pool: z.string(),
+  // Rate limit rules
+  rate_limit_rules: z.array(z.object({
+    name: z.string(),
+    domains: z.string(),           // 多行文本，用 \n 分隔
+    delay_min_ms: z.coerce.number().int().min(0),
+    delay_max_ms: z.coerce.number().int().min(0),
+    requests_per_second: z.coerce.number().int().min(0),
+    ua_pool: z.string(),           // 多行文本
+    stealth: z.boolean(),
+  })),
   // Advanced
   pool_idle_timeout_secs: z.coerce.number().int().min(10).max(600),
   tcp_keepalive_secs: z.coerce.number().int().min(10).max(600),
@@ -78,10 +83,15 @@ export function configToForm(config: AppConfig): SettingsForm {
     nav_keywords: (config.content_filter?.nav_keywords ?? []).join("\n"),
     safety_threshold: config.content_filter?.safety_threshold ?? 0.3,
     fallback_trim_lines: config.content_filter?.fallback_trim_lines ?? 2,
-    ttks_domains: (config.ttks?.domains ?? []).join("\n"),
-    ttks_delay_min: config.ttks?.delay_min_ms ?? 3000,
-    ttks_delay_max: config.ttks?.delay_max_ms ?? 8000,
-    ttks_ua_pool: (config.ttks?.ua_pool ?? []).join("\n"),
+    rate_limit_rules: (config.rate_limit?.rules ?? []).map(r => ({
+      name: r.name,
+      domains: r.domains.join("\n"),
+      delay_min_ms: r.delay_min_ms,
+      delay_max_ms: r.delay_max_ms,
+      requests_per_second: r.requests_per_second,
+      ua_pool: r.ua_pool.join("\n"),
+      stealth: r.stealth,
+    })),
     pool_idle_timeout_secs: config.advanced_network?.pool_idle_timeout_secs ?? 90,
     tcp_keepalive_secs: config.advanced_network?.tcp_keepalive_secs ?? 60,
     min_chapter_bytes: config.advanced_network?.min_chapter_bytes ?? 1024,
@@ -139,12 +149,16 @@ export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig
       safety_threshold: form.safety_threshold,
       fallback_trim_lines: form.fallback_trim_lines,
     },
-    ttks: {
-      ...original.ttks,
-      domains: form.ttks_domains.split("\n").map(l => l.trimEnd()).filter(Boolean),
-      delay_min_ms: form.ttks_delay_min,
-      delay_max_ms: form.ttks_delay_max,
-      ua_pool: form.ttks_ua_pool.split("\n").map(l => l.trimEnd()).filter(Boolean),
+    rate_limit: {
+      rules: form.rate_limit_rules.map(r => ({
+        name: r.name,
+        domains: r.domains.split("\n").map((l: string) => l.trimEnd()).filter(Boolean),
+        delay_min_ms: r.delay_min_ms,
+        delay_max_ms: r.delay_max_ms,
+        requests_per_second: r.requests_per_second,
+        ua_pool: r.ua_pool.split("\n").map((l: string) => l.trimEnd()).filter(Boolean),
+        stealth: r.stealth,
+      })),
     },
     advanced_network: {
       ...original.advanced_network,

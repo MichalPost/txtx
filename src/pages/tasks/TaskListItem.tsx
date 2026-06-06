@@ -59,6 +59,7 @@ export function TaskListItem({
   const color = STATUS_COLOR[task.status] ?? "var(--color-text-muted)";
   const pct = task.total > 0 ? Math.round((task.completed / task.total) * 100) : 0;
   const isRunning = task.status === "scanning" || task.status === "downloading";
+  const isScanning = task.status === "scanning";
   const isDone = task.status === "done" || task.status === "failed" || task.status === "cancelled";
 
   return (
@@ -72,7 +73,18 @@ export function TaskListItem({
         borderColor: isActive ? "color-mix(in srgb, var(--color-accent) 40%, transparent)" : "var(--color-border)",
       }}
     >
-      <ProgressRing pct={pct} color={color} />
+      {/* Scanning: spinning arc instead of progress ring */}
+      {isScanning ? (
+        <svg width="28" height="28" viewBox="0 0 28 28" className="shrink-0 animate-spin"
+          style={{ animationDuration: "1.5s" }}>
+          <circle cx="14" cy="14" r="10" fill="none" stroke="var(--color-border)" strokeWidth="2.5" />
+          <circle cx="14" cy="14" r="10" fill="none" stroke={color} strokeWidth="2.5"
+            strokeDasharray="20 43" strokeLinecap="round"
+            transform="rotate(-90 14 14)" />
+        </svg>
+      ) : (
+        <ProgressRing pct={pct} color={color} />
+      )}
 
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate" style={{ color: "var(--color-text)" }}>

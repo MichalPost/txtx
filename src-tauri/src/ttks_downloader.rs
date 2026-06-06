@@ -136,53 +136,66 @@ type DirectRl = RateLimiter<
     governor::clock::DefaultClock,
 >;
 
-/// 返回全局共享的 TTKS 限速器（懒初始化，线程安全）。
+/// 返回 per-rps 共享限速器（懒初始化，线程安全）。
 /// rps = 0 时返回 None，调用方回退到随机延迟。
-fn get_rate_limiter(rps: u32) -> Option<&'static DirectRl> {
-    static RL: OnceLock<DirectRl> = OnceLock::new();
-    if rps == 0 {
-        return None;
+fn get_rate_limiter(rps: u32) -> Option<std::sync::Arc<DirectRl>> {
+    static LIMITERS: OnceLock<std::sync::RwLock<std::collections::HashMap<u32, std::sync::Arc<DirectRl>>>> = OnceLock::new();
+    if rps == 0 { return None; }
+    let map = LIMITERS.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+    // fast path
+    {
+        let r = map.read().unwrap();
+        if let Some(rl) = r.get(&rps) {
+            return Some(rl.clone());
+        }
     }
-    let n = NonZeroU32::new(rps).unwrap_or(NonZeroU32::new(1).unwrap());
-    Some(RL.get_or_init(|| {
-        RateLimiter::direct(Quota::per_second(n))
-    }))
+    // slow path
+    let mut w = map.write().unwrap();
+    let rl = w.entry(rps).or_insert_with(|| {
+        let n = NonZeroU32::new(rps).unwrap_or(NonZeroU32::new(1).unwrap());
+        std::sync::Arc::new(RateLimiter::direct(Quota::per_second(n)))
+    });
+    Some(rl.clone())
 }
 
-/// 判断 URL 是否属于 TTKS 系列站点（从配置读取域名列表）
-pub fn is_ttks_url(url: &str, ttks_cfg: &crate::models::TtksConfig) -> bool {
-    ttks_cfg.domains.iter().any(|d| url.contains(d.as_str()))
+/// 查找 URL 匹配的第一条限速规则；未匹配时返回 None（走标准下载路径）
+pub fn find_rate_limit_rule<'a>(
+    url: &str,
+    cfg: &'a crate::models::RateLimitConfig,
+) -> Option<&'a crate::models::filters::RateLimitRule> {
+    cfg.rules.iter().find(|r| {
+        !r.domains.is_empty() && r.domains.iter().any(|d| url.contains(d.as_str()))
+    })
 }
 
-/// 构造 TTKS 专用 HTTP 客户端。
+/// 构造限速专用 HTTP 客户端。
 ///
 /// 启用 stealth feature 时返回 wreq::Client（BoringSSL + Chrome TLS 指纹），
 /// 可绕过基于 JA3/JA4 的反爬检测。否则退化为标准 reqwest::Client。
 pub fn build_ttks_client(
     proxy: Option<&str>,
     timeout: u64,
-    ttks_cfg: &crate::models::TtksConfig,
+    rule: &crate::models::filters::RateLimitRule,
 ) -> Result<TtksClient> {
-    let idx = rand::thread_rng().gen_range(0..ttks_cfg.ua_pool.len().max(1));
-    let ua = ttks_cfg.ua_pool.get(idx).map(|s| s.as_str()).unwrap_or(
+    let idx = rand::thread_rng().gen_range(0..rule.ua_pool.len().max(1));
+    let ua = rule.ua_pool.get(idx).map(|s| s.as_str()).unwrap_or(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
     );
 
-    // stealth 分支：wreq + BoringSSL TLS 指纹
     #[cfg(feature = "stealth")]
-    {
+    if rule.stealth {
         match stealth_client::build(ua, proxy, timeout) {
             Ok(client) => {
-                tracing::debug!("TTKS: using wreq stealth client (UA: {})", &ua[..ua.len().min(40)]);
+                tracing::debug!("RateLimit: stealth client (UA: {})", &ua[..ua.len().min(40)]);
                 return Ok(TtksClient::Stealth(client));
             }
             Err(e) => {
-                tracing::warn!("TTKS: wreq client build failed ({}), falling back to reqwest", e);
+                tracing::warn!("RateLimit: wreq failed ({}), falling back to reqwest", e);
             }
         }
     }
 
-    // fallback：标准 reqwest（或 non-stealth 编译）
+    // fallback: 标准 reqwest
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert("Accept-Language", "zh-TW,zh;q=0.9,en;q=0.8".parse().unwrap());
     headers.insert("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".parse().unwrap());
@@ -202,7 +215,7 @@ pub fn build_ttks_client(
     Ok(TtksClient::Standard(builder.build()?))
 }
 
-/// 下载 TTKS 章节，含精确限速（governor token-bucket）或随机延迟防封
+/// 下载限速章节，含精确限速（governor token-bucket）或随机延迟防封
 pub async fn fetch_ttks_chapter(
     client: &TtksClient,
     url: &str,
@@ -212,17 +225,17 @@ pub async fn fetch_ttks_chapter(
     encoding_map: &HashMap<String, String>,
     retry_count: u32,
     retry_delay: u64,
-    ttks_cfg: &crate::models::TtksConfig,
+    rule: &crate::models::filters::RateLimitRule,
     filter: &crate::models::ContentFilterConfig,
 ) -> Result<String> {
     // 优先使用 token-bucket 限速（精确），fallback 到随机延迟
-    if let Some(rl) = get_rate_limiter(ttks_cfg.requests_per_second) {
+    if let Some(rl) = get_rate_limiter(rule.requests_per_second) {
         rl.until_ready().await;
     } else {
-        let delay_ms = if ttks_cfg.delay_max_ms > ttks_cfg.delay_min_ms {
-            rand::thread_rng().gen_range(ttks_cfg.delay_min_ms..ttks_cfg.delay_max_ms)
+        let delay_ms = if rule.delay_max_ms > rule.delay_min_ms {
+            rand::thread_rng().gen_range(rule.delay_min_ms..rule.delay_max_ms)
         } else {
-            ttks_cfg.delay_min_ms
+            rule.delay_min_ms
         };
         sleep(Duration::from_millis(delay_ms)).await;
     }

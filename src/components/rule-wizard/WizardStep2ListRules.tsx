@@ -1,11 +1,5 @@
 /**
  * Step 4 — 目录规则
- * 对照参考截图的完整功能：
- * - 常用规则（快速选用）：自动匹配 + 常用规则下拉 + 编码选择 + 查看源码
- * - 规则设定（必填）：方式 / 标签名 / 属性名 / 值 / 正则
- * - 分页设置：存在分页 / 链接变化方式 / 分页总数 / 插入链接部分
- * - 书籍名称（可选）：使用 XPath / 标签名 / 属性名 / 值 + 测试按钮
- * - AI 批量分析（若开启）
  */
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,11 +7,13 @@ import {
   Sparkles, Loader2, AlertCircle, Code2, RefreshCw, TestTube2,
 } from "lucide-react";
 import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
-import { FieldRuleEditor } from "./FieldRuleEditor";
+import { Input } from "@/components/Input";import { FieldRuleEditor } from "./FieldRuleEditor";
 import { apiFetchSource } from "@/lib/api/files";
-import { aiComplete, preprocessHtml, extractJson, validateXPath } from "@/lib/ai";
-import { useAiStore } from "@/store/aiStore";
+import { validateXPath } from "@/lib/ai";
+import { WizardSection } from "./components/WizardSection";
+import { buildBookNameXPath } from "./components/BookNameConfig";
+import { PaginationSection } from "./components/PaginationSection";
+import { useWizardListRulesAi } from "./hooks/useWizardListRulesAi";
 import type { WizardData, FieldRule } from "./ruleUtils";
 
 interface Props {
@@ -25,7 +21,7 @@ interface Props {
   onChange: (d: WizardData) => void;
 }
 
-// ─── Preset common rules ───────────────────────────────────────────────────────
+// ─── Constants ─────────────────────────────────────────────────────────────────
 
 const COMMON_RULES = [
   { label: "-- 常用规则 --", value: "" },
@@ -48,39 +44,22 @@ const ENCODING_OPTIONS = [
   { label: "Big5",    value: "big5" },
 ];
 
-const PAGE_URL_MODES = [
-  { label: "插入后缀页", value: "suffix" },
-  { label: "插入链接部分", value: "insert" },
-];
-
-const AI_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专家。
-分析目录页HTML，为以下3个字段生成XPath，严格输出JSON，不含其他内容：
-{
-  "list_novel_name":   {"xpath":"...","explanation":"..."},
-  "list_release_date": {"xpath":"...","explanation":"..."},
-  "list_release_url":  {"xpath":"...","explanation":"..."}
-}
-规则：优先用 id/class 属性，文本加 /text()，链接加 /@href，用 // 全局路径。无把握的字段 xpath 留空字符串。`;
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function WizardStep2ListRules({ data, onChange }: Props) {
   const navigate = useNavigate();
-  const aiEnabled = useAiStore((s) => s.config.enabled);
-  const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [showSource, setShowSource] = useState(false);
   const [encoding, setEncoding] = useState("auto");
-
-  // Book name test result
   const [bookNameTestResult, setBookNameTestResult] = useState<{ count: number; sample: string } | null>(null);
+  const [autoMatchLoading, setAutoMatchLoading] = useState(false);
 
   const patch = (
     key: keyof Pick<WizardData, "list_novel_name" | "list_release_date" | "list_release_url">,
     rule: FieldRule
   ) => onChange({ ...data, [key]: rule });
 
-  // ── Ensure HTML is loaded ────────────────────────────────────────────────────
+  // ── Ensure HTML ─────────────────────────────────────────────────────────────
 
   const ensureHtml = async (): Promise<string> => {
     if (data.catalog_html) return data.catalog_html;
@@ -90,6 +69,11 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
     onChange({ ...data, catalog_html: html });
     return html;
   };
+
+  // ── AI hook ────────────────────────────────────────────────────────────────
+
+  const { aiEnabled, aiLoading, runBatchAi, runFieldAi } =
+    useWizardListRulesAi(data, onChange, ensureHtml, setErrorMsg);
 
   // ── Common rule quick-select ─────────────────────────────────────────────────
 
@@ -103,17 +87,13 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
 
   // ── Auto match ──────────────────────────────────────────────────────────────
 
-  const [autoMatchLoading, setAutoMatchLoading] = useState(false);
   const runAutoMatch = async () => {
     setAutoMatchLoading(true);
     setErrorMsg("");
     try {
       const html = await ensureHtml();
-      // Simple heuristic: find the <a> with most siblings that looks like chapter links
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
-
-      // Try common chapter list containers
       const candidates = [
         "//div[contains(@class,'list')]//a/@href",
         "//div[contains(@class,'chapter')]//a/@href",
@@ -123,7 +103,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
         "//dl//dd/a/@href",
         "//table//td/a/@href",
       ];
-
       let bestXpath = "";
       let bestCount = 0;
       for (const xpath of candidates) {
@@ -135,7 +114,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
           }
         } catch { /* skip */ }
       }
-
       if (bestXpath) {
         onChange({
           ...data,
@@ -166,95 +144,23 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
 
   // ── Book name test ───────────────────────────────────────────────────────────
 
+  const bookNameXPathPreview = useMemo(() => buildBookNameXPath(data), [data]);
+
   const testBookName = () => {
     if (!data.catalog_html) { setErrorMsg("请先获取页面源码"); return; }
-    const xpath = buildBookNameXPath(data);
+    const xpath = bookNameXPathPreview;
     if (!xpath) { setBookNameTestResult(null); return; }
     const v = validateXPath(data.catalog_html, xpath);
     setBookNameTestResult({ count: v.count, sample: v.samples[0] ?? "" });
   };
 
-  // ── AI batch ────────────────────────────────────────────────────────────────
-
-  const runBatchAi = async () => {
-    if (!aiEnabled) return;
-    setAiLoading("batch");
-    setErrorMsg("");
-    try {
-      const html = await ensureHtml();
-      const aiConfig = useAiStore.getState().activeConfig();
-      const processed = preprocessHtml(html);
-      const reply = await aiComplete(
-        `网站：${data.catalog_url}\n\n分析以下目录页 HTML，为3个字段生成 XPath：\n${processed}`,
-        AI_SYSTEM,
-        aiConfig
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      onChange({
-        ...data,
-        catalog_html: html,
-        list_novel_name:   applyAiResult(data.list_novel_name,   parsed?.list_novel_name),
-        list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url:  applyAiResult(data.list_release_url,  parsed?.list_release_url),
-      });
-    } catch (e) {
-      setErrorMsg(String(e));
-    } finally {
-      setAiLoading(null);
-    }
-  };
-
-  const runFieldAi = async (
-    fieldKey: "list_novel_name" | "list_release_date" | "list_release_url",
-    fieldLabel: string
-  ) => {
-    if (!aiEnabled) return;
-    setAiLoading(fieldKey);
-    setErrorMsg("");
-    try {
-      const html = await ensureHtml();
-      const aiConfig = useAiStore.getState().activeConfig();
-      const processed = preprocessHtml(html);
-      const system = `你是专门分析中文小说网站HTML结构的专家。
-为字段"${fieldLabel}"生成最合适的XPath，严格输出JSON：{"xpath":"...","explanation":"..."}
-文本加/text()，链接加/@href。`;
-      const reply = await aiComplete(
-        `网站：${data.catalog_url}\n\n分析以下HTML，为"${fieldLabel}"字段生成XPath：\n${processed}`,
-        system,
-        aiConfig
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      const xpath: string = parsed?.xpath ?? "";
-      onChange({
-        ...data,
-        catalog_html: html,
-        [fieldKey]: { ...data[fieldKey], mode: "ai", xpath } as FieldRule,
-      });
-    } catch (e) {
-      setErrorMsg(String(e));
-    } finally {
-      setAiLoading(null);
-    }
-  };
-
-  // Derived XPath preview for book name
-  const bookNameXPathPreview = useMemo(() => buildBookNameXPath(data), [data]);
-
   return (
     <div className="flex flex-col gap-4">
 
       {/* ── Section: 常用规则（快速选用）──────────────────────────────────── */}
-      <Section title="常用规则（快速选用）" color="var(--color-text-muted)">
+      <WizardSection title="常用规则（快速选用）" color="var(--color-text-muted)">
         <div className="flex flex-wrap gap-2 items-center">
-          {/* Auto match */}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={runAutoMatch}
-            disabled={autoMatchLoading}
-          >
+          <Button size="sm" variant="secondary" onClick={runAutoMatch} disabled={autoMatchLoading}>
             {autoMatchLoading
               ? <Loader2 className="w-3 h-3 animate-spin" />
               : <RefreshCw className="w-3 h-3" />
@@ -262,7 +168,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             自动匹配
           </Button>
 
-          {/* Common rules dropdown */}
           <select
             className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none"
             style={{
@@ -280,7 +185,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             ))}
           </select>
 
-          {/* Encoding */}
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>编码</span>
             <select
@@ -300,7 +204,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             </select>
           </div>
 
-          {/* View source */}
           <button
             onClick={handleViewSource}
             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors shrink-0"
@@ -317,7 +220,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
           </button>
         </div>
 
-        {/* Source preview */}
         {showSource && data.catalog_html && (
           <div
             className="rounded-lg border overflow-auto font-mono text-xs leading-relaxed p-2 mt-2"
@@ -335,7 +237,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
           </div>
         )}
 
-        {/* AI batch */}
         <div className="flex items-center gap-2 mt-1">
           {aiEnabled ? (
             <Button size="sm" onClick={runBatchAi} disabled={aiLoading !== null}>
@@ -365,7 +266,7 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             </span>
           )}
         </div>
-      </Section>
+      </WizardSection>
 
       {/* Error */}
       {errorMsg && (
@@ -379,7 +280,7 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
       )}
 
       {/* ── Section: 规则设定（必填）─────────────────────────────────────── */}
-      <Section title="规则设定（必填）" color="var(--color-danger)">
+      <WizardSection title="规则设定（必填）" color="var(--color-danger)">
         <FieldRuleEditor
           label="目录页书名 *"
           rule={data.list_novel_name}
@@ -404,85 +305,17 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
           onAiRequest={() => runFieldAi("list_release_url", "章节链接")}
           aiLoading={aiLoading === "list_release_url"}
         />
-      </Section>
+      </WizardSection>
 
       {/* ── Section: 分页设置 ────────────────────────────────────────────── */}
-      <Section title="分页设置" color="var(--color-text-muted)">
-        {/* Pagination toggle */}
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={data.has_pagination}
-            onChange={(e) => onChange({ ...data, has_pagination: e.target.checked })}
-            className="w-3.5 h-3.5 rounded"
-          />
-          <span className="text-xs" style={{ color: "var(--color-text)" }}>存在分页</span>
-        </label>
-
-        {data.has_pagination && (
-          <div className="flex flex-wrap gap-3 mt-2 items-end">
-            {/* Page URL mode */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>链接变化方式</label>
-              <select
-                className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none"
-                style={{
-                  background: "var(--color-surface-1)",
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-text)",
-                }}
-                value={data.page_url_mode}
-                onChange={(e) => onChange({ ...data, page_url_mode: e.target.value as "suffix" | "insert" })}
-              >
-                {PAGE_URL_MODES.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Page total */}
-            <div className="flex flex-col gap-1" style={{ width: 80 }}>
-              <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>分页总数</label>
-              <input
-                type="number"
-                min={1}
-                max={999}
-                className="text-xs border rounded-lg px-2 py-1.5 focus:outline-none w-full"
-                style={{
-                  background: "var(--color-surface-1)",
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-text)",
-                }}
-                value={data.page_total}
-                onChange={(e) => onChange({ ...data, page_total: Math.max(1, Number(e.target.value)) })}
-              />
-            </div>
-
-            {/* Insert part */}
-            <div className="flex flex-col gap-1 flex-1" style={{ minWidth: 100 }}>
-              <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>插入链接部分</label>
-              <Input
-                placeholder="如：_2  ?page=2"
-                value={data.page_insert_part}
-                onChange={(e) => onChange({ ...data, page_insert_part: e.target.value })}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Hint */}
-        <p className="text-xs mt-1" style={{ color: "var(--color-text-subtle)" }}>
-          {data.has_pagination
-            ? `共 ${data.page_total} 页，每页在链接中插入「${data.page_insert_part}」`
-            : "若目录为单页，无需勾选"
-          }
-        </p>
-      </Section>
+      <PaginationSection
+        data={data}
+        onChange={onChange}
+      />
 
       {/* ── Section: 书籍名称 ────────────────────────────────────────────── */}
-      <Section title="书籍名称（可选）" color="var(--color-text-muted)">
+      <WizardSection title="书籍名称（可选）" color="var(--color-text-muted)">
         <div className="flex flex-col gap-2">
-          {/* Use XPath toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -501,7 +334,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             )}
           </label>
 
-          {/* Tag / attr / value row */}
           <div className="flex gap-2 flex-wrap items-end">
             <div className="flex flex-col gap-1" style={{ flex: "1 1 80px", minWidth: 70 }}>
               <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>标签名称</label>
@@ -546,7 +378,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
                 onChange={(e) => onChange({ ...data, book_name_val: e.target.value })}
               />
             </div>
-            {/* Test button */}
             <button
               onClick={testBookName}
               className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors shrink-0 self-end"
@@ -555,7 +386,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
                 borderColor: "var(--color-border)",
                 color: "var(--color-accent)",
                 fontWeight: 500,
-                marginBottom: 0,
               }}
             >
               <TestTube2 className="w-3 h-3" />
@@ -563,7 +393,6 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             </button>
           </div>
 
-          {/* Test result */}
           {bookNameTestResult !== null && (
             <div
               className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg"
@@ -579,7 +408,7 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
             </div>
           )}
         </div>
-      </Section>
+      </WizardSection>
 
       {/* ── Instruction ─────────────────────────────────────────────────── */}
       <div
@@ -596,51 +425,4 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
       </div>
     </div>
   );
-}
-
-// ─── Section wrapper ───────────────────────────────────────────────────────────
-
-function Section({
-  title, color = "var(--color-text-muted)", children,
-}: {
-  title: string;
-  color?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="flex flex-col gap-2.5 rounded-xl p-3 border"
-      style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-    >
-      <p
-        className="text-xs font-semibold"
-        style={{ color }}
-      >
-        {title}
-      </p>
-      {children}
-    </div>
-  );
-}
-
-// ─── Book name XPath builder ───────────────────────────────────────────────────
-
-function buildBookNameXPath(data: WizardData): string {
-  if (data.book_name_use_xpath) {
-    const tag = data.book_name_tag || "*";
-    const attr = data.book_name_attr;
-    const val = data.book_name_val.trim();
-    if (attr && val) return `//${tag}[@${attr}="${val}"]/text()`;
-    if (attr)        return `//${tag}[@${attr}]/text()`;
-    return `//${tag}/text()`;
-  }
-  return "";
-}
-
-// ─── AI helper ────────────────────────────────────────────────────────────────
-
-function applyAiResult(existing: FieldRule, result?: { xpath?: string }): FieldRule {
-  const xpath = result?.xpath ?? "";
-  if (!xpath) return existing;
-  return { ...existing, mode: "ai", xpath };
 }

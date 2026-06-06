@@ -103,7 +103,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
     // page_list entries are paths that get appended to domain_name by the crawler.
     // We derive them from update_list_url: extract the path relative to domain_name,
     // then generate N variants by replacing (or appending) the page number.
-    let page_list: string[] = [];
+    let page_list: string[];
 
     if (data.has_pagination && data.page_total > 1 && data.page_insert_part.trim()) {
       const basePath = (() => {

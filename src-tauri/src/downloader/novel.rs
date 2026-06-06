@@ -27,7 +27,7 @@ pub async fn download_novel(
     text_conv: TextConversionConfig,
     ebook_conv: EbookConversionConfig,
     cfg_content_filter: crate::models::ContentFilterConfig,
-    cfg_ttks: crate::models::TtksConfig,
+    cfg_rate_limit: crate::models::RateLimitConfig,
 ) -> Result<()> {
     let chapter_urls = get_chapter_urls(
         client, &candidate.url, &site_cfg.chapter_url_x,
@@ -41,7 +41,7 @@ pub async fn download_novel(
 
     let total_chapters = chapter_urls.len();
     let content_filter = cfg_content_filter.clone();
-    let ttks_cfg = cfg_ttks.clone();
+    let rate_limit_cfg = cfg_rate_limit.clone();
     let xpath_fallbacks = site_cfg.novel_content_fallbacks.clone();
     let temp_dir = base_dir.join(format!("temp_{}", candidate.name));
     tokio::fs::create_dir_all(&temp_dir).await?;
@@ -53,7 +53,7 @@ pub async fn download_novel(
         client, &chapter_urls, site_cfg, net_cfg,
         &temp_dir, &chapter_sem, &cancel, &tx,
         &candidate.name, &counter, total_chapters,
-        &text_conv, &ttks_cfg, &content_filter, &xpath_fallbacks,
+        &text_conv, &rate_limit_cfg, &content_filter, &xpath_fallbacks,
     ).await;
 
     let failed_indices: Vec<usize> = first_results.iter().enumerate()
@@ -97,7 +97,7 @@ async fn run_first_pass(
     counter: &Arc<std::sync::atomic::AtomicUsize>,
     total_chapters: usize,
     text_conv: &TextConversionConfig,
-    ttks_cfg: &crate::models::TtksConfig,
+    rate_limit_cfg: &crate::models::RateLimitConfig,
     content_filter: &crate::models::ContentFilterConfig,
     xpath_fallbacks: &[String],
 ) -> Vec<Result<Result<(), anyhow::Error>, tokio::task::JoinError>> {
@@ -118,7 +118,7 @@ async fn run_first_pass(
         let novel = novel_name.to_string();
         let ctr = counter.clone();
         let tc = text_conv.clone();
-        let ttks_cfg = ttks_cfg.clone();
+        let rate_limit_cfg = rate_limit_cfg.clone();
         let content_filter = content_filter.clone();
         let xpath_fallbacks = xpath_fallbacks.to_vec();
 
@@ -143,15 +143,16 @@ async fn run_first_pass(
                 }
             }
 
-            // TTKS 专用下载器 vs 通用下载器
-            let text = if crate::ttks_downloader::is_ttks_url(&url, &ttks_cfg) {
+            // 限速规则匹配下载器 vs 通用下载器
+            let text = if let Some(rule) = crate::ttks_downloader::find_rate_limit_rule(&url, &rate_limit_cfg) {
+                let rule = rule.clone();
                 let proxy_opt = proxy.as_deref().filter(|p| !p.is_empty());
-                match crate::ttks_downloader::build_ttks_client(proxy_opt, timeout, &ttks_cfg) {
-                    Ok(ttks_client) => {
+                match crate::ttks_downloader::build_ttks_client(proxy_opt, timeout, &rule) {
+                    Ok(rl_client) => {
                         let domain = url.split('/').take(3).collect::<Vec<_>>().join("/");
                         crate::ttks_downloader::fetch_ttks_chapter(
-                            &ttks_client, &url, &domain,
-                            &xpath, &xpath_fallbacks, &enc, rc, rd, &ttks_cfg, &content_filter,
+                            &rl_client, &url, &domain,
+                            &xpath, &xpath_fallbacks, &enc, rc, rd, &rule, &content_filter,
                         ).await?
                     }
                     Err(_) => {

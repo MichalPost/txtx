@@ -99,7 +99,41 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         });
       });
     } catch {
-      // Non-Tauri environment: no-op
+      // Non-Tauri environment: poll /api/tasks every 2s
+      const pollTasks = async () => {
+        try {
+          const freshTasks = await apiListTasks();
+          set((s) => {
+            const updated = s.tasks.map((existing) => {
+              const server = freshTasks.find((f) => f.id === existing.id);
+              if (!server) return existing;
+              if (
+                server.status !== existing.status ||
+                server.completed !== existing.completed ||
+                server.success_count !== existing.success_count ||
+                server.error_count !== existing.error_count ||
+                (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)
+              ) {
+                return server;
+              }
+              return existing;
+            });
+            // Also add any server-side tasks not yet in local store
+            const newTasks = freshTasks.filter(
+              (f) => !s.tasks.find((e) => e.id === f.id)
+            );
+            if (updated.some((u, i) => u !== s.tasks[i]) || newTasks.length > 0) {
+              return { tasks: [...updated, ...newTasks] };
+            }
+            return s;
+          });
+        } catch {
+          // Ignore poll errors
+        }
+      };
+
+      // Start polling every 2 seconds
+      setInterval(() => { void pollTasks(); }, 2000);
     }
   },
 

@@ -60,53 +60,81 @@ impl Default for ContentFilterConfig {
     }
 }
 
-// ─── TtksConfig ───────────────────────────────────────────────────────────────
+// ─── RateLimitRule / RateLimitConfig ──────────────────────────────────────────
 
-/// TTKS 专用下载配置
+/// 单条站点限速规则（任意站点均可添加）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TtksConfig {
-    /// 识别为 TTKS 站点的域名特征列表
-    #[serde(default = "default_ttks_domains")]
+pub struct RateLimitRule {
+    /// 规则名称（显示用）
+    #[serde(default)]
+    pub name: String,
+    /// 命中此规则的域名特征列表（URL contains any）
+    #[serde(default)]
     pub domains: Vec<String>,
-    /// 章节间最小延迟（毫秒）
-    #[serde(default = "default_ttks_delay_min")]
+    /// 章节间最小延迟（毫秒）；0 = 不延迟
+    #[serde(default = "default_rl_delay_min")]
     pub delay_min_ms: u64,
-    /// 章节间最大延迟（毫秒）
-    #[serde(default = "default_ttks_delay_max")]
+    /// 章节间最大延迟（毫秒）；等于 delay_min_ms 时为固定延迟
+    #[serde(default = "default_rl_delay_max")]
     pub delay_max_ms: u64,
-    /// 每秒最大请求数。0 = 禁用（回退到随机 delay_min/max 延迟）
-    #[serde(default = "default_ttks_rps")]
+    /// 每秒最大请求数；0 = 禁用（退回随机延迟）
+    #[serde(default)]
     pub requests_per_second: u32,
-    /// 随机 User-Agent 池（轮换使用）
-    #[serde(default = "default_ttks_ua_pool")]
+    /// 随机 UA 池（空 = 使用全局 user_agent）
+    #[serde(default)]
     pub ua_pool: Vec<String>,
+    /// 启用 stealth TLS 指纹（wreq）；false = 标准 reqwest
+    #[serde(default = "default_true_bool")]
+    pub stealth: bool,
 }
 
-fn default_ttks_domains() -> Vec<String> {
-    vec!["ttks.tw".into(), "ttks.cc".into(), "ttks.me".into()]
-}
-fn default_ttks_delay_min() -> u64 { 3_000 }
-fn default_ttks_delay_max() -> u64 { 8_000 }
-fn default_ttks_rps() -> u32 { 0 }
-fn default_ttks_ua_pool() -> Vec<String> {
-    vec![
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36".into(),
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0".into(),
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36".into(),
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0".into(),
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36".into(),
-    ]
-}
+fn default_rl_delay_min() -> u64 { 1_000 }
+fn default_rl_delay_max() -> u64 { 3_000 }
+fn default_true_bool() -> bool { true }
 
-impl Default for TtksConfig {
+impl Default for RateLimitRule {
     fn default() -> Self {
         Self {
-            domains: default_ttks_domains(),
-            delay_min_ms: default_ttks_delay_min(),
-            delay_max_ms: default_ttks_delay_max(),
-            requests_per_second: default_ttks_rps(),
-            ua_pool: default_ttks_ua_pool(),
+            name: String::new(),
+            domains: vec![],
+            delay_min_ms: default_rl_delay_min(),
+            delay_max_ms: default_rl_delay_max(),
+            requests_per_second: 0,
+            ua_pool: vec![],
+            stealth: true,
         }
+    }
+}
+
+/// 全部站点限速规则（替代原 TtksConfig）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RateLimitConfig {
+    /// 规则列表，按顺序匹配，命中第一条即停
+    #[serde(default)]
+    pub rules: Vec<RateLimitRule>,
+}
+
+/// 向后兼容：从旧 ttks yaml/json 迁移
+pub fn ttks_to_rate_limit(
+    domains: Vec<String>,
+    delay_min: u64,
+    delay_max: u64,
+    rps: u32,
+    ua_pool: Vec<String>,
+) -> RateLimitConfig {
+    if domains.is_empty() && ua_pool.is_empty() {
+        return RateLimitConfig::default();
+    }
+    RateLimitConfig {
+        rules: vec![RateLimitRule {
+            name: "TTKS（迁移）".into(),
+            domains,
+            delay_min_ms: delay_min,
+            delay_max_ms: delay_max,
+            requests_per_second: rps,
+            ua_pool,
+            stealth: true,
+        }],
     }
 }
 

@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import type { TaskRecord, TaskEvent, LogEntry } from "@/types";
+import { recordRuleUsage } from "@/lib/ruleHealth";
 
 let logId = 0;
 
@@ -18,6 +19,13 @@ export function applyTaskEvent(record: TaskRecord, event: TaskEvent): TaskRecord
   switch (event.type) {
     case "scan_start":
       r.status = "scanning";
+      r.scan_items = [];
+      break;
+    case "scan_done":
+      // Each site scan completes with new items — accumulate them
+      if (event.items && event.items.length > 0) {
+        r.scan_items = [...r.scan_items, ...event.items];
+      }
       break;
     case "scan_complete":
       r.scan_items = event.items ?? [];
@@ -34,10 +42,12 @@ export function applyTaskEvent(record: TaskRecord, event: TaskEvent): TaskRecord
     case "novel_done":
       r.completed = Math.min(r.completed + 1, Math.max(r.total, r.completed + 1));
       r.success_count += 1;
+      if (event.site) recordRuleUsage(event.site, "success");
       break;
     case "novel_error":
       r.completed = Math.min(r.completed + 1, Math.max(r.total, r.completed + 1));
       r.error_count += 1;
+      if (event.site) recordRuleUsage(event.site, "error", event.message ?? undefined);
       break;
     case "overall_done":
       r.status = "done";

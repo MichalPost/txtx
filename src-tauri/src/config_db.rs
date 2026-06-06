@@ -10,7 +10,7 @@ use crate::models::{
     AppConfig, PathsConfig, NetworkConfig, ConcurrencyConfig, FilteringConfig,
     BlacklistConfig, GradingRules, WebsiteConfig,
     conversion::{TextConversionConfig, EbookConversionConfig},
-    filters::{ContentFilterConfig, TtksConfig, AdvancedNetworkConfig},
+    filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig},
 };
 
 // ─── DB path ──────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ fn open_db(app_data_dir: &Path) -> Result<Connection> {
         .with_context(|| format!("无法打开数据库: {}", path.display()))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
     migrate(&conn)?;
+    let _ = migrate_ttks_to_rate_limit_rules(&conn);
     Ok(conn)
 }
 
@@ -102,6 +103,18 @@ fn migrate(conn: &Connection) -> Result<()> {
             an_chapter_fail_threshold   REAL    NOT NULL DEFAULT 0.05
         );
 
+        CREATE TABLE IF NOT EXISTS rate_limit_rules (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
+            name        TEXT    NOT NULL DEFAULT '',
+            domains     TEXT    NOT NULL DEFAULT '[]',
+            delay_min   INTEGER NOT NULL DEFAULT 1000,
+            delay_max   INTEGER NOT NULL DEFAULT 3000,
+            rps         INTEGER NOT NULL DEFAULT 0,
+            ua_pool     TEXT    NOT NULL DEFAULT '[]',
+            stealth     INTEGER NOT NULL DEFAULT 1
+        );
+
         CREATE TABLE IF NOT EXISTS websites (
             key                     TEXT PRIMARY KEY,
             enabled                 INTEGER NOT NULL DEFAULT 1,
@@ -129,6 +142,40 @@ fn migrate(conn: &Connection) -> Result<()> {
             temperature REAL    NOT NULL DEFAULT 0.2
         );
         ",
+    )?;
+    Ok(())
+}
+
+// ─── Soft migration: ttks → rate_limit_rules ─────────────────────────────────
+
+/// 一次性将旧 ttks_* 列数据迁移到 rate_limit_rules 表
+fn migrate_ttks_to_rate_limit_rules(conn: &Connection) -> Result<()> {
+    // 只在表为空时执行
+    let already: i64 = conn
+        .query_row("SELECT COUNT(*) FROM rate_limit_rules", [], |r| r.get(0))
+        .unwrap_or(0);
+    if already > 0 { return Ok(()); }
+
+    // 尝试读旧 ttks_* 列（老 DB 中存在）
+    let row: rusqlite::Result<(String, i64, i64, String)> = conn.query_row(
+        "SELECT ttks_domains, ttks_delay_min, ttks_delay_max, ttks_ua_pool
+         FROM app_config WHERE id = 1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+    );
+    let Ok((domains_json, delay_min, delay_max, ua_pool_json)) = row else {
+        return Ok(()); // 无 config 行或列不存在，跳过
+    };
+
+    let domains: Vec<String> = serde_json::from_str(&domains_json).unwrap_or_default();
+    let ua_pool: Vec<String> = serde_json::from_str(&ua_pool_json).unwrap_or_default();
+    // 只在有实际内容时才插入
+    if domains.is_empty() && ua_pool.is_empty() { return Ok(()); }
+
+    conn.execute(
+        "INSERT INTO rate_limit_rules (sort_order, name, domains, delay_min, delay_max, rps, ua_pool, stealth)
+         VALUES (0, 'TTKS（迁移）', ?1, ?2, ?3, 0, ?4, 1)",
+        params![domains_json, delay_min, delay_max, ua_pool_json],
     )?;
     Ok(())
 }
@@ -182,7 +229,6 @@ pub fn load_config(app_data_dir: &Path) -> Result<AppConfig> {
             tc_enabled, tc_t2s, tc_auto,
             eb_enabled, eb_formats, eb_calibre,
             cf_ad_patterns, cf_nav_keywords, cf_safety_threshold, cf_fallback_trim_lines,
-            ttks_domains, ttks_delay_min, ttks_delay_max, ttks_ua_pool,
             an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold
          FROM app_config WHERE id = 1",
         [],
@@ -192,6 +238,7 @@ pub fn load_config(app_data_dir: &Path) -> Result<AppConfig> {
     match result {
         Ok(mut cfg) => {
             cfg.websites = websites;
+            cfg.rate_limit.rules = load_rate_limit_rules(&conn);
             Ok(cfg)
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => {
@@ -251,15 +298,10 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
     let cf_fallback_trim_lines: usize = row.get::<_, i64>(36)? as usize;
 
 
-    let ttks_domains_json: String = row.get(37)?;
-    let ttks_delay_min: u64 = row.get::<_, i64>(38)? as u64;
-    let ttks_delay_max: u64 = row.get::<_, i64>(39)? as u64;
-    let ttks_ua_pool_json: String = row.get(40)?;
-
-    let an_pool_idle_timeout_secs: u64 = row.get::<_, i64>(41)? as u64;
-    let an_tcp_keepalive_secs: u64 = row.get::<_, i64>(42)? as u64;
-    let an_min_chapter_bytes: u64 = row.get::<_, i64>(43)? as u64;
-    let an_chapter_fail_threshold: f64 = row.get(44)?;
+    let an_pool_idle_timeout_secs: u64 = row.get::<_, i64>(37)? as u64;
+    let an_tcp_keepalive_secs: u64 = row.get::<_, i64>(38)? as u64;
+    let an_min_chapter_bytes: u64 = row.get::<_, i64>(39)? as u64;
+    let an_chapter_fail_threshold: f64 = row.get(40)?;
 
     // Parse JSON fields (fall back to empty on parse error)
     let encoding_map: HashMap<String, String> =
@@ -280,10 +322,6 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
         serde_json::from_str(&cf_ad_patterns_json).unwrap_or_default();
     let cf_nav_keywords: Vec<String> =
         serde_json::from_str(&cf_nav_keywords_json).unwrap_or_default();
-    let ttks_domains: Vec<String> =
-        serde_json::from_str(&ttks_domains_json).unwrap_or_default();
-    let ttks_ua_pool: Vec<String> =
-        serde_json::from_str(&ttks_ua_pool_json).unwrap_or_default();
 
     Ok(AppConfig {
         paths: PathsConfig { base_dir, temp_dir, log_dir },
@@ -325,13 +363,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
             safety_threshold: cf_safety_threshold,
             fallback_trim_lines: cf_fallback_trim_lines,
         },
-        ttks: TtksConfig {
-            domains: ttks_domains,
-            delay_min_ms: ttks_delay_min,
-            delay_max_ms: ttks_delay_max,
-            requests_per_second: 0,
-            ua_pool: ttks_ua_pool,
-        },
+        rate_limit: RateLimitConfig::default(), // 规则由 load_config 的调用层填充
         advanced_network: AdvancedNetworkConfig {
             pool_idle_timeout_secs: an_pool_idle_timeout_secs,
             tcp_keepalive_secs: an_tcp_keepalive_secs,
@@ -339,6 +371,33 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
             chapter_fail_threshold: an_chapter_fail_threshold,
         },
     })
+}
+
+fn load_rate_limit_rules(conn: &Connection) -> Vec<crate::models::filters::RateLimitRule> {
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT name, domains, delay_min, delay_max, rps, ua_pool, stealth
+         FROM rate_limit_rules ORDER BY sort_order ASC"
+    ) else { return vec![]; };
+
+    let rows = stmt.query_map([], |row| {
+        let name: String = row.get(0)?;
+        let domains_json: String = row.get(1)?;
+        let delay_min: u64 = row.get::<_, i64>(2)? as u64;
+        let delay_max: u64 = row.get::<_, i64>(3)? as u64;
+        let rps: u32 = row.get::<_, i64>(4)? as u32;
+        let ua_pool_json: String = row.get(5)?;
+        let stealth: bool = row.get::<_, i64>(6)? != 0;
+        let domains = serde_json::from_str(&domains_json).unwrap_or_default();
+        let ua_pool = serde_json::from_str(&ua_pool_json).unwrap_or_default();
+        Ok(crate::models::filters::RateLimitRule {
+            name, domains,
+            delay_min_ms: delay_min, delay_max_ms: delay_max,
+            requests_per_second: rps, ua_pool, stealth,
+        })
+    });
+    rows.ok()
+        .map(|iter| iter.filter_map(|r| r.ok()).collect())
+        .unwrap_or_default()
 }
 
 // ─── Save config ──────────────────────────────────────────────────────────────
@@ -356,8 +415,6 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
     let eb_formats = serde_json::to_string(&config.ebook_conversion.formats)?;
     let cf_ad_patterns = serde_json::to_string(&config.content_filter.ad_patterns)?;
     let cf_nav_keywords = serde_json::to_string(&config.content_filter.nav_keywords)?;
-    let ttks_domains = serde_json::to_string(&config.ttks.domains)?;
-    let ttks_ua_pool = serde_json::to_string(&config.ttks.ua_pool)?;
 
     conn.execute(
         "INSERT INTO app_config (
@@ -372,7 +429,6 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             tc_enabled, tc_t2s, tc_auto,
             eb_enabled, eb_formats, eb_calibre,
             cf_ad_patterns, cf_nav_keywords, cf_safety_threshold, cf_fallback_trim_lines,
-            ttks_domains, ttks_delay_min, ttks_delay_max, ttks_ua_pool,
             an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold
          ) VALUES (
             1,
@@ -386,8 +442,7 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             ?28, ?29, ?30,
             ?31, ?32, ?33,
             ?34, ?35, ?36, ?37,
-            ?38, ?39, ?40, ?41,
-            ?42, ?43, ?44, ?45
+            ?38, ?39, ?40, ?41
          )
          ON CONFLICT(id) DO UPDATE SET
             base_dir = excluded.base_dir,
@@ -427,10 +482,6 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             cf_nav_keywords = excluded.cf_nav_keywords,
             cf_safety_threshold = excluded.cf_safety_threshold,
             cf_fallback_trim_lines = excluded.cf_fallback_trim_lines,
-            ttks_domains = excluded.ttks_domains,
-            ttks_delay_min = excluded.ttks_delay_min,
-            ttks_delay_max = excluded.ttks_delay_max,
-            ttks_ua_pool = excluded.ttks_ua_pool,
             an_pool_idle_timeout_secs = excluded.an_pool_idle_timeout_secs,
             an_tcp_keepalive_secs = excluded.an_tcp_keepalive_secs,
             an_min_chapter_bytes = excluded.an_min_chapter_bytes,
@@ -461,10 +512,6 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             cf_ad_patterns, cf_nav_keywords,
             config.content_filter.safety_threshold,
             config.content_filter.fallback_trim_lines as i64,
-            ttks_domains,
-            config.ttks.delay_min_ms as i64,
-            config.ttks.delay_max_ms as i64,
-            ttks_ua_pool,
             config.advanced_network.pool_idle_timeout_secs as i64,
             config.advanced_network.tcp_keepalive_secs as i64,
             config.advanced_network.min_chapter_bytes as i64,
@@ -474,6 +521,9 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
 
     // Save websites
     save_all_websites_inner(&conn, &config.websites)?;
+
+    // Save rate limit rules
+    save_rate_limit_rules(&conn, &config.rate_limit.rules)?;
 
     Ok(())
 }
@@ -567,6 +617,29 @@ fn save_all_websites_inner(
     Ok(())
 }
 
+fn save_rate_limit_rules(conn: &Connection, rules: &[crate::models::filters::RateLimitRule]) -> Result<()> {
+    conn.execute("DELETE FROM rate_limit_rules", [])?;
+    for (i, rule) in rules.iter().enumerate() {
+        let domains_json = serde_json::to_string(&rule.domains)?;
+        let ua_pool_json = serde_json::to_string(&rule.ua_pool)?;
+        conn.execute(
+            "INSERT INTO rate_limit_rules (sort_order, name, domains, delay_min, delay_max, rps, ua_pool, stealth)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                i as i64,
+                rule.name,
+                domains_json,
+                rule.delay_min_ms as i64,
+                rule.delay_max_ms as i64,
+                rule.requests_per_second as i64,
+                ua_pool_json,
+                rule.stealth as i64,
+            ],
+        )?;
+    }
+    Ok(())
+}
+
 // ─── Update helpers ───────────────────────────────────────────────────────────
 
 /// Update just the last_download_date field without rewriting the whole config.
@@ -639,7 +712,7 @@ fn default_app_config() -> AppConfig {
         text_conversion: TextConversionConfig::default(),
         ebook_conversion: EbookConversionConfig::default(),
         content_filter: ContentFilterConfig::default(),
-        ttks: TtksConfig::default(),
+        rate_limit: RateLimitConfig::default(),
         advanced_network: AdvancedNetworkConfig::default(),
     }
 }

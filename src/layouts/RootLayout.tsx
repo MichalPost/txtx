@@ -6,6 +6,8 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { SetupWizard } from "@/components/onboarding/SetupWizard";
 import { useConfigStore } from "@/store/configStore";
 import { useAiStore } from "@/store/aiStore";
+import { useSchedulerStore } from "@/store/schedulerStore";
+import { useTaskStore } from "@/store/taskStore";
 import { apiCheckFirstRun } from "@/lib/api";
 
 // 页面切换动画变体：轻微向上淡入，向下淡出
@@ -53,6 +55,30 @@ export function RootLayout() {
   // 路由跳转状态 — 用于顶部进度条
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
+
+  // 每日自动扫描调度器
+  const {
+    enabled: schedEnabled,
+    hour: schedHour,
+    lastRun: schedLastRun,
+    markRan: schedMarkRan,
+  } = useSchedulerStore();
+  const createBatchTask = useTaskStore((s) => s.createBatchTask);
+
+  useEffect(() => {
+    if (!schedEnabled) return;
+    const check = () => {
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      if (now.getHours() === schedHour && schedLastRun !== today) {
+        schedMarkRan();
+        createBatchTask().catch(console.error);
+      }
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    return () => clearInterval(id);
+  }, [schedEnabled, schedHour, schedLastRun, schedMarkRan, createBatchTask]);
 
   // 首次运行：全屏向导（不渲染 Sidebar/主内容）
   if (firstRun === true) {

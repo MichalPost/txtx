@@ -1,0 +1,297 @@
+import { useState } from "react";
+import { useNavigate, useRouteError, isRouteErrorResponse } from "react-router-dom";
+import { AlertTriangle, RefreshCw, ArrowLeft, ChevronDown, Copy, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/Button";
+
+// ─── 动效变体 ─────────────────────────────────────────────────────────────────
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show:   { opacity: 1, y: 0,  transition: { duration: 0.28, ease: [0.25, 0, 0, 1] as const } },
+};
+
+const stackVariants = {
+  hidden: { opacity: 0, height: 0 },
+  show:   { opacity: 1, height: "auto", transition: { duration: 0.22, ease: [0.25, 0, 0, 1] as const } },
+  exit:   { opacity: 0, height: 0,      transition: { duration: 0.18, ease: [0.4, 0, 1, 1]  as const } },
+};
+
+// ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+function parseError(error: unknown): { title: string; detail: string; stack?: string } {
+  if (isRouteErrorResponse(error)) {
+    return {
+      title:  `${error.status} ${error.statusText || "请求错误"}`,
+      detail: typeof error.data === "string" ? error.data : "路由响应出现了问题。",
+    };
+  }
+  if (error instanceof Error) {
+    return {
+      title:  error.name || "运行时错误",
+      detail: error.message || "发生了一个未知错误。",
+      stack:  error.stack,
+    };
+  }
+  return {
+    title:  "未知错误",
+    detail: String(error) || "应用遇到了意外情况，无法继续。",
+  };
+}
+
+// ─── 复制按钮 ─────────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback — 忽略
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+      style={{
+        background:   copied
+          ? "color-mix(in srgb, var(--color-success, #3a7d55) 12%, transparent)"
+          : "var(--color-surface-2)",
+        color:        copied ? "var(--color-success, #3a7d55)" : "var(--color-text-muted)",
+        border:       `1px solid ${copied
+          ? "color-mix(in srgb, var(--color-success, #3a7d55) 25%, transparent)"
+          : "var(--color-border)"}`,
+      }}
+      title="复制错误信息"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        {copied ? (
+          <motion.span
+            key="check"
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1,   opacity: 1 }}
+            exit={{    scale: 0.6, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-1"
+          >
+            <Check className="w-3 h-3" />
+            已复制
+          </motion.span>
+        ) : (
+          <motion.span
+            key="copy"
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1,   opacity: 1 }}
+            exit={{    scale: 0.6, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-1"
+          >
+            <Copy className="w-3 h-3" />
+            复制
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </button>
+  );
+}
+
+// ─── 主组件 ───────────────────────────────────────────────────────────────────
+
+interface ErrorPageProps {
+  /** 也可作为普通组件直接传入 error */
+  error?: unknown;
+}
+
+export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
+  const routeError = useRouteError();
+  const navigate   = useNavigate();
+  const [showStack, setShowStack] = useState(false);
+
+  const { title, detail, stack } = parseError(propError ?? routeError);
+
+  // 复制内容 = detail + stack（若有）
+  const copyText = stack ? `${detail}\n\n${stack}` : detail;
+
+  return (
+    <div
+      className="flex flex-col items-center justify-center h-full w-full px-4 select-none"
+      style={{ background: "var(--color-bg)" }}
+    >
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl"
+          style={{ background: "var(--color-danger, #c0392b)", opacity: 0.07 }}
+        />
+        <svg className="absolute inset-0 w-full h-full opacity-[0.025]" style={{ color: "var(--color-text-muted)" }}>
+          <defs>
+            <pattern id="err-grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#err-grid)" />
+        </svg>
+      </div>
+
+      {/* 主内容 */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="relative z-10 w-full flex flex-col gap-5"
+        style={{ maxWidth: 480 }}
+      >
+        {/* 图标 + 标题 */}
+        <motion.div variants={itemVariants} className="flex items-start gap-4">
+          <motion.div
+            initial={{ rotate: -10, scale: 0.7, opacity: 0 }}
+            animate={{ rotate: 0,   scale: 1,   opacity: 1 }}
+            transition={{ delay: 0.08, duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+            className="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center mt-0.5"
+            style={{
+              background: "color-mix(in srgb, var(--color-danger, #c0392b) 12%, transparent)",
+              border:     "1.5px solid color-mix(in srgb, var(--color-danger, #c0392b) 28%, transparent)",
+            }}
+          >
+            <AlertTriangle className="w-6 h-6" style={{ color: "var(--color-danger, #c0392b)" }} strokeWidth={1.8} />
+          </motion.div>
+          <div className="min-w-0">
+            <div
+              className="text-xs font-mono font-semibold uppercase tracking-widest mb-1"
+              style={{ color: "var(--color-danger, #c0392b)", opacity: 0.8 }}
+            >
+              Application Error
+            </div>
+            <h1
+              className="text-xl font-bold leading-snug truncate"
+              style={{ color: "var(--color-text)" }}
+            >
+              {title}
+            </h1>
+          </div>
+        </motion.div>
+
+        {/* 错误信息卡 */}
+        <motion.div
+          variants={itemVariants}
+          className="rounded-xl"
+          style={{
+            background: "var(--color-surface)",
+            border:     "1px solid var(--color-border)",
+            boxShadow:  "0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          {/* 卡头：标签 + 复制按钮 */}
+          <div
+            className="flex items-center justify-between px-4 py-2.5 border-b"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            <span
+              className="text-xs font-mono font-semibold tracking-wide"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Error Message
+            </span>
+            <CopyButton text={copyText} />
+          </div>
+          {/* 内容 */}
+          <p
+            className="px-4 py-3.5 text-sm leading-relaxed"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            {detail}
+          </p>
+        </motion.div>
+
+        {/* 堆栈折叠区 */}
+        {stack && (
+          <motion.div
+            variants={itemVariants}
+            className="rounded-xl overflow-hidden"
+            style={{
+              border:     "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+            }}
+          >
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-mono transition-colors hover:bg-[var(--color-surface-2)]"
+              style={{ color: "var(--color-text-muted)" }}
+              onClick={() => setShowStack((v) => !v)}
+            >
+              <span className="font-semibold tracking-wide">Stack Trace</span>
+              <motion.span
+                animate={{ rotate: showStack ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center"
+              >
+                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {showStack && (
+                <motion.div
+                  key="stack"
+                  variants={stackVariants}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  style={{ overflow: "hidden" }}
+                >
+                  <pre
+                    className="px-4 pb-4 pt-0 text-[11px] leading-relaxed overflow-x-auto"
+                    style={{
+                      color:         "var(--color-text-muted)",
+                      borderTop:     "1px solid var(--color-border)",
+                      maxHeight:     200,
+                      overflowY:     "auto",
+                      whiteSpace:    "pre-wrap",
+                      wordBreak:     "break-all",
+                    }}
+                  >
+                    {stack}
+                  </pre>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* 操作按钮 */}
+        <motion.div variants={itemVariants} className="flex gap-3">
+          <Button variant="secondary" size="md" className="flex-1" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            返回
+          </Button>
+          <Button variant="primary" size="md" className="flex-1" onClick={() => window.location.reload()}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            重新加载
+          </Button>
+        </motion.div>
+
+        {/* 底部提示 */}
+        <motion.p
+          variants={itemVariants}
+          className="text-center text-xs"
+          style={{ color: "var(--color-text-muted)", opacity: 0.5 }}
+        >
+          如果问题持续出现，请尝试重启应用或检查配置文件。
+        </motion.p>
+      </motion.div>
+    </div>
+  );
+}

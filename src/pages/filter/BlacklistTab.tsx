@@ -5,6 +5,8 @@ import { KeywordPanel } from "@/pages/blacklist/KeywordPanel";
 import { RegexPanel } from "@/pages/blacklist/RegexPanel";
 import { TagPanel } from "@/pages/blacklist/TagPanel";
 import { FilterSettingsCard } from "@/pages/blacklist/FilterSettingsCard";
+import { BlacklistTestPanel } from "./BlacklistTestPanel";
+import { WhitelistPanel } from "./WhitelistPanel";
 
 export function BlacklistTab() {
   const { config, saveConfig, saving } = useConfigStore();
@@ -39,6 +41,10 @@ export function BlacklistTab() {
         {/* Left: keywords */}
         <div className="flex flex-col flex-1 gap-3 min-h-0 min-w-0">
           <KeywordPanel keywords={bl.keywords} onUpdate={keywords => update({ keywords })} />
+          <WhitelistPanel
+            whitelist={bl.whitelist ?? []}
+            onUpdate={whitelist => update({ whitelist })}
+          />
         </div>
 
         {/* Right: settings + regex + tags */}
@@ -46,6 +52,7 @@ export function BlacklistTab() {
           <FilterSettingsCard blacklist={bl} onUpdate={update} />
           <RegexPanel patterns={bl.regex_patterns} onUpdate={regex_patterns => update({ regex_patterns })} />
           {bl.tag_filter && <TagPanel tags={bl.filtered_tags ?? []} onUpdate={filtered_tags => update({ filtered_tags })} />}
+          <BlacklistTestPanel blacklist={bl} />
         </div>
       </div>
     </div>

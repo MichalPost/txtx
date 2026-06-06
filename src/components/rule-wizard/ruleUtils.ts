@@ -286,6 +286,7 @@ export function wizardDataFromSite(site: {
   chapter_url_x: string;
   novel_content: string;
   novel_content_fallbacks?: string[];
+  chapter_next_page_xpath?: string;
 }): WizardData {
   const baseUrl = site.domain_name || "https://";
   return {

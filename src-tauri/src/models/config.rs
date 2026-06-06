@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::models::conversion::{TextConversionConfig, EbookConversionConfig};
-use crate::models::filters::{ContentFilterConfig, TtksConfig, AdvancedNetworkConfig};
+use crate::models::filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig};
 
 pub(crate) fn default_true() -> bool { true }
 
@@ -202,8 +202,8 @@ pub struct AppConfig {
     pub ebook_conversion: EbookConversionConfig,
     #[serde(default)]
     pub content_filter: ContentFilterConfig,
-    #[serde(default)]
-    pub ttks: TtksConfig,
+    #[serde(default, alias = "ttks")]
+    pub rate_limit: RateLimitConfig,
     #[serde(default)]
     pub advanced_network: AdvancedNetworkConfig,
 }

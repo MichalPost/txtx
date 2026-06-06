@@ -10,3 +10,4 @@ export * from "./download";
 export * from "./history";
 export * from "./files";
 export * from "./tasks";
+export * from "./bookshelf";

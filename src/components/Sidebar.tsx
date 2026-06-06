@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Download, Globe, Settings, BookOpen,
   History, Activity, FileText, ListTodo, Wand2,
-  PanelLeftClose, PanelLeftOpen, Filter,
+  PanelLeftClose, PanelLeftOpen, Filter, Library,
 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useSidebarStore } from "@/store/sidebarStore";
@@ -15,6 +15,7 @@ const navItems: Array<{ to: AppRoute; icon: React.ComponentType<{ className?: st
   { to: "/websites",  icon: Globe,     label: "网站配置" },
   { to: "/settings",  icon: Settings,  label: "通用设置" },
   { to: "/filter",    icon: Filter,    label: "过滤中心" },
+  { to: "/bookshelf", icon: Library,   label: "本地书架" },
   { to: "/history",   icon: History,   label: "下载历史" },
   { to: "/health",    icon: Activity,  label: "站点健康" },
   { to: "/converter", icon: FileText,  label: "文本转换" },

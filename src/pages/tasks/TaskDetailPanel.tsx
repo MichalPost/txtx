@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { CheckCircle, AlertCircle, Loader2, FileText, RotateCcw } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { CheckCircle, AlertCircle, Loader2, FileText, RotateCcw, Download, FolderOpen } from "lucide-react";
+import { toast } from "sonner";
 import { useTaskStore } from "@/store/taskStore";
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import { Button } from "@/components/Button";
 import { animateFadeIn } from "@/lib/animations";
+import { apiOpenOutputDir } from "@/lib/api";
 import type { TaskRecord, LogEntry, DownloadStats, ScanItem } from "@/types";
 
 // ─── Stats grid ───────────────────────────────────────────────────────────────
@@ -91,10 +93,20 @@ function DownloadingView({ task }: { task: TaskRecord }) {
 
 // ─── Done panel ───────────────────────────────────────────────────────────────
 
-function DoneView({ task, onRetry }: { task: TaskRecord; onRetry: () => void }) {
+function DoneView({
+  task,
+  onRetry,
+  failedMessages,
+  onOpenDir,
+}: {
+  task: TaskRecord;
+  onRetry: () => void;
+  failedMessages: string[];
+  onOpenDir?: () => void;
+}) {
   return (
     <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <CheckCircle className="w-7 h-7 shrink-0" style={{ color: "var(--color-success)" }} />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>下载完成</p>
@@ -102,11 +114,40 @@ function DoneView({ task, onRetry }: { task: TaskRecord; onRetry: () => void }) 
             <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{task.finished_at}</p>
           )}
         </div>
-        {task.error_count > 0 && (
-          <Button variant="secondary" size="sm" onClick={onRetry}>
-            <RotateCcw className="w-3.5 h-3.5" /> 重试失败
-          </Button>
-        )}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {task.error_count > 0 && (
+            <Button variant="secondary" size="sm" onClick={onRetry}>
+              <RotateCcw className="w-3.5 h-3.5" /> 重试失败
+            </Button>
+          )}
+          {failedMessages.length > 0 && (
+            <button
+              onClick={() => {
+                const content = failedMessages.join("\n");
+                const blob = new Blob([content], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `failed-${task.id.slice(0, 8)}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors hover:opacity-80"
+              style={{
+                borderColor: "var(--color-border)",
+                color: "var(--color-text-muted)",
+                background: "var(--color-surface-2)",
+              }}
+            >
+              <Download className="w-3.5 h-3.5" /> 导出失败日志
+            </button>
+          )}
+          {onOpenDir && (
+            <Button variant="secondary" size="sm" onClick={onOpenDir} title="打开保存目录">
+              <FolderOpen className="w-3.5 h-3.5" /> 打开目录
+            </Button>
+          )}
+        </div>
       </div>
       <CounterPair success={task.success_count} error={task.error_count} total={task.total} />
       {(task.stats ?? task.scan_stats) && (
@@ -124,12 +165,12 @@ function FailedView({ task, onRetry }: { task: TaskRecord; onRetry: () => void }
       <AlertCircle className="w-10 h-10" style={{ color: "var(--color-danger)" }} />
       <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>任务失败</p>
       {task.error_message && (
-        <p
-          className="text-xs text-center max-w-sm px-3 py-2 rounded-lg"
+        <pre
+          className="text-xs text-left max-w-full w-full px-3 py-2 rounded-lg overflow-auto max-h-32 whitespace-pre-wrap break-words"
           style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
         >
           {task.error_message}
-        </p>
+        </pre>
       )}
       <Button variant="secondary" size="sm" onClick={onRetry}>
         <RotateCcw className="w-3.5 h-3.5" /> 重试
@@ -141,6 +182,13 @@ function FailedView({ task, onRetry }: { task: TaskRecord; onRetry: () => void }
 // ─── Log panel ────────────────────────────────────────────────────────────────
 
 function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom whenever logs change
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       <div className="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] flex flex-col gap-0.5">
@@ -167,12 +215,16 @@ function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
             </span>
           </div>
         ))}
+        {/* Sentinel element for auto-scroll */}
+        <div ref={bottomRef} />
       </div>
     </div>
   );
 }
 
 // ─── Scan preview panel ───────────────────────────────────────────────────────
+
+type ScanSortKey = "name" | "site" | "date";
 
 function ScanPreviewPanel({
   items,
@@ -185,6 +237,21 @@ function ScanPreviewPanel({
   const [selected, setSelected] = useState<Set<string>>(
     new Set(eligible.map((i) => i.url))
   );
+  const [siteFilter, setSiteFilter] = useState("");
+  const [scanSort, setScanSort] = useState<ScanSortKey>("date");
+
+  // Derive unique sites
+  const sites = useMemo(() => [...new Set(items.map((i) => i.site))].sort(), [items]);
+
+  // Filter then sort
+  const visible = useMemo(() => {
+    const list = siteFilter ? items.filter((i) => i.site === siteFilter) : items;
+    const sorted = [...list];
+    if (scanSort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name, "zh"));
+    if (scanSort === "site") sorted.sort((a, b) => a.site.localeCompare(b.site));
+    if (scanSort === "date") sorted.sort((a, b) => b.date.localeCompare(a.date));
+    return sorted;
+  }, [items, siteFilter, scanSort]);
 
   const toggle = (url: string) => {
     setSelected((prev) => {
@@ -201,7 +268,39 @@ function ScanPreviewPanel({
         <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           扫描结果 — {eligible.length} 本可下载
         </p>
-        <div className="flex gap-2">
+        {/* Filters + sort row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {sites.length > 1 && (
+            <select
+              value={siteFilter}
+              onChange={(e) => setSiteFilter(e.target.value)}
+              className="text-xs px-2 py-1 rounded-lg border"
+              style={{
+                background: "var(--color-surface-2)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-text-muted)",
+              }}
+            >
+              <option value="">全部站点</option>
+              {sites.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+          <select
+            value={scanSort}
+            onChange={(e) => setScanSort(e.target.value as ScanSortKey)}
+            className="text-xs px-2 py-1 rounded-lg border"
+            style={{
+              background: "var(--color-surface-2)",
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            <option value="date">按日期</option>
+            <option value="name">按名称</option>
+            <option value="site">按站点</option>
+          </select>
           <Button variant="secondary" size="sm"
             onClick={() => setSelected(new Set())}>全不选</Button>
           <Button variant="secondary" size="sm"
@@ -214,7 +313,7 @@ function ScanPreviewPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col gap-1">
-        {items.map((item) => (
+        {visible.map((item) => (
           <div
             key={item.url}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border"
@@ -306,6 +405,8 @@ export function TaskDetailPanel() {
     void retryTask(task.id);
   };
 
+  const failedMessages = logs.filter((l) => l.level === "error").map((l) => l.message);
+
   const statusColor =
     task.status === "done" ? "var(--color-success)"
     : task.status === "failed" ? "var(--color-danger)"
@@ -373,13 +474,23 @@ export function TaskDetailPanel() {
               <div className="flex flex-col items-center justify-center h-full gap-3 p-4">
                 <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-accent)" }} />
                 <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>正在扫描，请稍候</p>
+                {task.scan_items.length > 0 && (
+                  <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+                    已找到 {task.scan_items.length} 本
+                  </p>
+                )}
               </div>
             )}
             {(task.status === "downloading" || task.status === "paused") && (
               <DownloadingView task={task} />
             )}
             {task.status === "done" && (
-              <DoneView task={task} onRetry={handleRetry} />
+              <DoneView
+                task={task}
+                onRetry={handleRetry}
+                failedMessages={failedMessages}
+                onOpenDir={() => apiOpenOutputDir().catch((e) => toast.error(String(e)))}
+              />
             )}
             {task.status === "failed" && (
               <FailedView task={task} onRetry={handleRetry} />

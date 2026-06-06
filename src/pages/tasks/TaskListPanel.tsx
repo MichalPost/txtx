@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Plus, ScanSearch, Download, Link, FileUp, Zap, Cpu, Minus, ListTodo } from "lucide-react";
+import { Plus, ScanSearch, Download, Link, FileUp, Zap, Cpu, Minus, ListTodo, Clock } from "lucide-react";
 import { useTaskStore } from "@/store/taskStore";
+import { useSchedulerStore } from "@/store/schedulerStore";
 import { TaskListItem } from "./TaskListItem";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
@@ -113,6 +114,13 @@ export function TaskListPanel({ onNewScan, onNewBatch, onNewSingle }: Props) {
   const [showImportPanel, setShowImportPanel] = useState(false);
   const [downloadMode, setDownloadMode] = useState<DownloadMode>("smart");
 
+  const {
+    enabled: schedEnabled,
+    hour: schedHour,
+    toggle: schedToggle,
+    setHour: schedSetHour,
+  } = useSchedulerStore();
+
   const running = tasks.filter(
     (t) => t.status === "scanning" || t.status === "downloading"
   ).length;
@@ -150,6 +158,56 @@ export function TaskListPanel({ onNewScan, onNewBatch, onNewSingle }: Props) {
           className="p-3 border-b flex flex-col gap-3 shrink-0"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
         >
+          {/* Daily scheduler */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Clock
+                  className="w-3.5 h-3.5"
+                  style={{ color: schedEnabled ? "var(--color-accent)" : "var(--color-text-muted)" }}
+                />
+                <span className="text-[10px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+                  每日自动扫描
+                </span>
+              </div>
+              {/* Simple toggle button */}
+              <button
+                type="button"
+                onClick={schedToggle}
+                className="relative w-8 h-4 rounded-full transition-colors"
+                style={{
+                  background: schedEnabled ? "var(--color-accent)" : "var(--color-surface-2)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <span
+                  className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all"
+                  style={{ left: schedEnabled ? "calc(100% - 14px)" : "2px" }}
+                />
+              </button>
+            </div>
+            {schedEnabled && (
+              <div className="flex items-center gap-2 pl-5">
+                <span className="text-[10px]" style={{ color: "var(--color-text-subtle)" }}>触发时间</span>
+                <select
+                  value={schedHour}
+                  onChange={(e) => schedSetHour(Number(e.target.value))}
+                  className="text-xs px-1.5 py-0.5 rounded border"
+                  style={{
+                    background: "var(--color-surface-2)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-text-muted)",
+                  }}
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{String(i).padStart(2, "0")}:00</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="h-px" style={{ background: "var(--color-border)" }} />
+
           {/* Download mode selector */}
           <DownloadModeSelector value={downloadMode} onChange={setDownloadMode} />
 

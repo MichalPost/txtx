@@ -261,7 +261,7 @@ async fn execute_download_batch(
     let mut tasks = Vec::new();
 
     let content_filter_cfg = config.content_filter.clone();
-    let ttks_cfg_main = config.ttks.clone();
+    let rate_limit_cfg_main = config.rate_limit.clone();
 
     for candidate in candidates {
         let client = client.clone();
@@ -280,7 +280,7 @@ async fn execute_download_batch(
         let text_conv = config.text_conversion.clone();
         let ebook_conv = config.ebook_conversion.clone();
         let content_filter_cfg = content_filter_cfg.clone();
-        let ttks_cfg_clone = ttks_cfg_main.clone();
+        let rate_limit_cfg_clone = rate_limit_cfg_main.clone();
         let target_date = target_date.to_string();
 
         tasks.push(tokio::spawn(async move {
@@ -298,7 +298,7 @@ async fn execute_download_batch(
                 &client, &candidate, &site_cfg, &net_cfg,
                 &base_dir, chapter_sem, cancel,
                 tx.clone(), text_conv, ebook_conv,
-                content_filter_cfg.clone(), ttks_cfg_clone.clone(),
+                content_filter_cfg.clone(), rate_limit_cfg_clone.clone(),
             ).await;
 
             // Log result to file

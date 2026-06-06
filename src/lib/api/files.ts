@@ -87,3 +87,19 @@ export async function apiFetchSource(url: string): Promise<string> {
   const data = await res.json() as { html: string };
   return data.html;
 }
+
+/**
+ * Try to auto-detect the calibre ebook-convert executable path.
+ * Returns null if not found.
+ */
+export async function apiDetectCalibre(): Promise<string | null> {
+  if (IS_TAURI) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string | null>("detect_calibre");
+  }
+  // In dev/web mode, try via REST
+  const res = await fetch(`${API_BASE}/api/calibre/detect`).catch(() => null);
+  if (!res || !res.ok) return null;
+  const data = await res.json().catch(() => null);
+  return (data as { path?: string } | null)?.path ?? null;
+}
