@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, Plus, Trash2, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, ClipboardList, Download, Plus, Upload } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -8,73 +7,30 @@ import {
   inlineInputStyle,
   inputFocusHandlers,
 } from "@/pages/blacklist/blacklistUtils";
+import { isValidRegex, useAdPatterns } from "./useAdPatterns";
+import { BulkAddPanel } from "./BulkAddPanel";
+import { PatternListItem } from "./PatternListItem";
 
 interface AdPatternPanelProps {
   patterns: string[];
   onUpdate: (patterns: string[]) => void;
 }
 
-function isValidRegex(pattern: string): boolean {
-  try {
-    new RegExp(pattern);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
-  const [newPattern, setNewPattern] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const isValid = newPattern.trim() === "" || isValidRegex(newPattern.trim());
-
-  const addPattern = () => {
-    const p = newPattern.trim();
-    if (!p || patterns.includes(p) || !isValidRegex(p)) return;
-    onUpdate([...patterns, p]);
-    setNewPattern("");
-  };
-
-  const removePattern = (p: string) => {
-    onUpdate(patterns.filter((x) => x !== p));
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const newPatterns = text
-        .split(/[\r\n]+/)
-        .map((l) => l.trim())
-        .filter((l) => l && isValidRegex(l));
-      onUpdate([...new Set([...patterns, ...newPatterns])]);
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
-  const handleExport = () => {
-    const blob = new Blob([patterns.join("\n")], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ad_patterns.txt";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Group patterns by validity for display
-  const { valid, invalid } = useMemo(() => {
-    const valid: string[] = [];
-    const invalid: string[] = [];
-    patterns.forEach((p) => (isValidRegex(p) ? valid.push(p) : invalid.push(p)));
-    return { valid, invalid };
-  }, [patterns]);
-  void valid;
-  void invalid;
+  const {
+    newPattern, setNewPattern,
+    bulkMode, setBulkMode,
+    bulkText, setBulkText,
+    fileInputRef,
+    isValid,
+    bulkValidCount,
+    bulkInvalidCount,
+    addPattern,
+    removePattern,
+    handleBulkAdd,
+    handleImport,
+    handleExport,
+  } = useAdPatterns({ patterns, onUpdate });
 
   return (
     <Card
@@ -90,6 +46,18 @@ export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
             className="hidden"
             onChange={handleImport}
           />
+          <button
+            onClick={() => setBulkMode((v) => !v)}
+            title="批量添加（每行一条正则）"
+            className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors hover:opacity-80"
+            style={{
+              borderColor: bulkMode ? "var(--color-accent)" : "var(--color-border)",
+              color: bulkMode ? "var(--color-accent)" : "var(--color-text-muted)",
+              background: bulkMode ? "var(--color-accent-muted)" : "transparent",
+            }}
+          >
+            <ClipboardList className="h-3 w-3" /> 批量
+          </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors hover:opacity-80"
@@ -122,6 +90,18 @@ export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
         </div>
       }
     >
+      {/* Bulk add area */}
+      {bulkMode && (
+        <BulkAddPanel
+          bulkText={bulkText}
+          bulkValidCount={bulkValidCount}
+          bulkInvalidCount={bulkInvalidCount}
+          onTextChange={setBulkText}
+          onAdd={handleBulkAdd}
+          onCancel={() => { setBulkMode(false); setBulkText(""); }}
+        />
+      )}
+
       {/* Add input */}
       <div className="mb-3 flex gap-2">
         <div className="relative flex-1">
@@ -157,52 +137,14 @@ export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
 
       {/* Pattern list */}
       <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-        {patterns.map((p) => {
-          const valid = isValidRegex(p);
-          return (
-            <div
-              key={p}
-              className="group flex items-center gap-2 rounded-lg border px-3 py-1.5"
-              style={{
-                background: "var(--color-surface-2)",
-                borderColor: valid
-                  ? "var(--color-border)"
-                  : "color-mix(in srgb, var(--color-danger) 40%, transparent)",
-              }}
-            >
-              {valid ? (
-                <CheckCircle2
-                  className="h-3 w-3 shrink-0 opacity-40"
-                  style={{ color: "var(--color-success, #22c55e)" }}
-                />
-              ) : (
-                <AlertCircle
-                  className="h-3 w-3 shrink-0"
-                  style={{ color: "var(--color-danger)" }}
-                />
-              )}
-              <code
-                className="flex-1 truncate font-mono text-xs"
-                style={{ color: "var(--color-accent)" }}
-              >
-                {p}
-              </code>
-              <button
-                onClick={() => removePattern(p)}
-                className="cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                style={{ color: "var(--color-text-muted)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--color-danger)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          );
-        })}
+        {patterns.map((p) => (
+          <PatternListItem
+            key={p}
+            pattern={p}
+            isValid={isValidRegex(p)}
+            onRemove={removePattern}
+          />
+        ))}
         {patterns.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-8">
             <div
