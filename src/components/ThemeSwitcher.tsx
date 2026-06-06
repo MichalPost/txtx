@@ -1,19 +1,28 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Palette } from "lucide-react";
-import { useThemeStore, THEMES, type Theme } from "@/store/themeStore";
+
 import { animateDropdownOpen } from "@/lib/animations";
+import { THEMES, useThemeStore, type Theme } from "@/store/themeStore";
 
 export function ThemeSwitcher() {
   const { theme, setTheme } = useThemeStore();
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ bottom: number; left: number }>({ bottom: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -28,45 +37,54 @@ export function ThemeSwitcher() {
     }
   }, [open]);
 
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      // Anchor: bottom of dropdown aligns with bottom of button, opens upward
+      setPos({ bottom: window.innerHeight - rect.bottom, left: rect.right + 8 });
+    }
+    setOpen((v) => !v);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={btnRef}
+        onClick={handleOpen}
         title="切换主题"
-        className={`
-          flex items-center justify-center w-10 h-10 rounded-lg transition-colors
-          text-[var(--color-text-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]
-          ${open ? "bg-[var(--color-surface-2)] text-[var(--color-text)]" : ""}
-        `}
+        className={`flex h-10 w-10 items-center justify-center rounded-lg text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)] ${open ? "bg-[var(--color-surface-2)] text-[var(--color-text)]" : ""} `}
       >
-        <Palette className="w-5 h-5" />
+        <Palette className="h-5 w-5" />
       </button>
 
-      {open && (
-        <div
-          ref={dropdownRef}
-          className="
-            absolute left-14 bottom-0 z-50
-            bg-[var(--color-surface)] border border-[var(--color-border)]
-            rounded-xl p-2 flex flex-col gap-1
-            shadow-[var(--shadow-md)]
-            min-w-[140px]
-          "
-          style={{ boxShadow: "var(--shadow-md)" }}
-        >
-          <p className="text-[10px] font-semibold text-[var(--color-text-subtle)] uppercase tracking-wider px-2 py-1">
-            主题
-          </p>
-          {THEMES.map((t) => (
-            <ThemeOption
-              key={t.id}
-              meta={t}
-              active={theme === t.id}
-              onSelect={(id) => { setTheme(id); setOpen(false); }}
-            />
-          ))}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] flex min-w-[140px] flex-col gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-2"
+            style={{
+              bottom: pos.bottom,
+              left: pos.left,
+              boxShadow: "var(--shadow-md)",
+            }}
+          >
+            <p className="px-2 py-1 text-[10px] font-semibold tracking-wider text-[var(--color-text-subtle)] uppercase">
+              主题
+            </p>
+            {THEMES.map((t) => (
+              <ThemeOption
+                key={t.id}
+                meta={t}
+                active={theme === t.id}
+                onSelect={(id) => {
+                  setTheme(id);
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -83,16 +101,14 @@ function ThemeOption({
   return (
     <button
       onClick={() => onSelect(meta.id)}
-      className={`
-        flex items-center gap-2.5 w-full px-2 py-1.5 rounded-lg text-left transition-colors
-        ${active
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
+        active
           ? "bg-[var(--color-accent-muted)] text-[var(--color-accent)]"
           : "text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
-        }
-      `}
+      } `}
     >
       {/* Swatch */}
-      <span className="flex gap-0.5 shrink-0">
+      <span className="flex shrink-0 gap-0.5">
         {meta.swatches.map((color, i) => (
           <span
             key={i}
@@ -106,11 +122,17 @@ function ThemeOption({
           />
         ))}
       </span>
-      <span className="text-xs font-medium leading-none">{meta.label}</span>
+      <span className="text-xs leading-none font-medium">{meta.label}</span>
       {active && (
         <span className="ml-auto text-[var(--color-accent)]">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M2 6l3 3 5-5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </span>
       )}

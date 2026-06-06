@@ -1,17 +1,28 @@
 import { create } from "zustand";
+
 import {
-  apiStartScan, apiStartSelectedDownload,
-  apiStartDownload, apiStartSingleDownload, apiStopDownload,
-  apiGetQueue, apiClearQueue,
+  apiClearQueue,
+  apiGetQueue,
+  apiStartDownload,
+  apiStartScan,
+  apiStartSelectedDownload,
+  apiStartSingleDownload,
+  apiStopDownload,
   type UnsubscribeFn,
 } from "@/lib/api";
 import type {
-  DownloadStatus, ScanItem, BookCandidate,
-  SiteProgress, DownloadStats, LogEntry,
-  QueueStatus, ScanOptions,
+  BookCandidate,
+  DownloadStats,
+  DownloadStatus,
+  LogEntry,
+  QueueStatus,
+  ScanItem,
+  ScanOptions,
+  SiteProgress,
 } from "@/types";
-import { initialSpeed, type SpeedState } from "./speedTracker";
+
 import { handleEvent, makeAddLog } from "./downloadEventHandler";
+import { initialSpeed, type SpeedState } from "./speedTracker";
 
 export interface NovelProgress {
   name: string;
@@ -20,13 +31,7 @@ export interface NovelProgress {
 }
 
 /** Three-step workflow phase */
-export type DownloadPhase =
-  | "idle"
-  | "scanning"
-  | "preview"
-  | "downloading"
-  | "done"
-  | "stopped";
+export type DownloadPhase = "idle" | "scanning" | "preview" | "downloading" | "done" | "stopped";
 
 export interface NovelResult {
   name: string;
@@ -114,25 +119,27 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   clearLogs: () => set({ logs: [] }),
 
-  reset: () => set({
-    phase: "idle",
-    status: "idle",
-    scanItems: [],
-    selectedUrls: new Set(),
-    scanStats: null,
-    siteProgress: {},
-    novelProgress: {},
-    novelResults: [],
-    stats: null,
-    overallTotal: 0,
-    overallCompleted: 0,
-    speed: initialSpeed,
-  }),
+  reset: () =>
+    set({
+      phase: "idle",
+      status: "idle",
+      scanItems: [],
+      selectedUrls: new Set(),
+      scanStats: null,
+      siteProgress: {},
+      novelProgress: {},
+      novelResults: [],
+      stats: null,
+      overallTotal: 0,
+      overallCompleted: 0,
+      speed: initialSpeed,
+    }),
 
   toggleSelect: (url) => {
     set((s) => {
       const next = new Set(s.selectedUrls);
-      if (next.has(url)) next.delete(url); else next.add(url);
+      if (next.has(url)) next.delete(url);
+      else next.add(url);
       return { selectedUrls: next };
     });
   },
@@ -140,9 +147,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   selectAll: (value) => {
     set((s) => {
       if (!value) return { selectedUrls: new Set() };
-      const all = new Set(
-        s.scanItems.filter(i => !i.excluded_reason).map(i => i.url)
-      );
+      const all = new Set(s.scanItems.filter((i) => !i.excluded_reason).map((i) => i.url));
       return { selectedUrls: all };
     });
   },
@@ -151,10 +156,17 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   startScan: () => {
     get()._unsub?.();
     set({
-      phase: "scanning", status: "scanning",
-      scanItems: [], selectedUrls: new Set(), scanStats: null,
-      siteProgress: {}, novelProgress: {}, stats: null,
-      overallTotal: 0, overallCompleted: 0, speed: initialSpeed,
+      phase: "scanning",
+      status: "scanning",
+      scanItems: [],
+      selectedUrls: new Set(),
+      scanStats: null,
+      siteProgress: {},
+      novelProgress: {},
+      stats: null,
+      overallTotal: 0,
+      overallCompleted: 0,
+      speed: initialSpeed,
     });
     get().addLog("info", "开始扫描站点...");
     const opts = get().scanOptions;
@@ -169,8 +181,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   startSelectedDownload: () => {
     const { scanItems, selectedUrls } = get();
     const selected: BookCandidate[] = scanItems
-      .filter(i => selectedUrls.has(i.url))
-      .map(i => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
+      .filter((i) => selectedUrls.has(i.url))
+      .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
 
     if (selected.length === 0) {
       get().addLog("warn", "未选中任何书籍");
@@ -179,9 +191,15 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
     get()._unsub?.();
     set({
-      phase: "downloading", status: "downloading",
-      siteProgress: {}, novelProgress: {}, novelResults: [], stats: null,
-      overallTotal: selected.length, overallCompleted: 0, speed: initialSpeed,
+      phase: "downloading",
+      status: "downloading",
+      siteProgress: {},
+      novelProgress: {},
+      novelResults: [],
+      stats: null,
+      overallTotal: selected.length,
+      overallCompleted: 0,
+      speed: initialSpeed,
     });
     get().addLog("info", `开始下载选中的 ${selected.length} 本书...`);
     const unsub = apiStartSelectedDownload(selected, handleEvent(get as never, set as never));
@@ -192,13 +210,13 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   retryFailed: () => {
     const { novelResults, scanItems } = get();
     const failedNames = new Set(
-      novelResults.filter(r => r.status === "error").map(r => r.name)
+      novelResults.filter((r) => r.status === "error").map((r) => r.name),
     );
     if (failedNames.size === 0) return;
 
     const selected: BookCandidate[] = scanItems
-      .filter(i => failedNames.has(i.name))
-      .map(i => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
+      .filter((i) => failedNames.has(i.name))
+      .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
 
     if (selected.length === 0) {
       get().addLog("warn", "找不到失败项的原始数据，无法重试");
@@ -206,9 +224,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     }
 
     get()._unsub?.();
-    const keptResults = novelResults.filter(r => r.status !== "error");
+    const keptResults = novelResults.filter((r) => r.status !== "error");
     set({
-      phase: "downloading", status: "downloading",
+      phase: "downloading",
+      status: "downloading",
       novelProgress: {},
       novelResults: keptResults,
       overallTotal: keptResults.length + selected.length,
@@ -224,9 +243,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   startDownload: () => {
     get()._unsub?.();
     set({
-      phase: "downloading", status: "scanning",
-      siteProgress: {}, novelProgress: {}, stats: null,
-      overallTotal: 0, overallCompleted: 0, speed: initialSpeed,
+      phase: "downloading",
+      status: "scanning",
+      siteProgress: {},
+      novelProgress: {},
+      stats: null,
+      overallTotal: 0,
+      overallCompleted: 0,
+      speed: initialSpeed,
     });
     get().addLog("info", "开始下载任务...");
     const unsub = apiStartDownload(handleEvent(get as never, set as never));
@@ -236,9 +260,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   startSingleDownload: (url: string) => {
     get()._unsub?.();
     set({
-      phase: "downloading", status: "scanning",
-      siteProgress: {}, novelProgress: {}, stats: null,
-      overallTotal: 0, overallCompleted: 0, speed: initialSpeed,
+      phase: "downloading",
+      status: "scanning",
+      siteProgress: {},
+      novelProgress: {},
+      stats: null,
+      overallTotal: 0,
+      overallCompleted: 0,
+      speed: initialSpeed,
     });
     get().addLog("info", `单本下载: ${url}`);
     const unsub = apiStartSingleDownload(url, handleEvent(get as never, set as never));

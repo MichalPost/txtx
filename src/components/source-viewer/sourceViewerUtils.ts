@@ -2,6 +2,7 @@
  * SourceViewer 纯工具函数和常量
  */
 import React from "react";
+
 import type { WebsiteConfig } from "@/types";
 
 export const XPATH_FIELDS: {
@@ -47,7 +48,7 @@ export function highlightLine(line: string, search: string): React.ReactNode {
           },
         },
         line.slice(idx, idx + search.length),
-      )
+      ),
     );
     last = idx + search.length;
     idx = lower.indexOf(searchLower, last);

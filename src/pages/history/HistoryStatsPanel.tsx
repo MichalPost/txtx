@@ -1,16 +1,31 @@
-import { useRef, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-  Tooltip, PieChart, Pie, Cell, Legend,
+  Bar,
+  BarChart,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
-import { apiGetHistoryStats } from "@/lib/api";
+import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+
 import { Card } from "@/components/Card";
 import { animateFadeInUp } from "@/lib/animations";
+import { apiGetHistoryStats } from "@/lib/api";
 
 const PIE_COLORS = [
-  "var(--color-accent)", "#22c55e", "#f59e0b", "#ef4444",
-  "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16",
+  "var(--color-accent)",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#06b6d4",
+  "#ec4899",
+  "#84cc16",
 ];
 
 interface HistoryStatsPanelProps {
@@ -33,11 +48,11 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        {[0, 1].map(i => (
+      <div className="mb-4 grid grid-cols-2 gap-4">
+        {[0, 1].map((i) => (
           <div
             key={i}
-            className="h-48 rounded-xl border animate-pulse"
+            className="h-48 animate-pulse rounded-xl border"
             style={{ background: "var(--color-surface-2)", borderColor: "var(--color-border)" }}
           />
         ))}
@@ -46,14 +61,21 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
   }
 
   const daily = data?.daily ?? [];
-  const sites = data?.sites ?? [];
+  const sites = (data?.sites ?? []).map((s, i) => ({
+    ...s,
+    fill: PIE_COLORS[i % PIE_COLORS.length],
+  }));
 
   return (
-    <div ref={containerRef} className="grid grid-cols-2 gap-4 mb-4" style={{ opacity: 0 }}>
+    <div ref={containerRef} className="mb-4 grid grid-cols-2 gap-4" style={{ opacity: 0 }}>
       <Card
         title="近 30 天下载趋势"
         actions={
-          <button onClick={onClose} className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <button
+            onClick={onClose}
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             收起
           </button>
         }
@@ -64,7 +86,7 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
-                tickFormatter={d => d.slice(5)}
+                tickFormatter={(d) => d.slice(5)}
                 interval="preserveStartEnd"
               />
               <YAxis tick={{ fontSize: 10, fill: "var(--color-text-muted)" }} />
@@ -75,11 +97,23 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((v: any, name: any) => [v ?? 0, name === "success" ? "成功" : "失败"]) as any}
+                formatter={(v: ValueType | undefined, name: NameType | undefined) => [
+                  v ?? 0,
+                  name === "success" ? "成功" : "失败",
+                ] as [ValueType, NameType]}
               />
-              <Bar dataKey="success" fill="var(--color-success)" radius={[3, 3, 0, 0]} maxBarSize={20} />
-              <Bar dataKey="error" fill="var(--color-danger)" radius={[3, 3, 0, 0]} maxBarSize={20} />
+              <Bar
+                dataKey="success"
+                fill="var(--color-success)"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={20}
+              />
+              <Bar
+                dataKey="error"
+                fill="var(--color-danger)"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={20}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -89,11 +123,15 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
         <div style={{ height: 160 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={sites} dataKey="count" nameKey="site" cx="40%" cy="50%" outerRadius={60} fontSize={10}>
-                {sites.map((_, i) => (
-                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                ))}
-              </Pie>
+              <Pie
+                data={sites}
+                dataKey="count"
+                nameKey="site"
+                cx="40%"
+                cy="50%"
+                outerRadius={60}
+                fontSize={10}
+              />
               <Legend
                 formatter={(v: string) => v.replace(/^https?:\/\//, "").slice(0, 12)}
                 wrapperStyle={{ fontSize: 10, color: "var(--color-text-muted)" }}
@@ -105,8 +143,10 @@ export function HistoryStatsPanel({ onClose }: HistoryStatsPanelProps) {
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((v: any, name: any) => [v ?? 0, String(name).replace(/^https?:\/\//, "")]) as any}
+                formatter={(v: ValueType | undefined, name: NameType | undefined) => [
+                  v ?? 0,
+                  String(name ?? "").replace(/^https?:\/\//, ""),
+                ] as [ValueType, NameType]}
               />
             </PieChart>
           </ResponsiveContainer>

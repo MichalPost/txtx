@@ -1,5 +1,6 @@
 import type { HistoryEntry } from "@/types";
-import { IS_TAURI, API_BASE } from "./constants";
+
+import { API_BASE, IS_TAURI } from "./constants";
 
 export interface HistoryQuery {
   page?: number;
@@ -16,9 +17,19 @@ export interface HistoryPageResult {
   page_size: number;
 }
 
-export interface DailyStat { date: string; success: number; error: number; }
-export interface SiteStat { site: string; count: number; }
-export interface HistoryStats { daily: DailyStat[]; sites: SiteStat[]; }
+export interface DailyStat {
+  date: string;
+  success: number;
+  error: number;
+}
+export interface SiteStat {
+  site: string;
+  count: number;
+}
+export interface HistoryStats {
+  daily: DailyStat[];
+  sites: SiteStat[];
+}
 
 export async function apiGetHistory(): Promise<HistoryEntry[]> {
   if (IS_TAURI) {
@@ -37,14 +48,21 @@ export async function apiQueryHistory(query: HistoryQuery): Promise<HistoryPageR
     let filtered = all;
     if (query.search) {
       const q = query.search.toLowerCase();
-      filtered = filtered.filter(e => e.name.toLowerCase().includes(q) || e.site.toLowerCase().includes(q));
+      filtered = filtered.filter(
+        (e) => e.name.toLowerCase().includes(q) || e.site.toLowerCase().includes(q),
+      );
     }
-    if (query.status) filtered = filtered.filter(e => e.status === query.status);
-    if (query.site) filtered = filtered.filter(e => e.site.includes(query.site!));
+    if (query.status) filtered = filtered.filter((e) => e.status === query.status);
+    if (query.site) filtered = filtered.filter((e) => e.site.includes(query.site!));
     const page = query.page ?? 1;
     const pageSize = query.page_size ?? 50;
     const start = (page - 1) * pageSize;
-    return { entries: filtered.slice(start, start + pageSize), total: filtered.length, page, page_size: pageSize };
+    return {
+      entries: filtered.slice(start, start + pageSize),
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+    };
   }
   const params = new URLSearchParams();
   if (query.page) params.set("page", String(query.page));
@@ -71,8 +89,13 @@ export async function apiGetHistoryStats(days = 30): Promise<HistoryStats> {
       }
       if (e.status === "success") siteMap[e.site] = (siteMap[e.site] ?? 0) + 1;
     }
-    const daily = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v }));
-    const sites = Object.entries(siteMap).sort(([, a], [, b]) => b - a).slice(0, 20).map(([site, count]) => ({ site, count }));
+    const daily = Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }));
+    const sites = Object.entries(siteMap)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 20)
+      .map(([site, count]) => ({ site, count }));
     return { daily, sites };
   }
   const res = await fetch(`${API_BASE}/api/history/stats?days=${days}`);

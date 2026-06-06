@@ -1,8 +1,10 @@
 import { useEffect } from "react";
+
 import { useTaskStore } from "@/store/taskStore";
-import { TaskListPanel } from "./TaskListPanel";
-import { TaskDetailPanel } from "./TaskDetailPanel";
 import type { ScanTaskOptions } from "@/types";
+
+import { TaskDetailPanel } from "./TaskDetailPanel";
+import { TaskListPanel } from "./TaskListPanel";
 
 export function TaskManagerPage() {
   const { init, createScanTask, createBatchTask, createSingleTask } = useTaskStore();
@@ -39,7 +41,7 @@ export function TaskManagerPage() {
     <div className="flex h-full overflow-hidden">
       {/* Left: task list — fixed width */}
       <div
-        className="w-72 shrink-0 overflow-hidden flex flex-col border-r"
+        className="flex w-72 shrink-0 flex-col overflow-hidden border-r"
         style={{ borderColor: "var(--color-border)" }}
       >
         <TaskListPanel
@@ -50,7 +52,7 @@ export function TaskManagerPage() {
       </div>
 
       {/* Right: task detail */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <TaskDetailPanel />
       </div>
     </div>

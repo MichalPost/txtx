@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { useFormContext, Controller } from "react-hook-form";
-import { Search, Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import { Controller, useFormContext } from "react-hook-form";
 import { toast } from "sonner";
+
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { apiDetectCalibre } from "@/lib/api";
+
 import type { SettingsForm } from "../settingsSchema";
 
 const EBOOK_FORMATS = ["epub", "mobi", "azw3"];
@@ -33,7 +35,7 @@ export function EbookSection() {
   return (
     <Card title="电子书转换">
       <div className="flex flex-col gap-4">
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex cursor-pointer items-center gap-3">
           <Controller
             control={control}
             name="eb_enabled"
@@ -41,32 +43,39 @@ export function EbookSection() {
               <input
                 type="checkbox"
                 checked={field.value}
-                onChange={e => field.onChange(e.target.checked)}
+                onChange={(e) => field.onChange(e.target.checked)}
                 style={{ accentColor: "var(--color-accent)" }}
               />
             )}
           />
-          <span className="text-sm" style={{ color: "var(--color-text)" }}>下载完成后自动转换</span>
+          <span className="text-sm" style={{ color: "var(--color-text)" }}>
+            下载完成后自动转换
+          </span>
         </label>
 
         <div>
-          <p className="text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>输出格式</p>
+          <p className="mb-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
+            输出格式
+          </p>
           <div className="flex gap-4">
-            {EBOOK_FORMATS.map(fmt => (
+            {EBOOK_FORMATS.map((fmt) => (
               <Controller
                 key={fmt}
                 control={control}
                 name="eb_formats"
                 render={({ field }) => (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--color-text)" }}>
+                  <label
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                    style={{ color: "var(--color-text)" }}
+                  >
                     <input
                       type="checkbox"
                       checked={field.value.includes(fmt)}
-                      onChange={e => {
+                      onChange={(e) => {
                         field.onChange(
                           e.target.checked
                             ? [...field.value, fmt]
-                            : field.value.filter((f: string) => f !== fmt)
+                            : field.value.filter((f: string) => f !== fmt),
                         );
                       }}
                       style={{ accentColor: "var(--color-accent)" }}
@@ -79,7 +88,7 @@ export function EbookSection() {
           </div>
         </div>
 
-        <div className="flex gap-2 items-end">
+        <div className="flex items-end gap-2">
           <div className="flex-1">
             <Input
               label="Calibre 路径（留空自动检测，MOBI/AZW3 需要）"
@@ -91,7 +100,7 @@ export function EbookSection() {
             type="button"
             onClick={handleDetectCalibre}
             disabled={detecting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium shrink-0 transition-colors"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors"
             style={{
               borderColor: "var(--color-border)",
               color: "var(--color-text-muted)",
@@ -99,10 +108,11 @@ export function EbookSection() {
               marginBottom: "1px",
             }}
           >
-            {detecting
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Search className="w-3.5 h-3.5" />
-            }
+            {detecting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
             自动检测
           </button>
         </div>

@@ -19,7 +19,10 @@ export function importKeywordsFromFile(
   const reader = new FileReader();
   reader.onload = (ev) => {
     const text = ev.target?.result as string;
-    const newKws = text.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+    const newKws = text
+      .split(/[\r\n]+/)
+      .map((l) => l.trim())
+      .filter(Boolean);
     const merged = [...new Set([...existing, ...newKws])];
     onDone(merged);
   };

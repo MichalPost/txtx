@@ -14,34 +14,47 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  RefreshCw, BookMarked, ListTree,
-  FlaskConical, BookOpen, TestTube2, Save,
-  ChevronLeft, ChevronRight, Wand2,
+  BookMarked,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  FlaskConical,
+  ListTree,
+  RefreshCw,
+  Save,
+  TestTube2,
+  Wand2,
 } from "lucide-react";
+
 import { Button } from "@/components/Button";
+import type { WebsiteConfig } from "@/types";
+
+import {
+  buildXPathFromRule,
+  emptyWizardData,
+  wizardDataFromSite,
+  type WizardData,
+} from "./ruleUtils";
 import { WizardStep1UpdateList } from "./WizardStep1UpdateList";
 import { WizardStep2SelectBook } from "./WizardStep2SelectBook";
-import { WizardStepCatalog } from "./WizardStepCatalog";
 import { WizardStep3ListTest } from "./WizardStep3ListTest";
 import { WizardStep4ChapRules } from "./WizardStep4ChapRules";
 import { WizardStep5ChapTest } from "./WizardStep5ChapTest";
 import { WizardStep6Save } from "./WizardStep6Save";
-import { XPathToolPanel } from "./XPathToolPanel";
-import { buildXPathFromRule, emptyWizardData, wizardDataFromSite } from "./ruleUtils";
-import type { WizardData } from "./ruleUtils";
+import { WizardStepCatalog } from "./WizardStepCatalog";
 import type { TargetField } from "./xpathTool";
-import type { WebsiteConfig } from "@/types";
+import { XPathToolPanel } from "./XPathToolPanel";
 
 // ─── Step metadata ─────────────────────────────────────────────────────────────
 
 const STEPS = [
   { id: 1, label: "更新列表页面获取", icon: RefreshCw },
   { id: 2, label: "更新列表书籍获取", icon: BookMarked },
-  { id: 3, label: "目录规则",         icon: ListTree },
-  { id: 4, label: "目录测试",         icon: FlaskConical },
-  { id: 5, label: "章节规则",         icon: BookOpen },
-  { id: 6, label: "章节测试",         icon: TestTube2 },
-  { id: 7, label: "保存规则",         icon: Save },
+  { id: 3, label: "目录规则", icon: ListTree },
+  { id: 4, label: "目录测试", icon: FlaskConical },
+  { id: 5, label: "章节规则", icon: BookOpen },
+  { id: 6, label: "章节测试", icon: TestTube2 },
+  { id: 7, label: "保存规则", icon: Save },
 ] as const;
 
 interface RuleWizardProps {
@@ -54,11 +67,11 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   const [step, setStep] = useState(1);
   const initialData = useMemo(() => {
     const hasExistingRules = Boolean(
-      site.list_novel_name
-      || site.release_url
-      || site.novel_content
-      || site.novel_name_x
-      || site.chapter_url_x,
+      site.list_novel_name ||
+      site.release_url ||
+      site.novel_content ||
+      site.novel_name_x ||
+      site.chapter_url_x,
     );
     return hasExistingRules
       ? wizardDataFromSite(site)
@@ -82,17 +95,19 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
       case 3:
         return Boolean(data.catalog_url.trim());
       case 4:
-        return Boolean(buildXPathFromRule(data.list_novel_name) && buildXPathFromRule(data.list_release_url));
+        return Boolean(
+          buildXPathFromRule(data.list_novel_name) && buildXPathFromRule(data.list_release_url),
+        );
       case 5:
         return Boolean(data.chapter_test_url || data.selected_chapter_title || data.chapter_html);
       case 6:
         return Boolean(buildXPathFromRule(data.chap_content));
       case 7:
         return Boolean(
-          data.catalog_url.trim()
-          && buildXPathFromRule(data.list_novel_name)
-          && buildXPathFromRule(data.list_release_url)
-          && buildXPathFromRule(data.chap_content),
+          data.catalog_url.trim() &&
+          buildXPathFromRule(data.list_novel_name) &&
+          buildXPathFromRule(data.list_release_url) &&
+          buildXPathFromRule(data.chap_content),
         );
       default:
         return true;
@@ -106,7 +121,10 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   };
   const goNext = () => goTo(Math.min(step + 1, STEPS.length));
   const goPrev = () => goTo(Math.max(step - 1, 1));
-  const hasUnsavedChanges = useMemo(() => JSON.stringify(data) !== JSON.stringify(initialData), [data, initialData]);
+  const hasUnsavedChanges = useMemo(
+    () => JSON.stringify(data) !== JSON.stringify(initialData),
+    [data, initialData],
+  );
 
   const handleCloseAttempt = () => {
     if (!hasSavedRef.current && hasUnsavedChanges) {
@@ -120,28 +138,52 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   // Step 3 XPath tool → catalog page
   // Step 5 XPath tool → chapter page
   const xpathHtml: string =
-    step === 1 ? data.update_list_html
-    : step <= 4 ? data.catalog_html
-    : data.chapter_html;
+    step === 1 ? data.update_list_html : step <= 4 ? data.catalog_html : data.chapter_html;
 
   const xpathPage: "catalog" | "chapter" | "update_list" =
-    step === 1 ? "update_list"
-    : step === 5 || step === 6 ? "chapter"
-    : "catalog";
+    step === 1 ? "update_list" : step === 5 || step === 6 ? "chapter" : "catalog";
 
   const handleXPathToolApply = (res: Partial<Record<TargetField, string>>) => {
     const patch: Partial<WizardData> = {};
     if (step === 1) {
-      if (res.update_book_name) patch.list_novel_name   = { ...data.list_novel_name,   mode: "xpath", xpath: res.update_book_name };
-      if (res.update_book_url)  patch.list_release_url  = { ...data.list_release_url,  mode: "xpath", xpath: res.update_book_url };
-      if (res.update_book_date) patch.list_release_date = { ...data.list_release_date, mode: "xpath", xpath: res.update_book_date };
+      if (res.update_book_name)
+        patch.list_novel_name = {
+          ...data.list_novel_name,
+          mode: "xpath",
+          xpath: res.update_book_name,
+        };
+      if (res.update_book_url)
+        patch.list_release_url = {
+          ...data.list_release_url,
+          mode: "xpath",
+          xpath: res.update_book_url,
+        };
+      if (res.update_book_date)
+        patch.list_release_date = {
+          ...data.list_release_date,
+          mode: "xpath",
+          xpath: res.update_book_date,
+        };
     } else if (xpathPage === "catalog") {
-      if (res.chapter_name) patch.list_novel_name   = { ...data.list_novel_name,   mode: "xpath", xpath: res.chapter_name };
-      if (res.chapter_url)  patch.list_release_url  = { ...data.list_release_url,  mode: "xpath", xpath: res.chapter_url };
-      if (res.book_name)    patch.list_release_date = { ...data.list_release_date, mode: "xpath", xpath: res.book_name };
+      if (res.chapter_name)
+        patch.list_novel_name = { ...data.list_novel_name, mode: "xpath", xpath: res.chapter_name };
+      if (res.chapter_url)
+        patch.list_release_url = {
+          ...data.list_release_url,
+          mode: "xpath",
+          xpath: res.chapter_url,
+        };
+      if (res.book_name)
+        patch.list_release_date = {
+          ...data.list_release_date,
+          mode: "xpath",
+          xpath: res.book_name,
+        };
     } else {
-      if (res.novel_content) patch.chap_content    = { ...data.chap_content,    mode: "xpath", xpath: res.novel_content };
-      if (res.book_name)     patch.chap_novel_name = { ...data.chap_novel_name, mode: "xpath", xpath: res.book_name };
+      if (res.novel_content)
+        patch.chap_content = { ...data.chap_content, mode: "xpath", xpath: res.novel_content };
+      if (res.book_name)
+        patch.chap_novel_name = { ...data.chap_novel_name, mode: "xpath", xpath: res.book_name };
     }
     setData((d) => ({ ...d, ...patch }));
     setShowXPathTool(false);
@@ -150,19 +192,27 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   // XPath tool button is available on steps 1, 3, 5
   const showXPathBtn = step === 1 || step === 3 || step === 5;
 
-  const completedSteps = useMemo(() => ({
-    1: Boolean(data.update_list_url.trim() && data.update_list_html),
-    2: Boolean(data.selected_book_url || data.catalog_url.trim()),
-    3: Boolean(data.catalog_url.trim() && data.catalog_html && buildXPathFromRule(data.list_novel_name) && buildXPathFromRule(data.list_release_url)),
-    4: Boolean(data.chapter_test_url),
-    5: Boolean(buildXPathFromRule(data.chap_content)),
-    6: Boolean(data.chapter_html),
-    7: false,
-  }), [data]);
+  const completedSteps = useMemo(
+    () => ({
+      1: Boolean(data.update_list_url.trim() && data.update_list_html),
+      2: Boolean(data.selected_book_url || data.catalog_url.trim()),
+      3: Boolean(
+        data.catalog_url.trim() &&
+        data.catalog_html &&
+        buildXPathFromRule(data.list_novel_name) &&
+        buildXPathFromRule(data.list_release_url),
+      ),
+      4: Boolean(data.chapter_test_url),
+      5: Boolean(buildXPathFromRule(data.chap_content)),
+      6: Boolean(data.chapter_html),
+      7: false,
+    }),
+    [data],
+  );
 
   return (
     <div
-      className="flex flex-col gap-0 rounded-xl border overflow-hidden"
+      className="flex flex-col gap-0 overflow-hidden rounded-xl border"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",
@@ -171,34 +221,38 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-3 px-4 py-3 border-b shrink-0"
+        className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
-        <span className="text-sm font-semibold flex-1" style={{ color: "var(--color-text)" }}>
+        <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           规则配置向导
         </span>
-        <span className="text-xs truncate max-w-xs" style={{ color: "var(--color-text-subtle)" }}>
+        <span className="max-w-xs truncate text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {site.domain_name}
         </span>
       </div>
 
       {/* ── Step tabs ──────────────────────────────────────────────────────── */}
       <div
-        className="flex items-stretch border-b shrink-0 overflow-x-auto"
+        className="flex shrink-0 items-stretch overflow-x-auto border-b"
         style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
       >
         {STEPS.map(({ id, label, icon: Icon }) => {
           const active = step === id;
-          const done   = step > id || completedSteps[id as keyof typeof completedSteps];
+          const done = step > id || completedSteps[id as keyof typeof completedSteps];
           const locked = id > step && !canEnterStep(id);
           return (
             <button
               key={id}
               onClick={() => goTo(id)}
               disabled={locked}
-              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-all relative shrink-0 whitespace-nowrap"
+              className="relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-all"
               style={{
-                color: active ? "var(--color-accent)" : done ? "var(--color-text-muted)" : "var(--color-text-subtle)",
+                color: active
+                  ? "var(--color-accent)"
+                  : done
+                    ? "var(--color-text-muted)"
+                    : "var(--color-text-subtle)",
                 background: active ? "var(--color-surface)" : "transparent",
                 borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
                 fontWeight: active ? 600 : 400,
@@ -207,16 +261,20 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
               }}
             >
               <span
-                className="w-4 h-4 rounded-full text-[10px] flex items-center justify-center shrink-0"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px]"
                 style={{
-                  background: active ? "var(--color-accent)" : done ? "var(--color-success)" : "var(--color-border)",
+                  background: active
+                    ? "var(--color-accent)"
+                    : done
+                      ? "var(--color-success)"
+                      : "var(--color-border)",
                   color: active || done ? "#fff" : "var(--color-text-subtle)",
                   fontWeight: 600,
                 }}
               >
                 {done ? "✓" : id}
               </span>
-              <Icon className="w-3 h-3" />
+              <Icon className="h-3 w-3" />
               {label}
             </button>
           );
@@ -227,58 +285,64 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
       <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 520 }}>
         {step === 1 && <WizardStep1UpdateList data={data} onChange={setData} />}
         {step === 2 && <WizardStep2SelectBook data={data} onChange={setData} />}
-        {step === 3 && <WizardStepCatalog     data={data} onChange={setData} />}
-        {step === 4 && <WizardStep3ListTest   data={data} onChange={setData} />}
-        {step === 5 && <WizardStep4ChapRules  data={data} onChange={setData} />}
-        {step === 6 && <WizardStep5ChapTest   data={data} onChange={setData} />}
-        {step === 7 && <WizardStep6Save data={data} onApply={(patch) => {
-          hasSavedRef.current = true;
-          onApply(patch);
-        }} onClose={handleCloseAttempt} />}
+        {step === 3 && <WizardStepCatalog data={data} onChange={setData} />}
+        {step === 4 && <WizardStep3ListTest data={data} onChange={setData} />}
+        {step === 5 && <WizardStep4ChapRules data={data} onChange={setData} />}
+        {step === 6 && <WizardStep5ChapTest data={data} onChange={setData} />}
+        {step === 7 && (
+          <WizardStep6Save
+            data={data}
+            onApply={(patch) => {
+              hasSavedRef.current = true;
+              onApply(patch);
+            }}
+            onClose={handleCloseAttempt}
+          />
+        )}
       </div>
 
       {/* ── XPath tool modal (portal to body, no parent clipping) ──────────── */}
-      {showXPathTool && createPortal(
-        <div
-          className="fixed inset-0 flex items-center justify-center"
-          style={{ zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
-          onClick={() => setShowXPathTool(false)}
-        >
+      {showXPathTool &&
+        createPortal(
           <div
-            className="relative w-full mx-4 overflow-hidden rounded-xl"
-            style={{
-              maxWidth: 860,
-              maxHeight: "calc(100vh - 64px)",
-              display: "flex",
-              flexDirection: "column",
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 9999, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)" }}
+            onClick={() => setShowXPathTool(false)}
           >
-            <XPathToolPanel
-              html={xpathHtml}
-              page={xpathPage}
-              onApply={handleXPathToolApply}
-              onClose={() => setShowXPathTool(false)}
-            />
-          </div>
-        </div>,
-        document.body,
-      )}
+            <div
+              className="relative mx-4 w-full overflow-hidden rounded-xl"
+              style={{
+                maxWidth: 860,
+                maxHeight: "calc(100vh - 64px)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <XPathToolPanel
+                html={xpathHtml}
+                page={xpathPage}
+                onApply={handleXPathToolApply}
+                onClose={() => setShowXPathTool(false)}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* ── Footer navigation ──────────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-2 px-4 py-3 border-t shrink-0"
+        className="flex shrink-0 items-center gap-2 border-t px-4 py-3"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
         <Button variant="ghost" size="sm" onClick={goPrev} disabled={step === 1}>
-          <ChevronLeft className="w-3.5 h-3.5" />
+          <ChevronLeft className="h-3.5 w-3.5" />
           上一步
         </Button>
-
         {showXPathBtn && (
           <button
             onClick={() => setShowXPathTool((v) => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
             style={{
               background: showXPathTool
                 ? "color-mix(in srgb, var(--color-accent) 12%, var(--color-surface))"
@@ -290,27 +354,25 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
               fontWeight: showXPathTool ? 600 : 400,
             }}
           >
-            <Wand2 className="w-3 h-3" />
+            <Wand2 className="h-3 w-3" />
             XPath 工具
           </button>
         )}
-
         <span className="flex-1 text-center text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {step} / {STEPS.length}
         </span>
-
         {step < STEPS.length && (
           <Button size="sm" onClick={goNext} disabled={!canEnterStep(step + 1)}>
             下一步
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         )}
-
         {step === STEPS.length && (
           <Button variant="ghost" size="sm" onClick={handleCloseAttempt}>
             关闭向导
           </Button>
-        )}      </div>
+        )}{" "}
+      </div>
     </div>
   );
 }

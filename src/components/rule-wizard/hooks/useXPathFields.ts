@@ -1,7 +1,8 @@
 /**
  * useXPathFields — XPathToolPanel 的字段状态管理 hook
  */
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
+
 import type { KeywordType, TargetField, XPathTarget } from "../xpathTool";
 
 export interface FieldState {
@@ -32,16 +33,23 @@ export function defaultFieldState(): FieldState {
 
 export function useXPathFields(availableTargets: XPathTarget[]) {
   const [fields, setFields] = useState<Record<TargetField, FieldState>>(
-    () => Object.fromEntries(
-      availableTargets.map((t) => [t.field, defaultFieldState()])
-    ) as Record<TargetField, FieldState>
+    () =>
+      Object.fromEntries(availableTargets.map((t) => [t.field, defaultFieldState()])) as Record<
+        TargetField,
+        FieldState
+      >,
   );
 
-  const patchField = useCallback((field: TargetField, patch: Partial<FieldState>) =>
-    setFields((prev) => ({ ...prev, [field]: { ...prev[field], ...patch } })), []);
+  const patchField = useCallback(
+    (field: TargetField, patch: Partial<FieldState>) =>
+      setFields((prev) => ({ ...prev, [field]: { ...prev[field], ...patch } })),
+    [],
+  );
 
-  const resetField = useCallback((field: TargetField) =>
-    patchField(field, defaultFieldState()), [patchField]);
+  const resetField = useCallback(
+    (field: TargetField) => patchField(field, defaultFieldState()),
+    [patchField],
+  );
 
   return { fields, setFields, patchField, resetField };
 }

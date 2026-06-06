@@ -16,12 +16,7 @@ const EASE_OUT_FAST = "outCubic";
 /**
  * 数字从 from 滚动到 to，更新 element 的 textContent
  */
-export function animateCountUp(
-  el: HTMLElement,
-  from: number,
-  to: number,
-  duration = 800,
-): void {
+export function animateCountUp(el: HTMLElement, from: number, to: number, duration = 800): void {
   const obj = { value: from };
   animate(obj, {
     value: to,

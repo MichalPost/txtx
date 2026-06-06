@@ -1,6 +1,6 @@
 export interface RuleHealthEntry {
   domain: string;
-  lastUsed: string;       // ISO timestamp
+  lastUsed: string; // ISO timestamp
   lastStatus: "success" | "error";
   successCount: number;
   errorCount: number;
@@ -21,13 +21,15 @@ export function loadRuleHealth(): Record<string, RuleHealthEntry> {
 export function saveRuleHealth(map: Record<string, RuleHealthEntry>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {}
+  } catch {
+    /* localStorage may be unavailable in some environments */
+  }
 }
 
 export function recordRuleUsage(
   domain: string,
   status: "success" | "error",
-  errorMsg?: string
+  errorMsg?: string,
 ): void {
   const map = loadRuleHealth();
   const prev = map[domain] ?? {

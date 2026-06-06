@@ -29,18 +29,18 @@ export interface XPathTarget {
 }
 
 export const XPATH_TARGETS: XPathTarget[] = [
-  { field: "chapter_name",     label: "章节名称", page: "catalog" },
-  { field: "chapter_url",      label: "章节链接", page: "catalog" },
-  { field: "book_name",        label: "书籍名称", page: "catalog" },
-  { field: "novel_content",    label: "小说正文", page: "chapter" },
-  { field: "update_book_name", label: "书名",     page: "update_list" },
-  { field: "update_book_url",  label: "书籍链接", page: "update_list" },
+  { field: "chapter_name", label: "章节名称", page: "catalog" },
+  { field: "chapter_url", label: "章节链接", page: "catalog" },
+  { field: "book_name", label: "书籍名称", page: "catalog" },
+  { field: "novel_content", label: "小说正文", page: "chapter" },
+  { field: "update_book_name", label: "书名", page: "update_list" },
+  { field: "update_book_url", label: "书籍链接", page: "update_list" },
   { field: "update_book_date", label: "更新日期", page: "update_list" },
 ];
 
 export const KEYWORD_TYPE_LABELS: Record<KeywordType, string> = {
-  text:  "文本内容",
-  href:  "跳转链接",
+  text: "文本内容",
+  href: "跳转链接",
   class: "class 属性",
 };
 
@@ -63,7 +63,13 @@ export function generateXPathFromKeyword(
 ): XPathToolResult {
   const kwList = (Array.isArray(keywords) ? keywords : [keywords]).filter((k) => k.trim());
   if (!kwList.length) {
-    return { anchor_xpath: "", generated: {}, anchor_count: 0, anchor_samples: [], error: "请输入定位关键字" };
+    return {
+      anchor_xpath: "",
+      generated: {},
+      anchor_count: 0,
+      anchor_samples: [],
+      error: "请输入定位关键字",
+    };
   }
 
   try {
@@ -75,7 +81,13 @@ export function generateXPathFromKeyword(
 
     let anchorSnap: XPathResult;
     try {
-      anchorSnap = doc.evaluate(anchorXPath, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      anchorSnap = doc.evaluate(
+        anchorXPath,
+        doc,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null,
+      );
     } catch {
       return {
         anchor_xpath: anchorXPath,
@@ -192,11 +204,12 @@ function selectBestAnchor(
   if (kwList.length > 1) {
     const listContainerPaths = kwList.map((kw) => {
       const anchor = anchorElements.find((el) => {
-        const text = keywordType === "href"
-          ? el.getAttribute("href") ?? ""
-          : keywordType === "class"
-            ? el.getAttribute("class") ?? ""
-            : el.textContent ?? "";
+        const text =
+          keywordType === "href"
+            ? (el.getAttribute("href") ?? "")
+            : keywordType === "class"
+              ? (el.getAttribute("class") ?? "")
+              : (el.textContent ?? "");
         return text.includes(kw);
       });
       if (!anchor) return null;
@@ -282,9 +295,14 @@ function deriveChapterName(
   keywordType: KeywordType,
 ): string {
   // 找到 <a> 元素（章节名称所在）
-  const aEl = keywordType === "href"
-    ? (anchor.tagName === "A" ? anchor : anchor.closest("a"))
-    : (anchor.tagName === "A" ? anchor : anchor.closest("a") ?? anchor);
+  const aEl =
+    keywordType === "href"
+      ? anchor.tagName === "A"
+        ? anchor
+        : anchor.closest("a")
+      : anchor.tagName === "A"
+        ? anchor
+        : (anchor.closest("a") ?? anchor);
 
   if (aEl) {
     // 从列表容器生成泛化路径
@@ -312,9 +330,14 @@ function deriveChapterUrl(
   anchorXPath: string,
   keywordType: KeywordType,
 ): string {
-  const aEl = keywordType === "href"
-    ? (anchor.tagName === "A" ? anchor : anchor.closest("a"))
-    : (anchor.tagName === "A" ? anchor : anchor.closest("a"));
+  const aEl =
+    keywordType === "href"
+      ? anchor.tagName === "A"
+        ? anchor
+        : anchor.closest("a")
+      : anchor.tagName === "A"
+        ? anchor
+        : anchor.closest("a");
 
   if (aEl) {
     const generalized = buildGeneralizedListPath(doc, aEl, "/@href");
@@ -354,7 +377,9 @@ function deriveBookName(doc: Document): string {
       const r = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
       const text = r.singleNodeValue?.textContent?.trim();
       if (text && text.length > 1 && text.length < 60) return xpath;
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   return "//h1/text()";
@@ -362,11 +387,7 @@ function deriveBookName(doc: Document): string {
 
 // ── novel_content ── 多维度打分，不再只看字符数 ────────────────────────────────
 
-function deriveNovelContent(
-  doc: Document,
-  anchor: Element,
-  anchorXPath: string,
-): string {
+function deriveNovelContent(doc: Document, anchor: Element, anchorXPath: string): string {
   // 向上遍历最多 10 层，对每一层打分
   const candidates: Array<{ el: Element; score: number }> = [];
 
@@ -406,7 +427,9 @@ function deriveNovelContent(
       const r = doc.evaluate(p, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
       const text = r.singleNodeValue?.textContent?.trim();
       if (text && text.length > 50) return p;
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   return `${anchorXPath}/parent::*/text()`;
@@ -418,11 +441,7 @@ function deriveNovelContent(
  * 更新日期通常是行里的一个 span/td，文本是日期格式（如 2024-01-01）。
  * 策略：在锚元素所在的行容器里，找第一个非链接的纯文本节点，生成泛化路径。
  */
-function deriveUpdateDate(
-  doc: Document,
-  anchor: Element,
-  anchorXPath: string,
-): string {
+function deriveUpdateDate(doc: Document, anchor: Element, anchorXPath: string): string {
   const row = findRowContainer(anchor);
   if (!row) return `${anchorXPath}/following-sibling::*/text()`;
 
@@ -461,13 +480,13 @@ function scoreContentElement(el: Element): number {
 
   // 文本长度打分（200-5000 最佳，太长可能是整页）
   const len = text.length;
-  if (len >= 200 && len <= 5000)  score += 30;
+  if (len >= 200 && len <= 5000) score += 30;
   else if (len > 5000 && len <= 20000) score += 15;
   else if (len > 20000) score += 5; // 太大，可能是整个 body
 
   // 含有 <p> 子节点
   const pCount = el.querySelectorAll("p").length;
-  if (pCount >= 3)  score += 25;
+  if (pCount >= 3) score += 25;
   else if (pCount >= 1) score += 10;
 
   // 导航词惩罚
@@ -477,13 +496,23 @@ function scoreContentElement(el: Element): number {
   }
 
   // id/class 语义词加分
-  const idCls = ((el.getAttribute("id") ?? "") + " " + (el.getAttribute("class") ?? "")).toLowerCase();
+  const idCls = (
+    (el.getAttribute("id") ?? "") +
+    " " +
+    (el.getAttribute("class") ?? "")
+  ).toLowerCase();
   for (const w of ["content", "txt", "read", "article", "chapter", "text", "novel"]) {
-    if (idCls.includes(w)) { score += 20; break; }
+    if (idCls.includes(w)) {
+      score += 20;
+      break;
+    }
   }
   // 导航类 id/class 惩罚
   for (const w of ["nav", "menu", "header", "footer", "side", "ad", "comment", "recommend"]) {
-    if (idCls.includes(w)) { score -= 30; break; }
+    if (idCls.includes(w)) {
+      score -= 30;
+      break;
+    }
   }
 
   return score;
@@ -500,11 +529,7 @@ function scoreContentElement(el: Element): number {
  *   → //ul[@id="list"]/li/a/text()
  *   而不是 //ul[@id="list"]/li[3]/a/text()
  */
-function buildGeneralizedListPath(
-  doc: Document,
-  anchorEl: Element,
-  suffix: string,
-): string | null {
+function buildGeneralizedListPath(doc: Document, anchorEl: Element, suffix: string): string | null {
   const row = findRowContainer(anchorEl);
   if (!row) return null;
   const listContainer = row.parentElement;
@@ -549,8 +574,8 @@ function buildPathFromRowToEl(row: Element, target: Element): string | null {
 
 function resolveElement(node: Node): Element | null {
   if (node.nodeType === Node.ATTRIBUTE_NODE) return (node as Attr).ownerElement;
-  if (node.nodeType === Node.TEXT_NODE)      return node.parentElement;
-  if (node.nodeType === Node.ELEMENT_NODE)   return node as Element;
+  if (node.nodeType === Node.TEXT_NODE) return node.parentElement;
+  if (node.nodeType === Node.ELEMENT_NODE) return node as Element;
   return null;
 }
 
@@ -631,7 +656,7 @@ function getShortPath(doc: Document, el: Element): string {
   const tag = el.tagName.toLowerCase();
   const id = el.getAttribute("id");
   const cls = el.getAttribute("class")?.split(/\s+/).filter(Boolean)[0];
-  if (id)  return `${tag}#${id}`;
+  if (id) return `${tag}#${id}`;
   if (cls) return `${tag}.${cls}`;
   const path = buildAbsoluteXPath(doc, el);
   return path.slice(0, 40);

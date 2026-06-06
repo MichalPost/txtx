@@ -1,7 +1,12 @@
 import { SlidersHorizontal } from "lucide-react";
+
 import { Card } from "@/components/Card";
+import {
+  inlineInputClass,
+  inlineInputStyle,
+  inputFocusHandlersSimple,
+} from "@/pages/blacklist/blacklistUtils";
 import type { ContentFilterConfig } from "@/types";
-import { inlineInputStyle, inlineInputClass, inputFocusHandlersSimple } from "@/pages/blacklist/blacklistUtils";
 
 interface FilterParamsCardProps {
   config: ContentFilterConfig;
@@ -12,7 +17,6 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
   return (
     <Card title="过滤参数">
       <div className="flex flex-col gap-4">
-
         {/* Safety threshold */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
@@ -20,7 +24,7 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
               安全回退阈值
             </label>
             <span
-              className="text-xs font-mono px-1.5 py-0.5 rounded"
+              className="rounded px-1.5 py-0.5 font-mono text-xs"
               style={{ background: "var(--color-accent-muted)", color: "var(--color-accent)" }}
             >
               {config.safety_threshold.toFixed(2)}
@@ -32,7 +36,7 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
             max={1}
             step={0.05}
             value={config.safety_threshold}
-            onChange={e => onUpdate({ safety_threshold: parseFloat(e.target.value) })}
+            onChange={(e) => onUpdate({ safety_threshold: parseFloat(e.target.value) })}
             className="w-full accent-[var(--color-accent)]"
           />
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
@@ -50,7 +54,7 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
             min={0}
             max={10}
             value={config.fallback_trim_lines}
-            onChange={e => onUpdate({ fallback_trim_lines: parseInt(e.target.value) || 0 })}
+            onChange={(e) => onUpdate({ fallback_trim_lines: parseInt(e.target.value) || 0 })}
             className={`w-full ${inlineInputClass}`}
             style={inlineInputStyle}
             {...inputFocusHandlersSimple}
@@ -62,10 +66,13 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
 
         {/* Stats */}
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+          className="flex items-center gap-2 rounded-lg border px-3 py-2"
           style={{ background: "var(--color-surface-2)", borderColor: "var(--color-border)" }}
         >
-          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-text-subtle)" }} />
+          <SlidersHorizontal
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: "var(--color-text-subtle)" }}
+          />
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
             参数调整后将在下次下载时生效
           </p>

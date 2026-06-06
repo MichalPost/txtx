@@ -1,9 +1,20 @@
 import { z } from "zod";
+
 import type { AppConfig } from "@/types";
 
 // ─── Zod schema ────────────────────────────────────────────────────────────────
 
 const encodingEntrySchema = z.object({ domain: z.string(), encoding: z.string() });
+
+const rateLimitRuleFormSchema = z.object({
+  name: z.string(),
+  domains: z.string(), // newline-separated string in form
+  delay_min_ms: z.coerce.number().int().min(0),
+  delay_max_ms: z.coerce.number().int().min(0),
+  requests_per_second: z.coerce.number().min(0),
+  ua_pool: z.string(), // newline-separated string in form
+  stealth: z.boolean(),
+});
 
 export const settingsSchema = z.object({
   base_dir: z.string().min(1, "下载目录不能为空"),
@@ -20,7 +31,11 @@ export const settingsSchema = z.object({
   connection_pool_size: z.coerce.number().int().min(1).max(500),
   days_limit: z.coerce.number().int().min(1).max(365),
   min_days_limit: z.coerce.number().int().min(1).max(60),
-  last_download_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "格式 YYYY-MM-DD").nullable().optional()
+  last_download_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "格式 YYYY-MM-DD")
+    .nullable()
+    .optional()
     .or(z.literal("")),
   encoding_map: z.array(encodingEntrySchema),
   tc_enabled: z.boolean(),
@@ -34,21 +49,13 @@ export const settingsSchema = z.object({
   nav_keywords: z.string(),
   safety_threshold: z.coerce.number().min(0).max(1),
   fallback_trim_lines: z.coerce.number().int().min(0).max(10),
-  // Rate limit rules
-  rate_limit_rules: z.array(z.object({
-    name: z.string(),
-    domains: z.string(),           // 多行文本，用 \n 分隔
-    delay_min_ms: z.coerce.number().int().min(0),
-    delay_max_ms: z.coerce.number().int().min(0),
-    requests_per_second: z.coerce.number().int().min(0),
-    ua_pool: z.string(),           // 多行文本
-    stealth: z.boolean(),
-  })),
   // Advanced
   pool_idle_timeout_secs: z.coerce.number().int().min(10).max(600),
   tcp_keepalive_secs: z.coerce.number().int().min(10).max(600),
   min_chapter_bytes: z.coerce.number().int().min(0),
   chapter_fail_threshold: z.coerce.number().min(0).max(1),
+  // Rate limit rules
+  rate_limit_rules: z.array(rateLimitRuleFormSchema),
 });
 
 export type SettingsForm = z.infer<typeof settingsSchema>;
@@ -72,7 +79,10 @@ export function configToForm(config: AppConfig): SettingsForm {
     days_limit: config.filtering.days_limit,
     min_days_limit: config.filtering.min_days_limit,
     last_download_date: config.filtering.last_download_date ?? "",
-    encoding_map: Object.entries(config.network.encoding_map).map(([domain, encoding]) => ({ domain, encoding })),
+    encoding_map: Object.entries(config.network.encoding_map).map(([domain, encoding]) => ({
+      domain,
+      encoding,
+    })),
     tc_enabled: config.text_conversion?.enabled ?? false,
     tc_t2s: config.text_conversion?.traditional_to_simplified ?? false,
     tc_auto: config.text_conversion?.auto_detect ?? true,
@@ -83,7 +93,11 @@ export function configToForm(config: AppConfig): SettingsForm {
     nav_keywords: (config.content_filter?.nav_keywords ?? []).join("\n"),
     safety_threshold: config.content_filter?.safety_threshold ?? 0.3,
     fallback_trim_lines: config.content_filter?.fallback_trim_lines ?? 2,
-    rate_limit_rules: (config.rate_limit?.rules ?? []).map(r => ({
+    pool_idle_timeout_secs: config.advanced_network?.pool_idle_timeout_secs ?? 90,
+    tcp_keepalive_secs: config.advanced_network?.tcp_keepalive_secs ?? 60,
+    min_chapter_bytes: config.advanced_network?.min_chapter_bytes ?? 1024,
+    chapter_fail_threshold: config.advanced_network?.chapter_fail_threshold ?? 0.05,
+    rate_limit_rules: (config.rate_limit?.rules ?? []).map((r) => ({
       name: r.name,
       domains: r.domains.join("\n"),
       delay_min_ms: r.delay_min_ms,
@@ -92,16 +106,14 @@ export function configToForm(config: AppConfig): SettingsForm {
       ua_pool: r.ua_pool.join("\n"),
       stealth: r.stealth,
     })),
-    pool_idle_timeout_secs: config.advanced_network?.pool_idle_timeout_secs ?? 90,
-    tcp_keepalive_secs: config.advanced_network?.tcp_keepalive_secs ?? 60,
-    min_chapter_bytes: config.advanced_network?.min_chapter_bytes ?? 1024,
-    chapter_fail_threshold: config.advanced_network?.chapter_fail_threshold ?? 0.05,
   };
 }
 
 export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig {
   const enc: Record<string, string> = {};
-  form.encoding_map.forEach(({ domain, encoding }) => { if (domain) enc[domain] = encoding; });
+  form.encoding_map.forEach(({ domain, encoding }) => {
+    if (domain) enc[domain] = encoding;
+  });
   return {
     ...original,
     paths: {
@@ -144,19 +156,31 @@ export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig
     },
     content_filter: {
       ...original.content_filter,
-      ad_patterns: form.ad_patterns.split("\n").map(l => l.trimEnd()).filter(Boolean),
-      nav_keywords: form.nav_keywords.split("\n").map(l => l.trimEnd()).filter(Boolean),
+      ad_patterns: form.ad_patterns
+        .split("\n")
+        .map((l) => l.trimEnd())
+        .filter(Boolean),
+      nav_keywords: form.nav_keywords
+        .split("\n")
+        .map((l) => l.trimEnd())
+        .filter(Boolean),
       safety_threshold: form.safety_threshold,
       fallback_trim_lines: form.fallback_trim_lines,
     },
     rate_limit: {
-      rules: form.rate_limit_rules.map(r => ({
+      rules: form.rate_limit_rules.map((r) => ({
         name: r.name,
-        domains: r.domains.split("\n").map((l: string) => l.trimEnd()).filter(Boolean),
+        domains: r.domains
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean),
         delay_min_ms: r.delay_min_ms,
         delay_max_ms: r.delay_max_ms,
         requests_per_second: r.requests_per_second,
-        ua_pool: r.ua_pool.split("\n").map((l: string) => l.trimEnd()).filter(Boolean),
+        ua_pool: r.ua_pool
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean),
         stealth: r.stealth,
       })),
     },

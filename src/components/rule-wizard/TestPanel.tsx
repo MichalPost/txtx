@@ -2,8 +2,9 @@
  * TestPanel — 规则测试面板
  * 展示命中列表预览 + HTML 源码高亮视图 + XPath 工具入口
  */
-import { useState, useMemo } from "react";
-import { List, Code2, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, Code2, List, XCircle } from "lucide-react";
+
 import { validateXPath } from "@/lib/ai";
 
 interface TestField {
@@ -44,17 +45,18 @@ export function TestPanel({ html, fields }: TestPanelProps) {
   // Build highlighted HTML for source view
   const highlightedHtml = useMemo(() => {
     if (!html || tab !== "source") return "";
-    const activeField = selectedField
-      ? results.find((r) => r.label === selectedField)
-      : results[0];
+    const activeField = selectedField ? results.find((r) => r.label === selectedField) : results[0];
     if (!activeField?.xpath) return escapeHtml(html);
 
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
       const snapshot = document.evaluate(
-        activeField.xpath, doc, null,
-        XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null
+        activeField.xpath,
+        doc,
+        null,
+        XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+        null,
       );
       const matchedTexts = new Set<string>();
       for (let i = 0; i < snapshot.snapshotLength; i++) {
@@ -71,7 +73,7 @@ export function TestPanel({ html, fields }: TestPanelProps) {
         const escaped = escapeHtml(text);
         highlighted = highlighted.replace(
           new RegExp(escapeRegex(escaped), "g"),
-          `<mark style="background:var(--color-warning-bg);color:var(--color-warning);border-radius:2px;padding:0 1px;">${escaped}</mark>`
+          `<mark style="background:var(--color-warning-bg);color:var(--color-warning);border-radius:2px;padding:0 1px;">${escaped}</mark>`,
         );
       }
       return highlighted;
@@ -85,28 +87,29 @@ export function TestPanel({ html, fields }: TestPanelProps) {
   return (
     <div className="flex flex-col gap-3">
       {/* Tab bar */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <div
-          className="flex rounded-lg p-0.5 gap-0.5"
+          className="flex gap-0.5 rounded-lg p-0.5"
           style={{ background: "var(--color-surface-2)" }}
         >
-          {([
-            { id: "results" as TabId, icon: <List className="w-3 h-3" />, label: "命中预览" },
-            { id: "source"  as TabId, icon: <Code2 className="w-3 h-3" />, label: "源码高亮" },
-          ]).map(({ id, icon, label }) => {
+          {[
+            { id: "results" as TabId, icon: <List className="h-3 w-3" />, label: "命中预览" },
+            { id: "source" as TabId, icon: <Code2 className="h-3 w-3" />, label: "源码高亮" },
+          ].map(({ id, icon, label }) => {
             const active = tab === id;
             return (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all"
                 style={{
                   background: active ? "var(--color-surface)" : "transparent",
                   color: active ? "var(--color-text)" : "var(--color-text-muted)",
                   boxShadow: active ? "var(--shadow-sm)" : "none",
                 }}
               >
-                {icon}{label}
+                {icon}
+                {label}
               </button>
             );
           })}
@@ -117,14 +120,14 @@ export function TestPanel({ html, fields }: TestPanelProps) {
       {tab === "results" && (
         <div className="flex flex-col gap-2">
           {results.length === 0 ? (
-            <p className="text-xs py-3 text-center" style={{ color: "var(--color-text-subtle)" }}>
+            <p className="py-3 text-center text-xs" style={{ color: "var(--color-text-subtle)" }}>
               所有规则均为空，请先填写规则
             </p>
           ) : (
             results.map((r) => (
               <div
                 key={r.label}
-                className="flex flex-col gap-1.5 rounded-lg px-3 py-2.5 border"
+                className="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5"
                 style={{
                   background: "var(--color-surface)",
                   borderColor: "var(--color-border)",
@@ -132,20 +135,30 @@ export function TestPanel({ html, fields }: TestPanelProps) {
               >
                 <div className="flex items-center gap-2">
                   {r.error ? (
-                    <XCircle className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-danger)" }} />
+                    <XCircle
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--color-danger)" }}
+                    />
                   ) : r.count > 0 ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+                    <CheckCircle2
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--color-success)" }}
+                    />
                   ) : (
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+                    <AlertCircle
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: "var(--color-warning)" }}
+                    />
                   )}
                   <span className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
                     {r.label}
                   </span>
                   {!r.error && (
                     <span
-                      className="ml-auto text-xs px-2 py-0.5 rounded-full"
+                      className="ml-auto rounded-full px-2 py-0.5 text-xs"
                       style={{
-                        background: r.count > 0 ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                        background:
+                          r.count > 0 ? "var(--color-success-bg)" : "var(--color-warning-bg)",
                         color: r.count > 0 ? "var(--color-success)" : "var(--color-warning)",
                       }}
                     >
@@ -154,14 +167,16 @@ export function TestPanel({ html, fields }: TestPanelProps) {
                   )}
                 </div>
                 {r.error && (
-                  <p className="text-xs" style={{ color: "var(--color-danger)" }}>{r.error}</p>
+                  <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+                    {r.error}
+                  </p>
                 )}
                 {r.samples.length > 0 && (
                   <div className="flex flex-col gap-1 pl-5">
                     {r.samples.slice(0, 5).map((s, i) => (
                       <span
                         key={i}
-                        className="text-xs truncate"
+                        className="truncate text-xs"
                         style={{ color: "var(--color-text-muted)" }}
                       >
                         {i + 1}. {s}
@@ -170,7 +185,7 @@ export function TestPanel({ html, fields }: TestPanelProps) {
                   </div>
                 )}
                 <code
-                  className="text-xs font-mono pl-5 truncate"
+                  className="truncate pl-5 font-mono text-xs"
                   style={{ color: "var(--color-text-subtle)" }}
                 >
                   {r.xpath}
@@ -186,14 +201,14 @@ export function TestPanel({ html, fields }: TestPanelProps) {
         <div className="flex flex-col gap-2">
           {/* Field selector for highlighting */}
           {results.length > 1 && (
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex flex-wrap gap-1.5">
               {results.map((r) => {
                 const active = (selectedField ?? results[0]?.label) === r.label;
                 return (
                   <button
                     key={r.label}
                     onClick={() => setSelectedField(r.label)}
-                    className="text-xs px-2.5 py-1 rounded-lg border transition-colors"
+                    className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
                     style={{
                       background: active ? "var(--color-accent-muted)" : "var(--color-surface-1)",
                       borderColor: active
@@ -211,7 +226,7 @@ export function TestPanel({ html, fields }: TestPanelProps) {
           )}
           {/* Source code */}
           <div
-            className="rounded-xl border overflow-auto font-mono text-xs leading-relaxed p-3"
+            className="overflow-auto rounded-xl border p-3 font-mono text-xs leading-relaxed"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",

@@ -19,7 +19,7 @@ export const initialSpeed: SpeedState = {
 
 export function computeSpeed(timestamps: number[], remainingChapters: number): SpeedState {
   const now = Date.now();
-  const recent = timestamps.filter(t => now - t < SPEED_WINDOW_MS);
+  const recent = timestamps.filter((t) => now - t < SPEED_WINDOW_MS);
   const cps = recent.length / (SPEED_WINDOW_MS / 1000);
   const eta = cps > 0 ? Math.round(remainingChapters / cps) : -1;
   return { chapterTimestamps: recent, chaptersPerSecond: cps, etaSeconds: eta };

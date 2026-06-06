@@ -1,26 +1,27 @@
 import { lazy, Suspense } from "react";
 import {
   createHashRouter,
+  Navigate,
   useNavigate,
   type NavigateOptions,
   type To,
 } from "react-router-dom";
+
 import { RootLayout } from "@/layouts/RootLayout";
-import { NotFoundPage } from "@/pages/NotFoundPage";
 import { ErrorPage } from "@/pages/ErrorPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
 
 // ── 路由路径常量 ──────────────────────────────────────────────────
 export const ROUTES = {
-  home:       "/",
-  tasks:      "/tasks",
-  websites:   "/websites",
-  rules:      "/rules",
-  settings:   "/settings",
-  filter:     "/filter",
-  history:    "/history",
-  health:     "/health",
-  converter:  "/converter",
-  bookshelf:  "/bookshelf",
+  home: "/",
+  tasks: "/tasks",
+  rules: "/rules",
+  settings: "/settings",
+  filter: "/filter",
+  history: "/history",
+  health: "/health",
+  converter: "/converter",
+  bookshelf: "/bookshelf",
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
@@ -35,21 +36,38 @@ export function useAppNavigate() {
 }
 
 // ── 页面懒加载 ────────────────────────────────────────────────────
-const DownloadPage    = lazy(() => import("@/pages/DownloadPage").then(m => ({ default: m.DownloadPage })));
-const WebsitesPage    = lazy(() => import("@/pages/WebsitesPage").then(m => ({ default: m.WebsitesPage })));
-const RulesPage       = lazy(() => import("@/pages/rules/RulesPage").then(m => ({ default: m.RulesPage })));
-const SettingsPage    = lazy(() => import("@/pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
-const FilterPage      = lazy(() => import("@/pages/filter/FilterPage").then(m => ({ default: m.FilterPage })));
-const HistoryPage     = lazy(() => import("@/pages/history/HistoryPage").then(m => ({ default: m.HistoryPage })));
-const HealthPage      = lazy(() => import("@/pages/HealthPage").then(m => ({ default: m.HealthPage })));
-const ConverterPage   = lazy(() => import("@/pages/ConverterPage").then(m => ({ default: m.ConverterPage })));
-const BookshelfPage   = lazy(() => import("@/pages/bookshelf/BookshelfPage").then(m => ({ default: m.BookshelfPage })));
-const TaskManagerPage = lazy(() => import("@/pages/tasks/TaskManagerPage").then(m => ({ default: m.TaskManagerPage })));
+const DownloadPage = lazy(() =>
+  import("@/pages/DownloadPage").then((m) => ({ default: m.DownloadPage })),
+);
+const RulesPage = lazy(() =>
+  import("@/pages/rules/RulesPage").then((m) => ({ default: m.RulesPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const FilterPage = lazy(() =>
+  import("@/pages/filter/FilterPage").then((m) => ({ default: m.FilterPage })),
+);
+const HistoryPage = lazy(() =>
+  import("@/pages/history/HistoryPage").then((m) => ({ default: m.HistoryPage })),
+);
+const HealthPage = lazy(() =>
+  import("@/pages/HealthPage").then((m) => ({ default: m.HealthPage })),
+);
+const ConverterPage = lazy(() =>
+  import("@/pages/ConverterPage").then((m) => ({ default: m.ConverterPage })),
+);
+const BookshelfPage = lazy(() =>
+  import("@/pages/bookshelf/BookshelfPage").then((m) => ({ default: m.BookshelfPage })),
+);
+const TaskManagerPage = lazy(() =>
+  import("@/pages/tasks/TaskManagerPage").then((m) => ({ default: m.TaskManagerPage })),
+);
 
 function PageFallback() {
   return (
     <div
-      className="flex items-center justify-center h-full"
+      className="flex h-full items-center justify-center"
       style={{ color: "var(--color-text-muted)" }}
     >
       <span className="text-sm">加载中...</span>
@@ -90,17 +108,17 @@ const routeConfig = [
     HydrateFallback: AppFallback,
     errorElement: <ErrorPage />,
     children: [
-      { index: true,          element: wrap(DownloadPage) },
-      { path: "tasks",        element: wrap(TaskManagerPage) },
-      { path: "websites",     element: wrap(WebsitesPage) },
-      { path: "rules",        element: wrap(RulesPage) },
-      { path: "settings",     element: wrap(SettingsPage) },
-      { path: "filter",       element: wrap(FilterPage) },
-      { path: "history",      element: wrap(HistoryPage) },
-      { path: "health",       element: wrap(HealthPage) },
-      { path: "converter",    element: wrap(ConverterPage) },
-      { path: "bookshelf",   element: wrap(BookshelfPage) },
-      { path: "*",            element: <NotFoundPage /> },
+      { index: true, element: wrap(DownloadPage) },
+      { path: "tasks", element: wrap(TaskManagerPage) },
+      { path: "websites", element: <Navigate to="/rules" replace /> },
+      { path: "rules", element: wrap(RulesPage) },
+      { path: "settings", element: wrap(SettingsPage) },
+      { path: "filter", element: wrap(FilterPage) },
+      { path: "history", element: wrap(HistoryPage) },
+      { path: "health", element: wrap(HealthPage) },
+      { path: "converter", element: wrap(ConverterPage) },
+      { path: "bookshelf", element: wrap(BookshelfPage) },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ];

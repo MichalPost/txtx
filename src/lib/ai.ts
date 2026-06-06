@@ -8,8 +8,8 @@
  * 前端不直接接触 LLM API，所有调用都经过 Rust 后端，
  * 和 medrecai 的 前端 → FastAPI → Python openai SDK → LLM 完全对应。
  */
+import { API_BASE, IS_TAURI } from "@/lib/api/constants";
 import type { AiConfig } from "@/store/aiStore";
-import { IS_TAURI, API_BASE } from "@/lib/api/constants";
 
 // ─── Request / response types（镜像 Rust 结构体）─────────────────────────────
 
@@ -28,7 +28,7 @@ interface AiCompleteRequest {
 function buildRequest(
   userPrompt: string,
   systemPrompt: string,
-  config: AiConfig
+  config: AiConfig,
 ): AiCompleteRequest {
   return {
     config: {
@@ -54,7 +54,7 @@ function buildRequest(
 export async function aiComplete(
   userPrompt: string,
   systemPrompt: string,
-  config: AiConfig
+  config: AiConfig,
 ): Promise<string> {
   const request = buildRequest(userPrompt, systemPrompt, config);
 
@@ -76,7 +76,7 @@ export async function aiComplete(
     throw new Error(`AI 请求失败 ${response.status}：${body.slice(0, 200)}`);
   }
 
-  const data = await response.json() as { text: string };
+  const data = (await response.json()) as { text: string };
   return data.text;
 }
 
@@ -96,7 +96,7 @@ export async function aiStream(
   systemPrompt: string,
   config: AiConfig,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   const request = buildRequest(userPrompt, systemPrompt, config);
 
@@ -111,7 +111,7 @@ export async function aiStream(
 async function _tauriStream(
   request: AiCompleteRequest,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   const { invoke } = await import("@tauri-apps/api/core");
   const { listen } = await import("@tauri-apps/api/event");
@@ -135,25 +135,36 @@ async function _tauriStream(
       (event) => {
         const p = event.payload;
         if (p.stream_id !== streamId) return;
-        if (p.error) { finish(new Error(p.error)); return; }
-        if (p.done)  { finish(); return; }
+        if (p.error) {
+          finish(new Error(p.error));
+          return;
+        }
+        if (p.done) {
+          finish();
+          return;
+        }
         if (p.token != null) onChunk(p.token);
-      }
-    ).then((fn) => {
-      unlisten = fn;
-      signal?.addEventListener("abort", () => finish(new Error("Aborted")));
-      if (signal?.aborted) { finish(new Error("Aborted")); return; }
-      invoke("ai_stream_complete", { request, streamId }).catch((e: unknown) => {
-        finish(new Error(String(e)));
-      });
-    }).catch(reject);
+      },
+    )
+      .then((fn) => {
+        unlisten = fn;
+        signal?.addEventListener("abort", () => finish(new Error("Aborted")));
+        if (signal?.aborted) {
+          finish(new Error("Aborted"));
+          return;
+        }
+        invoke("ai_stream_complete", { request, streamId }).catch((e: unknown) => {
+          finish(new Error(String(e)));
+        });
+      })
+      .catch(reject);
   });
 }
 
 async function _httpStream(
   request: AiCompleteRequest,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/api/ai/stream`, {
     method: "POST",
@@ -207,7 +218,7 @@ async function _httpStream(
 export async function aiExtract<T = Record<string, unknown>>(
   html: string,
   schema: Record<string, unknown>,
-  config: AiConfig
+  config: AiConfig,
 ): Promise<T> {
   const configPayload = {
     base_url: config.base_url,
@@ -237,7 +248,7 @@ export async function aiExtract<T = Record<string, unknown>>(
     throw new Error(`AI 提取请求失败 ${response.status}：${body.slice(0, 200)}`);
   }
 
-  const data = await response.json() as { data: T };
+  const data = (await response.json()) as { data: T };
   return data.data;
 }
 
@@ -262,14 +273,26 @@ export function preprocessHtml(html: string): string {
  * LLM 偶尔在 JSON 外包裹 markdown 代码块，这里兜底处理
  */
 export function extractJson(text: string): unknown {
-  try { return JSON.parse(text); } catch { /* continue */ }
+  try {
+    return JSON.parse(text);
+  } catch {
+    /* continue */
+  }
   const fence = text.match(/```(?:json)?\s*([\s\S]+?)```/);
   if (fence) {
-    try { return JSON.parse(fence[1].trim()); } catch { /* continue */ }
+    try {
+      return JSON.parse(fence[1].trim());
+    } catch {
+      /* continue */
+    }
   }
   const brace = text.match(/\{[\s\S]+\}/);
   if (brace) {
-    try { return JSON.parse(brace[0]); } catch { /* continue */ }
+    try {
+      return JSON.parse(brace[0]);
+    } catch {
+      /* continue */
+    }
   }
   throw new Error(`无法从 LLM 回复中提取 JSON：${text.slice(0, 100)}`);
 }
@@ -279,14 +302,18 @@ export function extractJson(text: string): unknown {
 /** 在浏览器内执行 XPath 并收集匹配样本（不依赖后端） */
 export function validateXPath(
   html: string,
-  xpath: string
+  xpath: string,
 ): { count: number; samples: string[]; error?: string } {
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
     const samples: string[] = [];
     const snapshot = document.evaluate(
-      xpath, doc, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null
+      xpath,
+      doc,
+      null,
+      XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+      null,
     );
     for (let i = 0; i < Math.min(snapshot.snapshotLength, 5); i++) {
       const node = snapshot.snapshotItem(i);

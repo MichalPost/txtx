@@ -15,14 +15,20 @@ export function evalXPathAll(html: string, xpath: string): string[] {
       if (v) out.push(v);
     }
     return out;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 /** 解析相对/绝对 URL */
 export function resolveUrl(href: string, base: string): string {
   if (!href) return "";
   if (href.startsWith("http")) return href;
-  try { return new URL(href, base).href; } catch { return href; }
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return href;
+  }
 }
 
 export interface UpdateListBookItem {
@@ -42,7 +48,7 @@ export function mergeBooks(
   const books: UpdateListBookItem[] = [];
   for (let i = 0; i < len; i++) {
     const name = names[i]?.trim();
-    const url  = resolveUrl(urls[i]?.trim() ?? "", base);
+    const url = resolveUrl(urls[i]?.trim() ?? "", base);
     if (name && url) books.push({ name, url, date: dates[i]?.trim() });
   }
   return books;

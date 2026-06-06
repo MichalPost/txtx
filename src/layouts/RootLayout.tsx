@@ -1,20 +1,21 @@
-import { Outlet, useNavigation, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Sidebar } from "@/components/Sidebar";
+import { Outlet, useLocation, useNavigation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+
 import { CommandPalette } from "@/components/CommandPalette";
 import { SetupWizard } from "@/components/onboarding/SetupWizard";
-import { useConfigStore } from "@/store/configStore";
+import { Sidebar } from "@/components/Sidebar";
+import { apiCheckFirstRun } from "@/lib/api";
 import { useAiStore } from "@/store/aiStore";
+import { useConfigStore } from "@/store/configStore";
 import { useSchedulerStore } from "@/store/schedulerStore";
 import { useTaskStore } from "@/store/taskStore";
-import { apiCheckFirstRun } from "@/lib/api";
 
 // 页面切换动画变体：轻微向上淡入，向下淡出
 const pageVariants = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
-  exit:    { opacity: 0, y: -4 },
+  exit: { opacity: 0, y: -4 },
 };
 
 const pageTransition = {
@@ -30,20 +31,22 @@ export function RootLayout() {
 
   // 检测首次运行
   useEffect(() => {
-    apiCheckFirstRun().then(isFirst => {
-      setFirstRun(isFirst);
-      if (!isFirst) loadConfig();
-    }).catch(() => {
-      setFirstRun(false);
-      loadConfig();
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    apiCheckFirstRun()
+      .then((isFirst) => {
+        setFirstRun(isFirst);
+        if (!isFirst) loadConfig();
+      })
+      .catch(() => {
+        setFirstRun(false);
+        loadConfig();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 全局加载 AI 配置（与页面无关，启动时就加载）
   useEffect(() => {
     if (!aiLoaded) loadAi();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 向导完成后加载配置
@@ -91,10 +94,10 @@ export function RootLayout() {
       style={{ background: "var(--color-bg)" }}
     >
       <Sidebar />
-      <main className="flex-1 overflow-hidden relative">
+      <main className="relative flex-1 overflow-hidden">
         {error && (
           <div
-            className="m-4 px-4 py-3 rounded-lg border text-sm"
+            className="m-4 rounded-lg border px-4 py-3 text-sm"
             style={{
               background: "var(--color-danger-bg)",
               borderColor: "var(--color-danger)",
@@ -110,7 +113,7 @@ export function RootLayout() {
           {isNavigating && (
             <motion.div
               key="nav-bar"
-              className="absolute top-0 left-0 right-0 h-0.5 z-10"
+              className="absolute top-0 right-0 left-0 z-10 h-0.5"
               style={{ background: "var(--color-accent)", originX: 0 }}
               initial={{ scaleX: 0, opacity: 1 }}
               animate={{ scaleX: 0.85, opacity: 1 }}

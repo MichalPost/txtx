@@ -1,14 +1,18 @@
-import { useCallback, useRef, useState } from "react";
-import { useEffect } from "react";
-import { Link, Loader2, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronRight, Link, Loader2 } from "lucide-react";
+
 import { Button } from "@/components/Button";
-import { apiPreviewNovelName } from "@/lib/api";
 import { animateDropdownOpen } from "@/lib/animations";
+import { apiPreviewNovelName } from "@/lib/api";
 
 const URL_HISTORY_KEY = "txtx_url_history";
 
 function loadUrlHistory(): string[] {
-  try { return JSON.parse(localStorage.getItem(URL_HISTORY_KEY) ?? "[]"); } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(URL_HISTORY_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
 }
 function saveUrlHistory(urls: string[]) {
   localStorage.setItem(URL_HISTORY_KEY, JSON.stringify(urls.slice(0, 10)));
@@ -87,10 +91,13 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
     <div className="relative">
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--color-text-subtle)" }} />
+          <Link
+            className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
+            style={{ color: "var(--color-text-subtle)" }}
+          />
           <input
             ref={inputRef}
-            className="w-full pl-9 pr-3 h-9 rounded-lg border text-sm outline-none transition-all"
+            className="h-9 w-full rounded-lg border pr-3 pl-9 text-sm transition-all outline-none"
             style={{
               background: "var(--color-surface)",
               borderColor: "var(--color-border)",
@@ -98,7 +105,8 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
             }}
             onFocus={(e) => {
               e.currentTarget.style.borderColor = "var(--color-accent)";
-              e.currentTarget.style.boxShadow = "0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent)";
+              e.currentTarget.style.boxShadow =
+                "0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent)";
               if (history.length > 0) setShowHistory(true);
             }}
             onBlur={(e) => {
@@ -112,13 +120,19 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
             onKeyDown={(e) => e.key === "Enter" && !disabled && handleSubmit()}
           />
           {(previewing || previewName) && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1.5">
               {previewing ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--color-text-subtle)" }} />
+                <Loader2
+                  className="h-3.5 w-3.5 animate-spin"
+                  style={{ color: "var(--color-text-subtle)" }}
+                />
               ) : previewName ? (
                 <span
-                  className="text-xs px-2 py-0.5 rounded-full max-w-40 truncate"
-                  style={{ background: "color-mix(in srgb, var(--color-success) 15%, transparent)", color: "var(--color-success)" }}
+                  className="max-w-40 truncate rounded-full px-2 py-0.5 text-xs"
+                  style={{
+                    background: "color-mix(in srgb, var(--color-success) 15%, transparent)",
+                    color: "var(--color-success)",
+                  }}
                   title={previewName}
                 >
                   {previewName}
@@ -127,34 +141,51 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
             </div>
           )}
         </div>
-        <Button size="md" variant="secondary" onClick={handleSubmit} disabled={disabled || !url.trim()}>
+        <Button
+          size="md"
+          variant="secondary"
+          onClick={handleSubmit}
+          disabled={disabled || !url.trim()}
+        >
           单本下载
         </Button>
       </div>
 
       {showHistory && history.length > 0 && (
         <div
-            ref={historyRef}
-            className="absolute top-full left-0 right-24 mt-1 rounded-[10px] border shadow-lg z-50 overflow-hidden"
-            style={{ background: "var(--color-surface)", borderColor: "var(--color-border)", opacity: 0 }}
+          ref={historyRef}
+          className="absolute top-full right-24 left-0 z-50 mt-1 overflow-hidden rounded-[10px] border shadow-lg"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: "var(--color-border)",
+            opacity: 0,
+          }}
+        >
+          <div
+            className="flex items-center justify-between border-b px-3 py-1.5"
+            style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
           >
-            <div
-              className="flex items-center justify-between px-3 py-1.5 border-b"
-              style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
+            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              最近下载
+            </span>
+            <button
+              className="text-xs"
+              style={{ color: "var(--color-text-subtle)" }}
+              onClick={clearHistory}
             >
-            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>最近下载</span>
-            <button className="text-xs" style={{ color: "var(--color-text-subtle)" }} onClick={clearHistory}>清除</button>
+              清除
+            </button>
           </div>
           {history.map((u) => (
             <button
               key={u}
               onClick={() => pickHistory(u)}
-              className="w-full text-left px-3 py-2 text-xs truncate transition-colors border-b last:border-0"
+              className="w-full truncate border-b px-3 py-2 text-left text-xs transition-colors last:border-0"
               style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-surface-2)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <ChevronRight className="w-3 h-3 inline mr-1 opacity-40" />
+              <ChevronRight className="mr-1 inline h-3 w-3 opacity-40" />
               {u}
             </button>
           ))}

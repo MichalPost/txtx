@@ -11,20 +11,21 @@
 
 export interface PaginationDetectResult {
   has_pagination: true;
-  page_url_mode:  "suffix" | "insert";
-  page_insert_part: string;   // the fragment for page 2, e.g. "_2" or "?page=2"
-  page_total:     number;
-  method:         string;     // human-readable description shown in UI
+  page_url_mode: "suffix" | "insert";
+  page_insert_part: string; // the fragment for page 2, e.g. "_2" or "?page=2"
+  page_total: number;
+  method: string; // human-readable description shown in UI
 }
 
-export function detectPagination(
-  html: string,
-  currentUrl: string,
-): PaginationDetectResult | null {
+export function detectPagination(html: string, currentUrl: string): PaginationDetectResult | null {
   if (!html || !currentUrl) return null;
 
   let base: URL;
-  try { base = new URL(currentUrl); } catch { return null; }
+  try {
+    base = new URL(currentUrl);
+  } catch {
+    return null;
+  }
 
   // ── Collect all <a href> from the page ──────────────────────────────────────
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -36,7 +37,9 @@ export function detectPagination(
     try {
       const abs = new URL(raw, currentUrl).href;
       if (abs.startsWith(base.origin)) hrefs.push(abs);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // ── Pattern matchers ────────────────────────────────────────────────────────
@@ -50,7 +53,10 @@ export function detectPagination(
     const re = new RegExp(`[?&]${param}=(\\d+)`, "i");
     const nums: number[] = [];
     for (const h of hrefs) {
-      if (h.split("?")[0] === currentUrl.split("?")[0] || h.startsWith(base.origin + base.pathname)) {
+      if (
+        h.split("?")[0] === currentUrl.split("?")[0] ||
+        h.startsWith(base.origin + base.pathname)
+      ) {
         const m = h.match(re);
         if (m) nums.push(Number(m[1]));
       }
@@ -119,7 +125,9 @@ export function detectPagination(
         const hStem = u.pathname.replace(pat.re, "$1");
         if (hStem !== stem) continue;
         nums.push(Number(m[2]));
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
 
     if (nums.length >= 1) {
@@ -147,16 +155,21 @@ export function detectPagination(
       try {
         const u = new URL(h);
         if (u.origin !== base.origin) continue;
-        const m = u.pathname.replace(/\/$/, "").match(re) ??
-                  u.pathname.match(re);
+        const m = u.pathname.replace(/\/$/, "").match(re) ?? u.pathname.match(re);
         if (m) nums.push(Number(m[1]));
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
     if (nums.length >= 1) {
       const total = maxPage(nums);
       if (total >= 2) {
         const sep = hrefs.find((h) => {
-          try { return new URL(h).pathname.replace(/\/$/, "").match(re); } catch { return false; }
+          try {
+            return new URL(h).pathname.replace(/\/$/, "").match(re);
+          } catch {
+            return false;
+          }
         });
         const sepChar = sep ? (new URL(sep).pathname.includes("_") ? "_" : "/") : "_";
         return {

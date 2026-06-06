@@ -1,11 +1,16 @@
 import { useFormContext } from "react-hook-form";
+
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
+
 import { FieldError } from "../SettingsFields";
 import type { SettingsForm } from "../settingsSchema";
 
 export function NetworkSection() {
-  const { register, formState: { errors } } = useFormContext<SettingsForm>();
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<SettingsForm>();
 
   return (
     <Card title="网络配置">
@@ -15,7 +20,11 @@ export function NetworkSection() {
           <FieldError msg={errors.user_agent?.message} />
         </div>
         <div>
-          <Input label="代理地址（留空不使用）" placeholder="http://127.0.0.1:7890" {...register("proxy")} />
+          <Input
+            label="代理地址（留空不使用）"
+            placeholder="http://127.0.0.1:7890"
+            {...register("proxy")}
+          />
           <FieldError msg={errors.proxy?.message} />
         </div>
         <div>

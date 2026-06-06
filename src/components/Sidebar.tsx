@@ -1,24 +1,37 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Download, Globe, Settings, BookOpen,
-  History, Activity, FileText, ListTodo, Wand2,
-  PanelLeftClose, PanelLeftOpen, Filter, Library,
+  Activity,
+  BookOpen,
+  Download,
+  FileText,
+  Filter,
+  History,
+  Library,
+  ListTodo,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  Wand2,
 } from "lucide-react";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { useSidebarStore } from "@/store/sidebarStore";
-import type { AppRoute } from "@/router";
 
-const navItems: Array<{ to: AppRoute; icon: React.ComponentType<{ className?: string }>; label: string }> = [
-  { to: "/",          icon: Download,  label: "下载"     },
-  { to: "/tasks",     icon: ListTodo,  label: "任务管理" },
-  { to: "/rules",     icon: Wand2,     label: "规则管理" },
-  { to: "/websites",  icon: Globe,     label: "网站配置" },
-  { to: "/settings",  icon: Settings,  label: "通用设置" },
-  { to: "/filter",    icon: Filter,    label: "过滤中心" },
-  { to: "/bookshelf", icon: Library,   label: "本地书架" },
-  { to: "/history",   icon: History,   label: "下载历史" },
-  { to: "/health",    icon: Activity,  label: "站点健康" },
-  { to: "/converter", icon: FileText,  label: "文本转换" },
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import type { AppRoute } from "@/router";
+import { useSidebarStore } from "@/store/sidebarStore";
+
+const navItems: Array<{
+  to: AppRoute;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}> = [
+  { to: "/", icon: Download, label: "下载" },
+  { to: "/tasks", icon: ListTodo, label: "任务管理" },
+  { to: "/rules", icon: Wand2, label: "规则管理" },
+  { to: "/settings", icon: Settings, label: "通用设置" },
+  { to: "/filter", icon: Filter, label: "过滤中心" },
+  { to: "/bookshelf", icon: Library, label: "本地书架" },
+  { to: "/history", icon: History, label: "下载历史" },
+  { to: "/health", icon: Activity, label: "站点健康" },
+  { to: "/converter", icon: FileText, label: "文本转换" },
 ];
 
 export function Sidebar() {
@@ -27,7 +40,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col h-screen border-r shrink-0"
+      className="flex h-screen shrink-0 flex-col border-r"
       style={{
         width: collapsed ? 56 : 176,
         transition: "width 0.22s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -39,7 +52,7 @@ export function Sidebar() {
     >
       {/* ── Logo / brand ──────────────────────────────────────────── */}
       <div
-        className="flex items-center h-14 shrink-0 border-b"
+        className="flex h-14 shrink-0 items-center border-b"
         style={{ borderColor: "var(--color-border)" }}
       >
         {collapsed ? (
@@ -47,40 +60,40 @@ export function Sidebar() {
           <button
             onClick={toggle}
             title="展开侧边栏"
-            className="w-full h-full flex items-center justify-center transition-colors hover:bg-[var(--color-surface-2)] group"
+            className="group flex h-full w-full items-center justify-center transition-colors hover:bg-[var(--color-surface-2)]"
           >
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105"
+              className="flex h-7 w-7 items-center justify-center rounded-lg transition-transform group-hover:scale-105"
               style={{
                 background: "var(--color-accent-muted)",
                 border: "1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)",
               }}
             >
-              <BookOpen className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+              <BookOpen className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
             </div>
           </button>
         ) : (
           /* 展开态：Logo + 文字 + 折叠按钮 */
-          <div className="flex items-center justify-between w-full px-3">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex w-full items-center justify-between px-3">
+            <div className="flex min-w-0 items-center gap-2.5">
               <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
                 style={{
                   background: "var(--color-accent-muted)",
                   border: "1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)",
                 }}
               >
-                <BookOpen className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                <BookOpen className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
               </div>
               <div className="min-w-0">
                 <div
-                  className="text-sm font-bold tracking-tight leading-none"
+                  className="text-sm leading-none font-bold tracking-tight"
                   style={{ color: "var(--color-text)" }}
                 >
                   txtx
                 </div>
                 <div
-                  className="text-[10px] leading-none mt-0.5 font-medium"
+                  className="mt-0.5 text-[10px] leading-none font-medium"
                   style={{ color: "var(--color-text-subtle)" }}
                 >
                   小说下载
@@ -90,26 +103,27 @@ export function Sidebar() {
             <button
               onClick={toggle}
               title="折叠侧边栏"
-              className="flex items-center justify-center w-6 h-6 rounded-md transition-colors hover:bg-[var(--color-surface-2)]"
+              className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-2)]"
               style={{ color: "var(--color-text-subtle)" }}
             >
-              <PanelLeftClose className="w-3.5 h-3.5" />
+              <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
       </div>
 
       {/* ── Nav ───────────────────────────────────────────────────── */}
-      <nav className="flex flex-col gap-0.5 px-1.5 py-2.5 flex-1 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-1.5 py-2.5">
         {navItems.map(({ to, icon: Icon, label }) => {
-          const isActive = to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
+          const isActive =
+            to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
           return (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
               title={collapsed ? label : undefined}
-              className="relative flex items-center rounded-lg transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-1"
+              className="relative flex items-center rounded-lg transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-accent)]"
               style={{
                 height: 36,
                 padding: collapsed ? "0 10px" : "0 10px",
@@ -137,10 +151,8 @@ export function Sidebar() {
                 }
               }}
             >
-              <Icon className="w-4 h-4 shrink-0" />
-              {!collapsed && (
-                <span className="text-xs font-medium truncate">{label}</span>
-              )}
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate text-xs font-medium">{label}</span>}
             </NavLink>
           );
         })}
@@ -148,7 +160,7 @@ export function Sidebar() {
 
       {/* ── Bottom: theme + expand hint ───────────────────────────── */}
       <div
-        className="flex flex-col gap-2 px-2 pb-3 pt-2 border-t"
+        className="flex flex-col gap-2 border-t px-2 pt-2 pb-3"
         style={{ borderColor: "var(--color-border)" }}
       >
         {collapsed ? (
@@ -163,10 +175,10 @@ export function Sidebar() {
             <button
               onClick={() =>
                 window.dispatchEvent(
-                  new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true })
+                  new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
                 )
               }
-              className="flex-1 h-7 rounded-lg text-xs font-mono flex items-center justify-center border transition-colors hover:opacity-80"
+              className="flex h-7 flex-1 items-center justify-center rounded-lg border font-mono text-xs transition-colors hover:opacity-80"
               style={{
                 background: "var(--color-surface-2)",
                 borderColor: "var(--color-border)",
@@ -184,10 +196,10 @@ export function Sidebar() {
           <button
             onClick={toggle}
             title="展开侧边栏"
-            className="flex items-center justify-center w-full h-7 rounded-lg transition-colors hover:bg-[var(--color-surface-2)]"
+            className="flex h-7 w-full items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-surface-2)]"
             style={{ color: "var(--color-text-subtle)" }}
           >
-            <PanelLeftOpen className="w-3.5 h-3.5" />
+            <PanelLeftOpen className="h-3.5 w-3.5" />
           </button>
         )}
       </div>

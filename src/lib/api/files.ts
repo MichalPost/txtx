@@ -1,5 +1,6 @@
 import type { SiteHealth } from "@/types";
-import { IS_TAURI, API_BASE } from "./constants";
+
+import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiPickDirectory(): Promise<string | null> {
   if (IS_TAURI) {
@@ -10,7 +11,9 @@ export async function apiPickDirectory(): Promise<string | null> {
   return null;
 }
 
-export async function apiPickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null> {
+export async function apiPickFile(
+  filters?: { name: string; extensions: string[] }[],
+): Promise<string | null> {
   if (IS_TAURI) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const result = await open({ multiple: false, filters });
@@ -51,7 +54,9 @@ export async function apiSaveTextFile(filename: string, content: string): Promis
       const { save } = await import("@tauri-apps/plugin-dialog");
       // Use Function constructor to avoid TypeScript static module resolution
       // plugin-fs is available at Tauri runtime but not installed as a dev dependency
-      const fs = await new Function('m', 'return import(m)')("@tauri-apps/plugin-fs").catch(() => null);
+      const fs = await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(
+        () => null,
+      );
       const path = await save({
         defaultPath: filename,
         filters: [{ name: "JSON", extensions: ["json"] }],
@@ -84,7 +89,7 @@ export async function apiFetchSource(url: string): Promise<string> {
   }
   const res = await fetch(`${API_BASE}/api/source?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-  const data = await res.json() as { html: string };
+  const data = (await res.json()) as { html: string };
   return data.html;
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { Loader2, Activity, Wifi, WifiOff } from "lucide-react";
+import { Activity, Loader2, Wifi, WifiOff } from "lucide-react";
+
 import { apiCheckSites } from "@/lib/api";
 import type { SiteHealth } from "@/types";
 
@@ -19,7 +20,9 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
       setResults(data);
       setChecked(true);
       const map: Record<string, SiteHealth> = {};
-      data.forEach((r) => { map[r.domain] = r; });
+      data.forEach((r) => {
+        map[r.domain] = r;
+      });
       onHealthMap(map);
     } catch {
       // ignore
@@ -35,7 +38,7 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
       <button
         onClick={runCheck}
         disabled={checking}
-        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors"
+        className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors"
         style={{
           background: "var(--color-surface-1)",
           borderColor: "var(--color-border)",
@@ -43,9 +46,9 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
         }}
       >
         {checking ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <Activity className="w-3.5 h-3.5" />
+          <Activity className="h-3.5 w-3.5" />
         )}
         {checking ? "检查中..." : "检查站点"}
       </button>
@@ -56,19 +59,19 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
     <div className="flex items-center gap-2">
       {unreachable.length === 0 ? (
         <span
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
           style={{
             background: "color-mix(in srgb, var(--color-success) 10%, transparent)",
             color: "var(--color-success)",
             border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)",
           }}
         >
-          <Wifi className="w-3.5 h-3.5" />
+          <Wifi className="h-3.5 w-3.5" />
           全部 {results.length} 个站点可达
         </span>
       ) : (
         <span
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
           style={{
             background: "color-mix(in srgb, var(--color-warning) 10%, transparent)",
             color: "var(--color-warning)",
@@ -76,7 +79,7 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
           }}
           title={unreachable.map((r) => r.domain).join(", ")}
         >
-          <WifiOff className="w-3.5 h-3.5" />
+          <WifiOff className="h-3.5 w-3.5" />
           {unreachable.length} 个站点不可达
         </span>
       )}
@@ -86,7 +89,7 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
         className="text-xs"
         style={{ color: "var(--color-text-subtle)" }}
       >
-        {checking ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "重检"}
+        {checking ? <Loader2 className="inline h-3 w-3 animate-spin" /> : "重检"}
       </button>
     </div>
   );

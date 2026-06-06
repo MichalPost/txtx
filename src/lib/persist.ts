@@ -2,7 +2,10 @@
  * IndexedDB 持久化工具
  * 基于 idb-keyval，用于保存 UI 状态（非配置数据）
  */
-import { get, set, del } from "idb-keyval";
+
+/** React hook: read a persisted value on mount, write on change */
+import { useEffect, useRef, useState } from "react";
+import { del, get, set } from "idb-keyval";
 
 const PREFIX = "txtx:";
 
@@ -31,19 +34,16 @@ export async function persistDel(key: string): Promise<void> {
   }
 }
 
-/** React hook: read a persisted value on mount, write on change */
-import { useState, useEffect, useRef } from "react";
-
 export function usePersistedState<T>(key: string, fallback: T): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(fallback);
   const loaded = useRef(false);
 
   useEffect(() => {
-    persistGet<T>(key, fallback).then(v => {
+    persistGet<T>(key, fallback).then((v) => {
       setValue(v);
       loaded.current = true;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const set_ = (v: T) => {

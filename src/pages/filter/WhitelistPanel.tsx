@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, ShieldCheck } from "lucide-react";
+
 import { Card } from "@/components/Card";
 
 interface Props {
@@ -17,7 +18,7 @@ export function WhitelistPanel({ whitelist, onUpdate }: Props) {
     setInput("");
   };
 
-  const remove = (kw: string) => onUpdate(whitelist.filter(w => w !== kw));
+  const remove = (kw: string) => onUpdate(whitelist.filter((w) => w !== kw));
 
   return (
     <Card title="白名单">
@@ -27,7 +28,7 @@ export function WhitelistPanel({ whitelist, onUpdate }: Props) {
         </p>
         <div className="flex gap-2">
           <input
-            className="flex-1 text-xs px-2 py-1.5 rounded-lg border focus:outline-none"
+            className="flex-1 rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",
@@ -35,35 +36,38 @@ export function WhitelistPanel({ whitelist, onUpdate }: Props) {
             }}
             placeholder="书名，按 Enter 添加"
             value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && add()}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
           />
           <button
             type="button"
             onClick={add}
-            className="flex items-center justify-center px-2 py-1.5 rounded-lg"
+            className="flex items-center justify-center rounded-lg px-2 py-1.5"
             style={{ background: "var(--color-accent)", color: "#fff" }}
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+        <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
           {whitelist.length === 0 && (
-            <p className="text-xs w-full text-center py-2" style={{ color: "var(--color-text-subtle)" }}>
+            <p
+              className="w-full py-2 text-center text-xs"
+              style={{ color: "var(--color-text-subtle)" }}
+            >
               还没有白名单条目
             </p>
           )}
-          {whitelist.map(kw => (
+          {whitelist.map((kw) => (
             <span
               key={kw}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border"
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
               style={{
                 background: "var(--color-success-bg)",
                 borderColor: "color-mix(in srgb, var(--color-success) 30%, transparent)",
                 color: "var(--color-success)",
               }}
             >
-              <ShieldCheck className="w-2.5 h-2.5" />
+              <ShieldCheck className="h-2.5 w-2.5" />
               {kw}
               <button
                 type="button"

@@ -1,6 +1,8 @@
-import { useFormContext } from "react-hook-form";
 import { Info } from "lucide-react";
+import { useFormContext } from "react-hook-form";
+
 import { Card } from "@/components/Card";
+
 import type { SettingsForm } from "../settingsSchema";
 
 /**
@@ -25,20 +27,32 @@ export function EncodingMapSection() {
             color: "var(--color-text-muted)",
           }}
         >
-          <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
           <span>
-            编码现在在<strong style={{ color: "var(--color-text)" }}>规则管理</strong>里按站点单独配置，
-            保存规则时会自动同步到这里。如需临时手动调整，可直接编辑
+            编码现在在<strong style={{ color: "var(--color-text)" }}>规则管理</strong>
+            里按站点单独配置， 保存规则时会自动同步到这里。如需临时手动调整，可直接编辑
             <code
-              className="mx-1 px-1 rounded"
-              style={{ background: "var(--color-surface-2)", fontFamily: "monospace", fontSize: "11px" }}
+              className="mx-1 rounded px-1"
+              style={{
+                background: "var(--color-surface-2)",
+                fontFamily: "monospace",
+                fontSize: "11px",
+              }}
             >
               config.yml
             </code>
-            中的 <code
-              className="px-1 rounded"
-              style={{ background: "var(--color-surface-2)", fontFamily: "monospace", fontSize: "11px" }}
-            >network.encoding_map</code> 字段。
+            中的{" "}
+            <code
+              className="rounded px-1"
+              style={{
+                background: "var(--color-surface-2)",
+                fontFamily: "monospace",
+                fontSize: "11px",
+              }}
+            >
+              network.encoding_map
+            </code>{" "}
+            字段。
           </span>
         </div>
 
@@ -48,20 +62,20 @@ export function EncodingMapSection() {
             {fields.map((f, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5"
                 style={{
                   background: "var(--color-surface-2)",
                   border: "1px solid var(--color-border)",
                 }}
               >
                 <span
-                  className="flex-1 text-xs font-mono truncate"
+                  className="flex-1 truncate font-mono text-xs"
                   style={{ color: "var(--color-text)" }}
                 >
                   {f.domain || "—"}
                 </span>
                 <span
-                  className="text-xs font-mono px-2 py-0.5 rounded-full shrink-0"
+                  className="shrink-0 rounded-full px-2 py-0.5 font-mono text-xs"
                   style={{
                     background: "var(--color-accent-muted)",
                     color: "var(--color-accent)",

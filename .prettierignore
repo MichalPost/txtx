@@ -1,0 +1,25 @@
+# 构建产物
+dist/
+dist-ssr/
+
+# 依赖
+node_modules/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# 自动生成
+pnpm-lock.yaml
+*.lock
+
+# 系统 & IDE
+.git/
+.idea/
+.vscode/
+
+# Kiro
+.kiro/
+
+# 静态资源（不需要格式化）
+public/

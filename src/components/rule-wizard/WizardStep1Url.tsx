@@ -5,14 +5,15 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Globe, Loader2, CheckCircle2, AlertCircle, Search, Sparkles } from "lucide-react";
-import { Input } from "@/components/Input";
+import { AlertCircle, CheckCircle2, Globe, Loader2, Search, Sparkles } from "lucide-react";
+
 import { Button } from "@/components/Button";
+import { Input } from "@/components/Input";
+import { aiComplete, extractJson, preprocessHtml } from "@/lib/ai";
 import { apiFetchSource } from "@/lib/api/files";
-import { aiComplete, preprocessHtml, extractJson } from "@/lib/ai";
 import { useAiStore } from "@/store/aiStore";
-import { detectCharset } from "./ruleUtils";
-import type { WizardData, FieldRule } from "./ruleUtils";
+
+import { detectCharset, type FieldRule, type WizardData } from "./ruleUtils";
 
 interface Props {
   data: WizardData;
@@ -94,9 +95,9 @@ export function WizardStep1Url({ data, onChange }: Props) {
       onChange({
         ...data,
         catalog_html: html,
-        list_novel_name:   applyAiResult(data.list_novel_name,   parsed?.list_novel_name),
+        list_novel_name: applyAiResult(data.list_novel_name, parsed?.list_novel_name),
         list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url:  applyAiResult(data.list_release_url,  parsed?.list_release_url),
+        list_release_url: applyAiResult(data.list_release_url, parsed?.list_release_url),
       });
     } catch (e) {
       setAiError(String(e));
@@ -110,21 +111,25 @@ export function WizardStep1Url({ data, onChange }: Props) {
       {/* Instruction */}
       <div
         className="flex items-start gap-3 rounded-xl px-4 py-3"
-        style={{ background: "var(--color-accent-muted)", borderLeft: "2px solid var(--color-accent)" }}
+        style={{
+          background: "var(--color-accent-muted)",
+          borderLeft: "2px solid var(--color-accent)",
+        }}
       >
-        <Globe className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <Globe className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium" style={{ color: "var(--color-accent)" }}>
             第三步：确认目录页链接
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            这里填写的是某本书的目录页，页面里应包含章节列表。查询成功后会缓存 HTML，供下一步配置目录规则与测试使用。
+            这里填写的是某本书的目录页，页面里应包含章节列表。查询成功后会缓存
+            HTML，供下一步配置目录规则与测试使用。
           </p>
         </div>
       </div>
 
       {/* URL input + fetch button */}
-      <div className="flex gap-2 items-end">
+      <div className="flex items-end gap-2">
         <div className="flex-1">
           <Input
             label="目录页链接"
@@ -140,12 +145,15 @@ export function WizardStep1Url({ data, onChange }: Props) {
           size="sm"
           variant={status === "ok" ? "secondary" : "primary"}
           onClick={handleFetch}
-          disabled={status === "loading" || !data.catalog_url.trim() || data.catalog_url === "https://"}
-        >
-          {status === "loading"
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            : <Search className="w-3.5 h-3.5" />
+          disabled={
+            status === "loading" || !data.catalog_url.trim() || data.catalog_url === "https://"
           }
+        >
+          {status === "loading" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Search className="h-3.5 w-3.5" />
+          )}
           {status === "loading" ? "获取中..." : "查询"}
         </Button>
       </div>
@@ -153,19 +161,19 @@ export function WizardStep1Url({ data, onChange }: Props) {
       {/* Status feedback */}
       {status === "ok" && (
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
         >
-          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           页面获取成功，HTML 已缓存，后续步骤无需重新请求
         </div>
       )}
       {status === "error" && (
         <div
-          className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
         >
-          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{errorMsg || "页面请求失败，请检查网址是否正确"}</span>
         </div>
       )}
@@ -173,10 +181,10 @@ export function WizardStep1Url({ data, onChange }: Props) {
       {/* AI error */}
       {aiError && (
         <div
-          className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
         >
-          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{aiError}</span>
         </div>
       )}
@@ -187,25 +195,29 @@ export function WizardStep1Url({ data, onChange }: Props) {
           <Button
             size="sm"
             onClick={runAiAnalyze}
-            disabled={aiLoading || (!data.catalog_html && (!data.catalog_url.trim() || data.catalog_url === "https://"))}
-          >
-            {aiLoading
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Sparkles className="w-3.5 h-3.5" />
+            disabled={
+              aiLoading ||
+              (!data.catalog_html && (!data.catalog_url.trim() || data.catalog_url === "https://"))
             }
+          >
+            {aiLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
             {aiLoading ? "AI 分析中..." : "AI 分析目录规则"}
           </Button>
         ) : (
           <button
             onClick={() => navigate("/settings?tab=ai")}
-            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors shrink-0"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
             style={{
               background: "var(--color-surface-1)",
               borderColor: "var(--color-border)",
               color: "var(--color-text-subtle)",
             }}
           >
-            <Sparkles className="w-3 h-3" style={{ color: "var(--color-text-subtle)" }} />
+            <Sparkles className="h-3 w-3" style={{ color: "var(--color-text-subtle)" }} />
             AI 未启用（点此开启）
           </button>
         )}
@@ -221,7 +233,9 @@ export function WizardStep1Url({ data, onChange }: Props) {
         className="rounded-xl px-4 py-3 text-xs"
         style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}
       >
-        <p className="font-medium mb-1" style={{ color: "var(--color-text)" }}>小说搜索辅助</p>
+        <p className="mb-1 font-medium" style={{ color: "var(--color-text)" }}>
+          小说搜索辅助
+        </p>
         <p>若不知道目录页链接，可先在浏览器中搜索小说名，找到目录页后复制链接粘贴到上方。</p>
       </div>
     </div>

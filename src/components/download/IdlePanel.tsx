@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ScanSearch, Calendar, Globe, BookOpen } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
-import { useConfigStore } from "@/store/configStore";
+import { BookOpen, Calendar, Globe, ScanSearch } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { DateRangePicker } from "@/components/DateRangePicker";
-import { SiteSelector } from "@/components/download/SiteSelector";
 import { SiteHealthChecker } from "@/components/download/SiteHealthChecker";
+import { SiteSelector } from "@/components/download/SiteSelector";
 import { animateFadeInUp } from "@/lib/animations";
 import { useAppNavigate } from "@/router";
+import { useConfigStore } from "@/store/configStore";
+import { useDownloadStore } from "@/store/downloadStore";
 import type { SiteHealth } from "@/types";
 
 interface IdlePanelProps {
@@ -29,10 +30,10 @@ function NoSitesState() {
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8">
       <div
         ref={iconRef}
-        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+        className="flex h-16 w-16 items-center justify-center rounded-2xl"
         style={{
           opacity: 0,
           background: "var(--color-accent-muted)",
@@ -40,10 +41,14 @@ function NoSitesState() {
           boxShadow: "var(--shadow-accent)",
         }}
       >
-        <BookOpen className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+        <BookOpen className="h-8 w-8" style={{ color: "var(--color-accent)" }} />
       </div>
 
-      <div ref={bodyRef} className="flex flex-col items-center gap-2 text-center" style={{ opacity: 0 }}>
+      <div
+        ref={bodyRef}
+        className="flex flex-col items-center gap-2 text-center"
+        style={{ opacity: 0 }}
+      >
         <p
           className="font-semibold"
           style={{ color: "var(--color-text)", fontSize: "var(--text-xl)" }}
@@ -58,9 +63,7 @@ function NoSitesState() {
         </p>
       </div>
 
-      <Button onClick={() => navigate("/rules")}>
-        去添加站点
-      </Button>
+      <Button onClick={() => navigate("/rules")}>去添加站点</Button>
     </div>
   );
 }
@@ -95,12 +98,12 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
   const siteCount = scanOptions.enabled_sites?.length ?? allSites.length;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-6 py-4">
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
       {/* Icon + heading */}
       <div className="text-center">
         <div
           ref={iconRef}
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
           style={{
             opacity: 0,
             background: "var(--color-accent-muted)",
@@ -108,9 +111,9 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
             boxShadow: "var(--shadow-accent)",
           }}
         >
-          <ScanSearch className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+          <ScanSearch className="h-8 w-8" style={{ color: "var(--color-accent)" }} />
         </div>
-        <p className="text-base font-semibold mb-1" style={{ color: "var(--color-text)" }}>
+        <p className="mb-1 text-base font-semibold" style={{ color: "var(--color-text)" }}>
           {taskMode ? "创建新的扫描任务" : "开始新的一次扫描"}
         </p>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -124,7 +127,7 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
 
       <div
         ref={panelRef}
-        className="w-full max-w-md flex flex-col gap-5 px-5 py-5 rounded-2xl border"
+        className="flex w-full max-w-md flex-col gap-5 rounded-2xl border px-5 py-5"
         style={{
           opacity: 0,
           background: "var(--color-surface)",
@@ -133,9 +136,11 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
         }}
       >
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Calendar className="w-3.5 h-3.5" style={{ color: "var(--color-accent)" }} />
-            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>扫描时间范围</span>
+          <div className="mb-2 flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" style={{ color: "var(--color-accent)" }} />
+            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+              扫描时间范围
+            </span>
           </div>
           <DateRangePicker
             value={scanOptions.target_date ?? null}
@@ -144,11 +149,13 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
         </div>
 
         <div>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Globe className="w-3.5 h-3.5" style={{ color: "var(--color-accent)" }} />
-            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>扫描站点</span>
+          <div className="mb-2 flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" style={{ color: "var(--color-accent)" }} />
+            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+              扫描站点
+            </span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             <SiteSelector
               allSites={allSites}
               selected={scanOptions.enabled_sites ?? null}
@@ -163,17 +170,23 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
       <div className="flex flex-col items-center gap-2">
         <Button
           size="lg"
-          onClick={() => { void onScan(); }}
-          disabled={disabled || (scanOptions.enabled_sites?.length === 0)}
+          onClick={() => {
+            void onScan();
+          }}
+          disabled={disabled || scanOptions.enabled_sites?.length === 0}
           className="px-12"
         >
-          <ScanSearch className="w-4 h-4" /> {taskMode ? "创建扫描任务" : "开始扫描"}
+          <ScanSearch className="h-4 w-4" /> {taskMode ? "创建扫描任务" : "开始扫描"}
         </Button>
         {scanOptions.enabled_sites?.length === 0 && (
-          <p className="text-xs" style={{ color: "var(--color-warning)" }}>请至少选择一个站点</p>
+          <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+            请至少选择一个站点
+          </p>
         )}
         {!config && (
-          <p className="text-xs" style={{ color: "var(--color-warning)" }}>请先完成配置</p>
+          <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+            请先完成配置
+          </p>
         )}
       </div>
     </div>

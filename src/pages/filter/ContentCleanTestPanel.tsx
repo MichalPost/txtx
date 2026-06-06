@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
-import { FlaskConical, ChevronRight } from "lucide-react";
-import { Card } from "@/components/Card";
+import { useMemo, useState } from "react";
+import { ChevronRight, FlaskConical } from "lucide-react";
+
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import type { ContentFilterConfig } from "@/types";
 
 interface ContentCleanTestPanelProps {
@@ -19,12 +20,17 @@ function runFilter(text: string, config: ContentFilterConfig): LineResult[] {
   const lines = text.split(/\r?\n/);
 
   // Step 1: mark ad pattern matches
-  const compiled = config.ad_patterns.map(p => {
-    try { return { pattern: p, re: new RegExp(p) }; }
-    catch { return null; }
-  }).filter(Boolean) as { pattern: string; re: RegExp }[];
+  const compiled = config.ad_patterns
+    .map((p) => {
+      try {
+        return { pattern: p, re: new RegExp(p) };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean) as { pattern: string; re: RegExp }[];
 
-  const results: LineResult[] = lines.map(line => {
+  const results: LineResult[] = lines.map((line) => {
     for (const { pattern, re } of compiled) {
       if (re.test(line)) {
         return { text: line, removed: true, matchedRule: pattern };
@@ -38,7 +44,7 @@ function runFilter(text: string, config: ContentFilterConfig): LineResult[] {
   if (navKeywords.length > 0) {
     for (let i = results.length - 1; i >= 0; i--) {
       if (results[i].removed) continue;
-      const matchedNav = navKeywords.find(kw => results[i].text.includes(kw));
+      const matchedNav = navKeywords.find((kw) => results[i].text.includes(kw));
       if (matchedNav) {
         results[i] = { ...results[i], removed: true, isNavStrip: true, matchedRule: matchedNav };
       } else {
@@ -48,11 +54,16 @@ function runFilter(text: string, config: ContentFilterConfig): LineResult[] {
   }
 
   // Step 3: safety threshold check
-  const kept = results.filter(r => !r.removed).length;
+  const kept = results.filter((r) => !r.removed).length;
   const ratio = results.length > 0 ? kept / results.length : 1;
   if (ratio < config.safety_threshold) {
     // Revert all removals (safety fallback)
-    return results.map(r => ({ ...r, removed: false, matchedRule: undefined, isNavStrip: undefined }));
+    return results.map((r) => ({
+      ...r,
+      removed: false,
+      matchedRule: undefined,
+      isNavStrip: undefined,
+    }));
   }
 
   return results;
@@ -67,11 +78,14 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
     return runFilter(input, config);
   }, [tested, input, config]);
 
-  const removedCount = results.filter(r => r.removed).length;
-  const keptCount = results.filter(r => !r.removed).length;
+  const removedCount = results.filter((r) => r.removed).length;
+  const keptCount = results.filter((r) => !r.removed).length;
 
   const handleTest = () => setTested(true);
-  const handleClear = () => { setInput(""); setTested(false); };
+  const handleClear = () => {
+    setInput("");
+    setTested(false);
+  };
 
   return (
     <Card title="过滤预览">
@@ -81,7 +95,7 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
         </p>
 
         <textarea
-          className="w-full border rounded-lg px-3 py-2 text-xs font-mono resize-none focus:outline-none transition-colors"
+          className="w-full resize-none rounded-lg border px-3 py-2 font-mono text-xs transition-colors focus:outline-none"
           style={{
             background: "var(--color-surface-2)",
             borderColor: "var(--color-border)",
@@ -90,27 +104,40 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
           }}
           placeholder="粘贴章节内容..."
           value={input}
-          onChange={e => { setInput(e.target.value); setTested(false); }}
-          onFocus={e => { e.currentTarget.style.borderColor = "var(--color-accent)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-accent-muted)"; }}
-          onBlur={e => { e.currentTarget.style.borderColor = "var(--color-border)"; e.currentTarget.style.boxShadow = "none"; }}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setTested(false);
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-accent)";
+            e.currentTarget.style.boxShadow = "0 0 0 3px var(--color-accent-muted)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-border)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
         />
 
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={handleTest} disabled={!input.trim()}>
-            <FlaskConical className="w-3.5 h-3.5" />
+            <FlaskConical className="h-3.5 w-3.5" />
             测试过滤
           </Button>
           {tested && (
             <button
               onClick={handleClear}
-              className="text-xs px-2 py-1 rounded-lg border transition-colors hover:opacity-80"
-              style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", background: "transparent" }}
+              className="rounded-lg border px-2 py-1 text-xs transition-colors hover:opacity-80"
+              style={{
+                borderColor: "var(--color-border)",
+                color: "var(--color-text-muted)",
+                background: "transparent",
+              }}
             >
               清除
             </button>
           )}
           {tested && results.length > 0 && (
-            <div className="flex items-center gap-3 ml-auto">
+            <div className="ml-auto flex items-center gap-3">
               <span className="text-xs" style={{ color: "var(--color-success, #22c55e)" }}>
                 保留 {keptCount} 行
               </span>
@@ -124,13 +151,13 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
         {/* Diff output */}
         {tested && results.length > 0 && (
           <div
-            className="border rounded-lg overflow-y-auto"
+            className="overflow-y-auto rounded-lg border"
             style={{ borderColor: "var(--color-border)", maxHeight: 280 }}
           >
             {results.map((r, i) => (
               <div
                 key={i}
-                className="flex items-start gap-2 px-3 py-1 text-xs font-mono border-b last:border-b-0"
+                className="flex items-start gap-2 border-b px-3 py-1 font-mono text-xs last:border-b-0"
                 style={{
                   borderColor: "var(--color-border)",
                   background: r.removed
@@ -141,13 +168,18 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
                   textDecoration: r.removed ? "line-through" : "none",
                 }}
               >
-                <span className="shrink-0 w-4 text-center" style={{ color: "var(--color-text-subtle)", opacity: 0.5 }}>
+                <span
+                  className="w-4 shrink-0 text-center"
+                  style={{ color: "var(--color-text-subtle)", opacity: 0.5 }}
+                >
                   {r.removed ? "−" : " "}
                 </span>
-                <span className="flex-1 break-all leading-relaxed">{r.text || <span style={{ opacity: 0.3 }}>（空行）</span>}</span>
+                <span className="flex-1 leading-relaxed break-all">
+                  {r.text || <span style={{ opacity: 0.3 }}>（空行）</span>}
+                </span>
                 {r.removed && r.matchedRule && (
                   <span
-                    className="shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ml-2"
+                    className="ml-2 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px]"
                     style={{
                       background: r.isNavStrip
                         ? "color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent)"
@@ -155,7 +187,7 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
                       color: r.isNavStrip ? "var(--color-warning, #f59e0b)" : "var(--color-danger)",
                     }}
                   >
-                    <ChevronRight className="w-2.5 h-2.5" />
+                    <ChevronRight className="h-2.5 w-2.5" />
                     {r.isNavStrip ? "导航" : "广告"}
                   </span>
                 )}
@@ -165,7 +197,7 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
         )}
 
         {tested && results.length === 0 && (
-          <p className="text-xs text-center py-4" style={{ color: "var(--color-text-muted)" }}>
+          <p className="py-4 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
             请先输入文本
           </p>
         )}

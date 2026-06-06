@@ -2,14 +2,15 @@
  * Step 5 — 章节页测试
  * 使用步骤3提取的章节 URL（或手动输入）测试章节规则
  */
-import { useState, useEffect, useMemo } from "react";
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { TestPanel } from "./TestPanel";
 import { apiFetchSource } from "@/lib/api/files";
-import { buildXPathFromRule } from "./ruleUtils";
-import type { WizardData } from "./ruleUtils";
+
+import { buildXPathFromRule, type WizardData } from "./ruleUtils";
+import { TestPanel } from "./TestPanel";
 
 interface Props {
   data: WizardData;
@@ -22,11 +23,14 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
   const [customUrl, setCustomUrl] = useState(data.chapter_test_url);
   const [summary, setSummary] = useState<{ passed: number; total: number } | null>(null);
 
-  const fields = useMemo(() => [
-    { label: "详情页书名",  xpath: buildXPathFromRule(data.chap_novel_name) },
-    { label: "章节链接",    xpath: buildXPathFromRule(data.chap_chapter_url) },
-    { label: "正文内容",    xpath: buildXPathFromRule(data.chap_content) },
-  ], [data.chap_novel_name, data.chap_chapter_url, data.chap_content]);
+  const fields = useMemo(
+    () => [
+      { label: "详情页书名", xpath: buildXPathFromRule(data.chap_novel_name) },
+      { label: "章节链接", xpath: buildXPathFromRule(data.chap_chapter_url) },
+      { label: "正文内容", xpath: buildXPathFromRule(data.chap_content) },
+    ],
+    [data.chap_novel_name, data.chap_chapter_url, data.chap_content],
+  );
 
   const runTest = async (forceRefetch = false) => {
     const url = customUrl.trim() || data.chapter_test_url;
@@ -39,8 +43,10 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
         html = await apiFetchSource(url);
       }
       const passCount = [
-        !buildXPathFromRule(data.chap_novel_name) || validateField(html, buildXPathFromRule(data.chap_novel_name)),
-        !buildXPathFromRule(data.chap_chapter_url) || validateField(html, buildXPathFromRule(data.chap_chapter_url)),
+        !buildXPathFromRule(data.chap_novel_name) ||
+          validateField(html, buildXPathFromRule(data.chap_novel_name)),
+        !buildXPathFromRule(data.chap_chapter_url) ||
+          validateField(html, buildXPathFromRule(data.chap_chapter_url)),
         validateField(html, buildXPathFromRule(data.chap_content)),
       ].filter(Boolean).length;
       setSummary({ passed: passCount, total: 3 });
@@ -64,7 +70,7 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* URL input */}
-      <div className="flex gap-2 items-end">
+      <div className="flex items-end gap-2">
         <div className="flex-1">
           <Input
             label="章节页测试 URL（从步骤三自动提取，可修改）"
@@ -82,10 +88,11 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
           onClick={() => runTest(true)}
           disabled={loading || !customUrl.trim()}
         >
-          {loading
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            : <RefreshCw className="w-3.5 h-3.5" />
-          }
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
           {loading ? "测试中..." : "测试"}
         </Button>
       </div>
@@ -93,7 +100,7 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       {/* Loading */}
       {loading && (
         <div className="flex items-center gap-2 py-4">
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-accent)" }} />
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--color-accent)" }} />
           <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             正在获取章节页面并运行规则...
           </span>
@@ -103,23 +110,29 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       {/* Error */}
       {errorMsg && (
         <div
-          className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
         >
-          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {summary && !loading && (
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
           style={{
-            background: summary.passed === summary.total ? "var(--color-success-bg)" : "var(--color-warning-bg)",
-            color: summary.passed === summary.total ? "var(--color-success)" : "var(--color-warning)",
+            background:
+              summary.passed === summary.total
+                ? "var(--color-success-bg)"
+                : "var(--color-warning-bg)",
+            color:
+              summary.passed === summary.total ? "var(--color-success)" : "var(--color-warning)",
           }}
         >
-          <span>章节规则校验通过 {summary.passed}/{summary.total}</span>
+          <span>
+            章节规则校验通过 {summary.passed}/{summary.total}
+          </span>
           <span style={{ color: "var(--color-text-muted)" }}>
             正文内容为必填，建议至少命中一个稳定节点后再保存
           </span>
@@ -129,21 +142,16 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       {/* No URL hint */}
       {!customUrl && !data.chapter_test_url && (
         <div
-          className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
         >
-          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>未能自动提取章节 URL，请手动输入一个章节页地址</span>
         </div>
       )}
 
       {/* Test results */}
-      {!loading && data.chapter_html && (
-        <TestPanel
-          html={data.chapter_html}
-          fields={fields}
-        />
-      )}
+      {!loading && data.chapter_html && <TestPanel html={data.chapter_html} fields={fields} />}
     </div>
   );
 }

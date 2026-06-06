@@ -8,7 +8,7 @@ import tsPlugin from "@typescript-eslint/eslint-plugin";
 export default [
   // 忽略的目录
   {
-    ignores: ["dist/**", "node_modules/**", "src-tauri/**", "public/**"],
+    ignores: ["dist/**", "node_modules/**", "src-tauri/**", "public/**",".kiro/**"],
   },
 
   // JS 基础推荐规则
@@ -70,6 +70,11 @@ export default [
   {
     files: ["*.config.{js,ts}", "*.config.*.{js,ts}"],
     languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+      },
       globals: globals.node,
     },
   },

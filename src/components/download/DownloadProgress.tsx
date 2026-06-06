@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
-import { CheckCircle, AlertCircle, Loader2, Zap } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
+import { AlertCircle, CheckCircle, Loader2, Zap } from "lucide-react";
+
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
-import { SpeedBar } from "@/components/download/SpeedBar";
 import { DownloadResultSummary } from "@/components/download/DownloadResultSummary";
+import { SpeedBar } from "@/components/download/SpeedBar";
 import { animateCountUp } from "@/lib/animations";
+import { useDownloadStore } from "@/store/downloadStore";
 
 // ─── Animated stat cell ───────────────────────────────────────────────────────
 
@@ -26,10 +27,12 @@ function StatCell({ label, value, color }: { label: string; value: number; color
 
   return (
     <div
-      className="flex flex-col gap-0.5 px-3 py-2 rounded-lg border"
+      className="flex flex-col gap-0.5 rounded-lg border px-3 py-2"
       style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
     >
-      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{label}</span>
+      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        {label}
+      </span>
       <span ref={numRef} className="text-lg font-bold tabular-nums" style={{ color }}>
         {value}
       </span>
@@ -50,12 +53,14 @@ export function DownloadProgress() {
 
       {stats && (
         <div className="grid grid-cols-2 gap-2">
-          {([
-            ["收集", stats.total_collected, "var(--color-text-muted)"],
-            ["黑名单", stats.blacklist_filtered, "var(--color-warning)"],
-            ["已存在", stats.local_exists, "var(--color-text-muted)"],
-            ["待下载", stats.final_download, "var(--color-accent)"],
-          ] as [string, number, string][]).map(([label, val, color]) => (
+          {(
+            [
+              ["收集", stats.total_collected, "var(--color-text-muted)"],
+              ["黑名单", stats.blacklist_filtered, "var(--color-warning)"],
+              ["已存在", stats.local_exists, "var(--color-text-muted)"],
+              ["待下载", stats.final_download, "var(--color-accent)"],
+            ] as [string, number, string][]
+          ).map(([label, val, color]) => (
             <StatCell key={label} label={label} value={val} color={color} />
           ))}
         </div>
@@ -63,7 +68,7 @@ export function DownloadProgress() {
 
       {novels.length > 0 && (
         <div
-          className="rounded-xl border overflow-hidden"
+          className="overflow-hidden rounded-xl border"
           style={{
             borderColor: "var(--color-border)",
             background: "var(--color-surface)",
@@ -71,13 +76,18 @@ export function DownloadProgress() {
           }}
         >
           <div
-            className="px-4 py-2.5 border-b flex items-center gap-1.5"
+            className="flex items-center gap-1.5 border-b px-4 py-2.5"
             style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
           >
-            <Zap className="w-3.5 h-3.5" style={{ color: "var(--color-accent)" }} />
-            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>正在下载</span>
+            <Zap className="h-3.5 w-3.5" style={{ color: "var(--color-accent)" }} />
+            <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+              正在下载
+            </span>
             {speed.chaptersPerSecond > 0 && (
-              <span className="ml-auto text-xs tabular-nums" style={{ color: "var(--color-accent)" }}>
+              <span
+                className="ml-auto text-xs tabular-nums"
+                style={{ color: "var(--color-accent)" }}
+              >
                 {speed.chaptersPerSecond.toFixed(1)} 章/秒
               </span>
             )}
@@ -85,7 +95,10 @@ export function DownloadProgress() {
           <div className="flex flex-col gap-3 p-4">
             {novels.map((n) => (
               <div key={n.name}>
-                <p className="text-xs truncate mb-1.5 font-medium" style={{ color: "var(--color-text)" }}>
+                <p
+                  className="mb-1.5 truncate text-xs font-medium"
+                  style={{ color: "var(--color-text)" }}
+                >
                   {n.name}
                 </p>
                 <AnimatedProgressBar value={n.current} total={n.total} />
@@ -100,25 +113,34 @@ export function DownloadProgress() {
           {sites.map((s) => (
             <div
               key={s.domain}
-              className="px-4 py-3 rounded-xl border"
+              className="rounded-xl border px-4 py-3"
               style={{
                 background: "var(--color-surface)",
                 borderColor: "var(--color-border)",
                 boxShadow: "var(--shadow-sm)",
               }}
             >
-              <div className="flex items-center gap-1.5 mb-2">
+              <div className="mb-2 flex items-center gap-1.5">
                 {s.status === "downloading" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--color-accent)" }} />
+                  <Loader2
+                    className="h-3 w-3 animate-spin"
+                    style={{ color: "var(--color-accent)" }}
+                  />
                 ) : s.status === "done" ? (
-                  <CheckCircle className="w-3 h-3" style={{ color: "var(--color-success)" }} />
+                  <CheckCircle className="h-3 w-3" style={{ color: "var(--color-success)" }} />
                 ) : (
-                  <AlertCircle className="w-3 h-3" style={{ color: "var(--color-danger)" }} />
+                  <AlertCircle className="h-3 w-3" style={{ color: "var(--color-danger)" }} />
                 )}
-                <span className="text-xs truncate font-medium" style={{ color: "var(--color-text)" }}>
+                <span
+                  className="truncate text-xs font-medium"
+                  style={{ color: "var(--color-text)" }}
+                >
                   {s.domain.replace(/^https?:\/\//, "")}
                 </span>
-                <span className="ml-auto text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+                <span
+                  className="ml-auto text-xs tabular-nums"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
                   {s.completed}/{s.total}
                 </span>
               </div>
@@ -130,7 +152,7 @@ export function DownloadProgress() {
 
       {novelResults.length > 0 && (
         <div
-          className="flex items-center gap-3 text-xs px-3 py-2 rounded-lg"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-surface-2)" }}
         >
           <span style={{ color: "var(--color-success)" }}>

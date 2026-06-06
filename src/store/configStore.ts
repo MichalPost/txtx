@@ -1,5 +1,6 @@
-import { create } from "zustand";
 import { toast } from "sonner";
+import { create } from "zustand";
+
 import { apiLoadConfig, apiSaveConfig } from "@/lib/api";
 import type { AppConfig } from "@/types";
 
@@ -9,8 +10,7 @@ async function loadConfigWithRetry(maxRetries = 10, delayMs = 800): Promise<AppC
     try {
       return await apiLoadConfig();
     } catch (e) {
-      const isNetworkError =
-        e instanceof TypeError && /fetch|network/i.test(String(e));
+      const isNetworkError = e instanceof TypeError && /fetch|network/i.test(String(e));
       if (!isNetworkError || i === maxRetries - 1) throw e;
       await new Promise((r) => setTimeout(r, delayMs));
     }

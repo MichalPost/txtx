@@ -1,5 +1,6 @@
 import type { AppConfig } from "@/types";
-import { IS_TAURI, API_BASE } from "./constants";
+
+import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiLoadConfig(): Promise<AppConfig> {
   if (IS_TAURI) {

@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type ReactNode, type CSSProperties } from "react";
+import { type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -62,16 +62,7 @@ export function Button({
       {...props}
       disabled={disabled}
       style={{ ...getVariantStyle(variant), ...style }}
-      className={`
-        inline-flex items-center gap-1.5 rounded-[10px] font-medium
-        transition-[color,background-color,border-color,box-shadow,transform,opacity]
-        duration-100 ease-out cursor-pointer
-        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
-        focus-visible:outline-[var(--color-accent)]
-        disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none
-        active:scale-[0.97]
-        ${sizeClasses[size]} ${className}
-      `}
+      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] font-medium transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-100 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)] active:scale-[0.97] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-40 ${sizeClasses[size]} ${className} `}
       onMouseEnter={(e) => {
         if (!disabled) {
           const el = e.currentTarget;

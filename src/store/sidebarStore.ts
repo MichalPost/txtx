@@ -21,11 +21,19 @@ export const useSidebarStore = create<SidebarState>((set) => ({
   toggle: () =>
     set((s) => {
       const next = !s.collapsed;
-      try { localStorage.setItem(STORAGE_KEY, String(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        /* ignore */
+      }
       return { collapsed: next };
     }),
   setCollapsed: (v) => {
-    try { localStorage.setItem(STORAGE_KEY, String(v)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, String(v));
+    } catch {
+      /* ignore */
+    }
     set({ collapsed: v });
   },
 }));

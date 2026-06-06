@@ -1,19 +1,25 @@
 import { create } from "zustand";
-import type {
-  TaskRecord, TaskId, TaskEvent, LogEntry,
-  BookCandidate, ScanTaskOptions,
-} from "@/types";
+
 import {
-  apiCreateScanTask,
-  apiCreateBatchDownloadTask,
-  apiCreateSingleDownloadTask,
-  apiConfirmTaskDownload,
-  apiListTasks,
   apiCancelTask,
-  apiPauseTask,
+  apiConfirmTaskDownload,
+  apiCreateBatchDownloadTask,
+  apiCreateScanTask,
+  apiCreateSingleDownloadTask,
   apiDeleteTask,
+  apiListTasks,
   apiLoadPersistedTasks,
+  apiPauseTask,
 } from "@/lib/api";
+import type {
+  BookCandidate,
+  LogEntry,
+  ScanTaskOptions,
+  TaskEvent,
+  TaskId,
+  TaskRecord,
+} from "@/types";
+
 import { applyTaskEvent, makeLogEntry } from "./taskEventHandler";
 
 const MAX_LOGS = 500;
@@ -78,16 +84,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           const exists = s.tasks.find((t) => t.id === event.task_id);
           if (!exists) return s;
 
-          const tasks = s.tasks.map((t) =>
-            t.id === event.task_id ? applyTaskEvent(t, event) : t
-          );
+          const tasks = s.tasks.map((t) => (t.id === event.task_id ? applyTaskEvent(t, event) : t));
 
           let newLogs = s.logs;
           if (event.type === "log" && event.message) {
-            const entry = makeLogEntry(
-              (event.level ?? "info") as LogEntry["level"],
-              event.message
-            );
+            const entry = makeLogEntry((event.level ?? "info") as LogEntry["level"], event.message);
             const prev = s.logs[event.task_id] ?? [];
             newLogs = {
               ...s.logs,
@@ -119,9 +120,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
               return existing;
             });
             // Also add any server-side tasks not yet in local store
-            const newTasks = freshTasks.filter(
-              (f) => !s.tasks.find((e) => e.id === f.id)
-            );
+            const newTasks = freshTasks.filter((f) => !s.tasks.find((e) => e.id === f.id));
             if (updated.some((u, i) => u !== s.tasks[i]) || newTasks.length > 0) {
               return { tasks: [...updated, ...newTasks] };
             }
@@ -133,7 +132,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       };
 
       // Start polling every 2 seconds
-      setInterval(() => { void pollTasks(); }, 2000);
+      setInterval(() => {
+        void pollTasks();
+      }, 2000);
     }
   },
 
@@ -224,9 +225,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     await apiConfirmTaskDownload(taskId, selected);
     set((s) => ({
       tasks: s.tasks.map((t) =>
-        t.id === taskId
-          ? { ...t, status: "downloading" as const, total: selected.length }
-          : t
+        t.id === taskId ? { ...t, status: "downloading" as const, total: selected.length } : t,
       ),
     }));
   },
@@ -234,18 +233,14 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   cancelTask: async (id) => {
     await apiCancelTask(id);
     set((s) => ({
-      tasks: s.tasks.map((t) =>
-        t.id === id ? { ...t, status: "cancelled" as const } : t
-      ),
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: "cancelled" as const } : t)),
     }));
   },
 
   pauseTask: async (id) => {
     await apiPauseTask(id);
     set((s) => ({
-      tasks: s.tasks.map((t) =>
-        t.id === id ? { ...t, status: "paused" as const } : t
-      ),
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, status: "paused" as const } : t)),
     }));
   },
 
@@ -253,8 +248,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     await apiDeleteTask(id);
     set((s) => {
       const remaining = s.tasks.filter((t) => t.id !== id);
-      const nextActive =
-        s.activeTaskId === id ? (remaining[0]?.id ?? null) : s.activeTaskId;
+      const nextActive = s.activeTaskId === id ? (remaining[0]?.id ?? null) : s.activeTaskId;
       return { tasks: remaining, activeTaskId: nextActive };
     });
   },

@@ -1,5 +1,6 @@
-import { useState, useRef } from "react";
-import { FileUp, Link2, X, Download, AlertCircle } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertCircle, Download, FileUp, Link2, X } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { Textarea } from "@/components/Input";
 
@@ -53,7 +54,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
 
   return (
     <div
-      className="rounded-xl border p-4 flex flex-col gap-3"
+      className="flex flex-col gap-3 rounded-xl border p-4"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",
@@ -62,17 +63,17 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
     >
       {/* Header */}
       <div className="flex items-center gap-2">
-        <FileUp className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <FileUp className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
         <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           批量导入 URL
         </span>
         <button
           onClick={onClose}
-          className="ml-auto p-0.5 rounded-md hover:opacity-70 transition-opacity"
+          className="ml-auto rounded-md p-0.5 transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-muted)" }}
           aria-label="关闭"
         >
-          <X className="w-4 h-4" />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -86,21 +87,26 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
             ? "color-mix(in srgb, var(--color-accent) 5%, var(--color-surface))"
             : "var(--color-surface)",
         }}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
         <Textarea
           rows={6}
-          placeholder={"每行一个 URL，例如：\nhttps://example.com/novel/12345\nhttps://example.com/novel/67890\n\n也可以直接拖拽 .txt 或 .csv 文件到此处"}
+          placeholder={
+            "每行一个 URL，例如：\nhttps://example.com/novel/12345\nhttps://example.com/novel/67890\n\n也可以直接拖拽 .txt 或 .csv 文件到此处"
+          }
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="border-0 rounded-lg focus:ring-0"
+          className="rounded-lg border-0 focus:ring-0"
           style={{ background: "transparent" }}
         />
         {dragOver && (
           <div
-            className="absolute inset-0 flex items-center justify-center rounded-lg pointer-events-none"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg"
             style={{ background: "color-mix(in srgb, var(--color-accent) 8%, transparent)" }}
           >
             <p className="text-sm font-medium" style={{ color: "var(--color-accent)" }}>
@@ -113,7 +119,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
       {/* File picker */}
       <div className="flex items-center gap-2">
         <button
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors hover:opacity-80"
           style={{
             background: "var(--color-surface-1)",
             borderColor: "var(--color-border)",
@@ -121,7 +127,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <FileUp className="w-3.5 h-3.5" />
+          <FileUp className="h-3.5 w-3.5" />
           选择文件（.txt / .csv）
         </button>
         <input
@@ -134,24 +140,24 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
 
         {/* URL count */}
         {text.trim() && (
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
             {urls.length > 0 ? (
               <span
-                className="text-xs px-2 py-0.5 rounded-full"
+                className="rounded-full px-2 py-0.5 text-xs"
                 style={{
                   background: "color-mix(in srgb, var(--color-success) 15%, transparent)",
                   color: "var(--color-success)",
                 }}
               >
-                <Link2 className="w-3 h-3 inline mr-1" />
+                <Link2 className="mr-1 inline h-3 w-3" />
                 {urls.length} 个有效 URL
               </span>
             ) : (
               <span
-                className="text-xs flex items-center gap-1"
+                className="flex items-center gap-1 text-xs"
                 style={{ color: "var(--color-warning)" }}
               >
-                <AlertCircle className="w-3.5 h-3.5" />
+                <AlertCircle className="h-3.5 w-3.5" />
                 未识别到 URL
               </span>
             )}
@@ -162,13 +168,13 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
       {/* Preview list (up to 8) */}
       {urls.length > 0 && (
         <div
-          className="rounded-lg border px-3 py-2 flex flex-col gap-1 max-h-32 overflow-y-auto"
+          className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-lg border px-3 py-2"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
         >
           {urls.slice(0, 8).map((u, i) => (
-            <p key={i} className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+            <p key={i} className="truncate text-xs" style={{ color: "var(--color-text-muted)" }}>
               <span
-                className="inline-block w-4 text-center tabular-nums mr-1"
+                className="mr-1 inline-block w-4 text-center tabular-nums"
                 style={{ color: "var(--color-text-subtle)" }}
               >
                 {i + 1}
@@ -185,12 +191,12 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 justify-end">
+      <div className="flex justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={onClose}>
           取消
         </Button>
         <Button size="sm" onClick={handleImport} disabled={urls.length === 0}>
-          <Download className="w-3.5 h-3.5" />
+          <Download className="h-3.5 w-3.5" />
           {taskMode ? `创建 ${urls.length} 个任务` : `开始下载 ${urls.length} 个`}
         </Button>
       </div>

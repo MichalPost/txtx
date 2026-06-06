@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { useConfigStore } from "@/store/configStore";
-import { DEFAULT_SITE, generateSiteKey } from "./rulesPageUtils";
 import type { WebsiteConfig } from "@/types";
+
+import { DEFAULT_SITE, generateSiteKey } from "./rulesPageUtils";
 
 export function useRulesPageActions() {
   const { config, saveConfig, saving } = useConfigStore();
@@ -71,13 +73,16 @@ export function useRulesPageActions() {
   const toggleEnabled = (key: string) => {
     if (!config) return;
     const websites = config.websites;
-    saveConfig({
-      ...config,
-      websites: {
-        ...websites,
-        [key]: { ...websites[key], enabled: !websites[key].enabled },
+    saveConfig(
+      {
+        ...config,
+        websites: {
+          ...websites,
+          [key]: { ...websites[key], enabled: !websites[key].enabled },
+        },
       },
-    }, true);
+      true,
+    );
   };
 
   const deleteSite = (key: string) => {
@@ -95,21 +100,19 @@ export function useRulesPageActions() {
       const hostname = websites[key].domain_name.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
       if (hostname) delete encodingMap[hostname];
     }
-    saveConfig({
-      ...config,
-      network: { ...config.network, encoding_map: encodingMap },
-      websites: updated,
-    }, true);
+    saveConfig(
+      {
+        ...config,
+        network: { ...config.network, encoding_map: encodingMap },
+        websites: updated,
+      },
+      true,
+    );
     if (editingKey === key) setEditingKey(null);
   };
 
   const getRuleStatus = (site: WebsiteConfig) => {
-    const required = [
-      site.domain_name,
-      site.list_novel_name,
-      site.release_url,
-      site.novel_content,
-    ];
+    const required = [site.domain_name, site.list_novel_name, site.release_url, site.novel_content];
     const filled = required.filter(Boolean).length;
     return { filled, total: required.length, complete: filled === required.length };
   };
@@ -126,6 +129,99 @@ export function useRulesPageActions() {
     );
   };
 
+  const duplicateSite = (key: string) => {
+    if (!config) return;
+    const websites = config.websites;
+    const base = websites[key];
+    if (!base) return;
+
+    // Generate a unique new key: try ${key}_copy, then ${key}_copy2, _copy3, etc.
+    let newKey = `${key}_copy`;
+    let suffix = 2;
+    while (Object.prototype.hasOwnProperty.call(websites, newKey)) {
+      newKey = `${key}_copy${suffix}`;
+      suffix += 1;
+    }
+
+    const newSite: WebsiteConfig = { ...base, domain_name: "https://", enabled: true };
+
+    saveConfig(
+      {
+        ...config,
+        websites: { ...websites, [newKey]: newSite },
+      },
+      true,
+    );
+    setEditingKey(newKey);
+  };
+
+  const reorderSites = (orderedKeys: string[]) => {
+    if (!config) return;
+    const websites = config.websites;
+    const sitePriority: Record<string, number> = {};
+    orderedKeys.forEach((key, index) => {
+      const site = websites[key];
+      if (site) {
+        sitePriority[site.domain_name] = index + 1;
+      }
+    });
+    saveConfig(
+      {
+        ...config,
+        filtering: { ...config.filtering, site_priority: sitePriority },
+      },
+      true,
+    );
+  };
+
+  const exportSites = async () => {
+    if (!config) return;
+    try {
+      const { apiSaveTextFile } = await import("@/lib/api");
+      const content = JSON.stringify(config.websites, null, 2);
+      await apiSaveTextFile("websites-config.json", content);
+      toast.success("导出成功");
+    } catch (err) {
+      toast.error(`导出失败：${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const importSites = () => {
+    if (!config) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result as string) as Record<string, WebsiteConfig>;
+          const keys = Object.keys(parsed);
+          const firstVal = keys.length > 0 ? parsed[keys[0]] : undefined;
+          if (keys.length === 0 || firstVal?.domain_name === undefined) {
+            toast.error("文件格式不正确，无法导入");
+            return;
+          }
+          const merged = { ...config.websites, ...parsed };
+          saveConfig(
+            {
+              ...config,
+              websites: merged,
+            },
+            true,
+          );
+          toast.success(`已导入 ${keys.length} 个站点`);
+        } catch (err) {
+          toast.error(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
   return {
     config,
     saving,
@@ -139,5 +235,9 @@ export function useRulesPageActions() {
     deleteSite,
     getRuleStatus,
     quickSave,
+    duplicateSite,
+    reorderSites,
+    exportSites,
+    importSites,
   };
 }

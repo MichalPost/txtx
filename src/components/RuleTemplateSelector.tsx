@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Wand2, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import type { WebsiteConfig } from "@/types";
 
@@ -27,10 +28,7 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
     novel_name_x: "//h1[@class='bookname']/text()|//h1/text()",
     chapter_url_x: "//ul[@id='chapterlist']//li/a/@href|//div[@class='listmain']//a/@href",
     novel_content: "//div[@id='content']/text()|//div[@class='content']/text()",
-    novel_content_fallbacks: [
-      "//div[@id='booktxt']/text()",
-      "//div[@class='box_con']/text()",
-    ],
+    novel_content_fallbacks: ["//div[@id='booktxt']/text()", "//div[@class='box_con']/text()"],
   },
   {
     name: "最新更新页型（table 结构）",
@@ -63,10 +61,7 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
     novel_name_x: "//div[@class='novel-info']//h1/text()|//h1/text()",
     chapter_url_x: "//div[@class='chapter-list']//a/@href|//ul[@class='chapter']//li/a/@href",
     novel_content: "//div[@class='chapter-content']/text()|//div[@id='chapter-content']/text()",
-    novel_content_fallbacks: [
-      "//div[@class='read-content']/text()",
-      "//div[@id='content']/text()",
-    ],
+    novel_content_fallbacks: ["//div[@class='read-content']/text()", "//div[@id='content']/text()"],
   },
 ];
 
@@ -77,9 +72,11 @@ function PreviewRow({ label, value }: { label: string; value: string | string[] 
   if (!display) return null;
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>{label}</span>
+      <span className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+        {label}
+      </span>
       <code
-        className="text-xs px-2 py-1 rounded-lg break-all whitespace-pre-wrap font-mono"
+        className="rounded-lg px-2 py-1 font-mono text-xs break-all whitespace-pre-wrap"
         style={{ background: "var(--color-surface-2)", color: "var(--color-text)" }}
       >
         {display}
@@ -120,15 +117,15 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
 
   return (
     <div
-      className="rounded-xl border p-4 flex flex-col gap-3"
+      className="flex flex-col gap-3 rounded-xl border p-4"
       style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
     >
       <div className="flex items-center gap-2">
-        <Wand2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <Wand2 className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
         <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           选择规则模板
         </span>
-        <span className="text-xs ml-auto" style={{ color: "var(--color-text-muted)" }}>
+        <span className="ml-auto text-xs" style={{ color: "var(--color-text-muted)" }}>
           套用后可继续手动修改
         </span>
       </div>
@@ -141,7 +138,7 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
             <button
               key={t.name}
               onClick={() => handleSelect(t)}
-              className="w-full text-left rounded-lg border px-3 py-2.5 flex items-start gap-2 transition-colors"
+              className="flex w-full items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors"
               style={{
                 background: isSelected
                   ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))"
@@ -149,12 +146,19 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
                 borderColor: isSelected ? "var(--color-accent)" : "var(--color-border)",
               }}
             >
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>{t.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>{t.description}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+                  {t.name}
+                </p>
+                <p className="mt-0.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                  {t.description}
+                </p>
               </div>
               {isSelected && (
-                <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--color-accent)" }} />
+                <Check
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  style={{ color: "var(--color-accent)" }}
+                />
               )}
             </button>
           );
@@ -163,13 +167,20 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
 
       {/* Preview */}
       {selected && showPreview && (
-        <div className="flex flex-col gap-2 rounded-xl border p-3" style={{ borderColor: "var(--color-border)" }}>
+        <div
+          className="flex flex-col gap-2 rounded-xl border p-3"
+          style={{ borderColor: "var(--color-border)" }}
+        >
           <button
-            className="flex items-center gap-1.5 text-xs font-medium w-full text-left"
+            className="flex w-full items-center gap-1.5 text-left text-xs font-medium"
             style={{ color: "var(--color-text-muted)" }}
-            onClick={() => setShowPreview(v => !v)}
+            onClick={() => setShowPreview((v) => !v)}
           >
-            {showPreview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {showPreview ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
             规则预览
           </button>
           <div className="flex flex-col gap-2">
@@ -187,10 +198,12 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 justify-end">
-        <Button variant="secondary" size="sm" onClick={onClose}>取消</Button>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={onClose}>
+          取消
+        </Button>
         <Button size="sm" onClick={handleApply} disabled={!selected}>
-          <Wand2 className="w-3.5 h-3.5" />
+          <Wand2 className="h-3.5 w-3.5" />
           套用此规则
         </Button>
       </div>

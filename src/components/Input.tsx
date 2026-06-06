@@ -23,10 +23,7 @@ export function Input({ label, error, className = "", style, ...props }: InputPr
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label
-          className="text-xs font-medium"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
           {label}
         </label>
       )}
@@ -62,10 +59,7 @@ export function Textarea({ label, error, className = "", style, ...props }: Text
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label
-          className="text-xs font-medium"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
           {label}
         </label>
       )}

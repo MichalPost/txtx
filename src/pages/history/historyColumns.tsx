@@ -1,5 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { CheckCircle, XCircle, Download } from "lucide-react";
+import { CheckCircle, Download, XCircle } from "lucide-react";
+
 import type { HistoryEntry } from "@/types";
 
 const columnHelper = createColumnHelper<HistoryEntry>();
@@ -14,16 +15,18 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
     columnHelper.accessor("status", {
       header: "状态",
       size: 48,
-      cell: info =>
-        info.getValue() === "success"
-          ? <CheckCircle className="w-4 h-4" style={{ color: "var(--color-success)" }} />
-          : <XCircle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />,
+      cell: (info) =>
+        info.getValue() === "success" ? (
+          <CheckCircle className="h-4 w-4" style={{ color: "var(--color-success)" }} />
+        ) : (
+          <XCircle className="h-4 w-4" style={{ color: "var(--color-danger)" }} />
+        ),
     }),
     columnHelper.accessor("name", {
       header: "书名",
-      cell: info => (
+      cell: (info) => (
         <span
-          className="font-medium block truncate max-w-[200px]"
+          className="block max-w-[200px] truncate font-medium"
           style={{ color: "var(--color-text)" }}
           title={info.getValue()}
         >
@@ -34,7 +37,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
     columnHelper.accessor("site", {
       header: "来源站点",
       size: 140,
-      cell: info => (
+      cell: (info) => (
         <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           {info.getValue().replace(/^https?:\/\//, "")}
         </span>
@@ -43,7 +46,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
     columnHelper.accessor("downloaded_at", {
       header: "下载时间",
       size: 140,
-      cell: info => (
+      cell: (info) => (
         <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
           {info.getValue()}
         </span>
@@ -51,9 +54,9 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
     }),
     columnHelper.accessor("message", {
       header: "备注",
-      cell: info => (
+      cell: (info) => (
         <span
-          className="text-xs truncate block max-w-[160px]"
+          className="block max-w-[160px] truncate text-xs"
           style={{ color: "var(--color-text-muted)" }}
           title={info.getValue() ?? ""}
         >
@@ -72,16 +75,17 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
           <button
             onClick={() => onRedownload(e.url, e.name)}
             disabled={isRunning}
-            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
             style={{
-              background: e.status === "error"
-                ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
-                : "color-mix(in srgb, var(--color-text-muted) 10%, transparent)",
+              background:
+                e.status === "error"
+                  ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                  : "color-mix(in srgb, var(--color-text-muted) 10%, transparent)",
               color: e.status === "error" ? "var(--color-accent)" : "var(--color-text-muted)",
               cursor: isRunning ? "not-allowed" : "pointer",
             }}
           >
-            <Download className="w-3 h-3" />
+            <Download className="h-3 w-3" />
             {e.status === "error" ? "重下" : "再下"}
           </button>
         );

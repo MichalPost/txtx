@@ -30,14 +30,20 @@ export function AnimatedProgressBar({ value, total, color }: AnimatedProgressBar
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--color-surface-2)" }}>
+      <div
+        className="h-1.5 flex-1 overflow-hidden rounded-full"
+        style={{ background: "var(--color-surface-2)" }}
+      >
         <div
           ref={barRef}
           className="h-full rounded-full"
           style={{ width: `${pct}%`, background: color ?? "var(--color-accent)" }}
         />
       </div>
-      <span className="text-xs w-16 text-right tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+      <span
+        className="w-16 text-right text-xs tabular-nums"
+        style={{ color: "var(--color-text-muted)" }}
+      >
         {value}/{total}
       </span>
     </div>

@@ -1,5 +1,6 @@
-import type { TaskId, TaskRecord, ScanTaskOptions, BookCandidate } from "@/types";
-import { IS_TAURI, API_BASE } from "./constants";
+import type { BookCandidate, ScanTaskOptions, TaskId, TaskRecord } from "@/types";
+
+import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiCreateScanTask(options?: ScanTaskOptions): Promise<TaskId> {
   if (IS_TAURI) {
@@ -48,7 +49,7 @@ export async function apiCreateSingleDownloadTask(url: string): Promise<TaskId> 
 
 export async function apiConfirmTaskDownload(
   taskId: TaskId,
-  selected: BookCandidate[]
+  selected: BookCandidate[],
 ): Promise<void> {
   if (IS_TAURI) {
     const { invoke } = await import("@tauri-apps/api/core");

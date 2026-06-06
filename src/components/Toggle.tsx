@@ -11,7 +11,7 @@ interface ToggleProps {
 export function Toggle({ checked, onChange, label, disabled, onClick }: ToggleProps) {
   return (
     <label
-      className={`flex items-center gap-2 cursor-pointer select-none ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+      className={`flex cursor-pointer items-center gap-2 select-none ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
       onClick={onClick}
     >
       <div
@@ -21,15 +21,16 @@ export function Toggle({ checked, onChange, label, disabled, onClick }: TogglePr
           e.stopPropagation();
           if (!disabled) onChange(!checked);
         }}
-        className="relative w-9 h-5 rounded-full"
+        className="relative h-5 w-9 rounded-full"
         style={{
           background: checked ? "var(--color-accent)" : "var(--color-border)",
           boxShadow: checked ? "var(--shadow-accent)" : "none",
-          transition: "background 180ms cubic-bezier(0.16,1,0.3,1), box-shadow 180ms cubic-bezier(0.16,1,0.3,1)",
+          transition:
+            "background 180ms cubic-bezier(0.16,1,0.3,1), box-shadow 180ms cubic-bezier(0.16,1,0.3,1)",
         }}
       >
         <span
-          className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow"
+          className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow"
           style={{
             transform: checked ? "translateX(16px)" : "translateX(0)",
             transition: "transform 180ms cubic-bezier(0.16,1,0.3,1)",

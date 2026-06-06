@@ -1,21 +1,31 @@
 /**
  * XPathToolPanel — 关键字定位 XPath 生成工具
  */
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Wand2, RefreshCw, AlertCircle, ChevronRight,
-  Plus, X as XIcon, RotateCcw, Loader2,
+  AlertCircle,
+  ChevronRight,
+  Loader2,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Wand2,
+  X as XIcon,
 } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import {
-  XPATH_TARGETS, KEYWORD_TYPE_LABELS,
-  type KeywordType, type TargetField,
-} from "./xpathTool";
-import { XPathResultRow } from "./components/XPathResultRow";
+
 import { XPathQuickGuide } from "./components/XPathQuickGuide";
+import { XPathResultRow } from "./components/XPathResultRow";
 import { useXPathFields } from "./hooks/useXPathFields";
 import { useXPathGenerate } from "./hooks/useXPathGenerate";
+import {
+  KEYWORD_TYPE_LABELS,
+  XPATH_TARGETS,
+  type KeywordType,
+  type TargetField,
+} from "./xpathTool";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,14 +44,18 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
   const { fields, patchField, resetField } = useXPathFields(availableTargets);
   const { runGenerate, handleAdjust } = useXPathGenerate(html, fields, patchField);
 
-  const [activeField, setActiveField] = useState<TargetField>(availableTargets[0]?.field ?? "chapter_name");
+  const [activeField, setActiveField] = useState<TargetField>(
+    availableTargets[0]?.field ?? "chapter_name",
+  );
 
   const fs = fields[activeField];
 
   // ── patch active field ─────────────────────────────────────────────────────
 
-  const patchActive = useCallback((patch: Parameters<typeof patchField>[1]) =>
-    patchField(activeField, patch), [patchField, activeField]);
+  const patchActive = useCallback(
+    (patch: Parameters<typeof patchField>[1]) => patchField(activeField, patch),
+    [patchField, activeField],
+  );
 
   // ── keyword ops ────────────────────────────────────────────────────────────
 
@@ -51,7 +65,9 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
   const addKw = () => patchActive({ keywords: [...fs.keywords, ""] });
 
   const removeKw = (idx: number) =>
-    patchActive({ keywords: fs.keywords.length > 1 ? fs.keywords.filter((_, i) => i !== idx) : fs.keywords });
+    patchActive({
+      keywords: fs.keywords.length > 1 ? fs.keywords.filter((_, i) => i !== idx) : fs.keywords,
+    });
 
   // ── apply ──────────────────────────────────────────────────────────────────
 
@@ -66,14 +82,16 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
   };
 
   const adoptedCount = availableTargets.filter(
-    (t) => fields[t.field].adopted && fields[t.field].generatedXPath
+    (t) => fields[t.field].adopted && fields[t.field].generatedXPath,
   ).length;
 
   const hasKeyword = fs.keywords.some((k) => k.trim());
   const anyGenerating = availableTargets.some((t) => fields[t.field].generating);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -87,7 +105,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
 
   return (
     <div
-      className="flex flex-col gap-0 rounded-xl border overflow-hidden"
+      className="flex flex-col gap-0 overflow-hidden rounded-xl border"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",
@@ -98,25 +116,25 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
     >
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-2 px-4 py-3 border-b"
+        className="flex items-center gap-2 border-b px-4 py-3"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
-        <Wand2 className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
-        <span className="text-sm font-semibold flex-1" style={{ color: "var(--color-text)" }}>
+        <Wand2 className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           XPath 生成工具
         </span>
         {adoptedCount > 0 && (
           <button
             onClick={handleApply}
-            className="flex items-center gap-1 text-xs px-3 py-1 rounded-lg transition-colors font-medium"
+            className="flex items-center gap-1 rounded-lg px-3 py-1 text-xs font-medium transition-colors"
             style={{ background: "var(--color-accent)", color: "#fff" }}
           >
-            <ChevronRight className="w-3 h-3" />
+            <ChevronRight className="h-3 w-3" />
             应用 {adoptedCount} 个
           </button>
         )}
         <button
-          className="text-xs px-2 py-1 rounded hover:opacity-70 transition-opacity"
+          className="rounded px-2 py-1 text-xs transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-muted)" }}
           onClick={onClose}
         >
@@ -124,8 +142,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
         </button>
       </div>
 
-      <div className="flex gap-0 overflow-hidden flex-1 min-h-0" style={{ minHeight: 340 }}>
-
+      <div className="flex min-h-0 flex-1 gap-0 overflow-hidden" style={{ minHeight: 340 }}>
         {/* ── Left panel ────────────────────────────────────────────────── */}
         <div
           className="flex flex-col gap-0 border-r"
@@ -133,7 +150,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
         >
           {/* 字段 tab */}
           <div
-            className="flex border-b shrink-0"
+            className="flex shrink-0 border-b"
             style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
           >
             {availableTargets.map((t) => {
@@ -150,16 +167,21 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                 <button
                   key={t.field}
                   onClick={() => setActiveField(t.field)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-all border-b-2 shrink-0"
+                  className="flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium transition-all"
                   style={{
                     background: active ? "var(--color-surface)" : "transparent",
                     borderBottomColor: active ? "var(--color-accent)" : "transparent",
-                    color: active ? "var(--color-accent)" : (statusColor ?? "var(--color-text-muted)"),
+                    color: active
+                      ? "var(--color-accent)"
+                      : (statusColor ?? "var(--color-text-muted)"),
                     fontWeight: active ? 600 : 400,
                   }}
                 >
                   {statusColor && (
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusColor }} />
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: statusColor }}
+                    />
                   )}
                   {t.label}
                 </button>
@@ -168,8 +190,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
           </div>
 
           {/* 配置区 */}
-          <div className="flex flex-col gap-3 p-4 overflow-y-auto flex-1">
-
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
                 {availableTargets.find((t) => t.field === activeField)?.label} 定位配置
@@ -177,7 +198,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
               {(fs.generatedXPath || fs.anchorXPath || fs.error) && (
                 <button
                   onClick={() => resetField(activeField)}
-                  className="flex items-center gap-1 text-xs ml-auto px-1.5 py-0.5 rounded border transition-colors"
+                  className="ml-auto flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs transition-colors"
                   style={{
                     color: "var(--color-text-subtle)",
                     borderColor: "var(--color-border)",
@@ -185,7 +206,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                   }}
                   title="清空此字段重来"
                 >
-                  <RotateCcw className="w-2.5 h-2.5" />
+                  <RotateCcw className="h-2.5 w-2.5" />
                   重置
                 </button>
               )}
@@ -194,24 +215,27 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
             {/* 关键字列表 */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
-                <label className="text-xs font-medium flex-1" style={{ color: "var(--color-text-muted)" }}>
+                <label
+                  className="flex-1 text-xs font-medium"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
                   定位关键字 <span style={{ color: "var(--color-danger)" }}>*</span>
                 </label>
                 <button
                   onClick={addKw}
-                  className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-lg border transition-colors"
+                  className="flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-colors"
                   style={{
                     background: "var(--color-surface-2)",
                     borderColor: "var(--color-border)",
                     color: "var(--color-text-muted)",
                   }}
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="h-3 w-3" />
                   添加
                 </button>
               </div>
               {fs.keywords.map((kw, idx) => (
-                <div key={idx} className="flex gap-1.5 items-center">
+                <div key={idx} className="flex items-center gap-1.5">
                   <Input
                     placeholder={
                       idx === 0
@@ -229,14 +253,14 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                   {fs.keywords.length > 1 && (
                     <button
                       onClick={() => removeKw(idx)}
-                      className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full border"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
                       style={{
                         background: "var(--color-danger-bg)",
                         borderColor: "var(--color-danger)",
                         color: "var(--color-danger)",
                       }}
                     >
-                      <XIcon className="w-3 h-3" />
+                      <XIcon className="h-3 w-3" />
                     </button>
                   )}
                 </div>
@@ -244,8 +268,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
               <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
                 {fs.keywords.length > 1
                   ? "多关键字命中任意一个即可（Enter 触发生成）"
-                  : "从页面源码中复制，按 Enter 快速生成"
-                }
+                  : "从页面源码中复制，按 Enter 快速生成"}
               </p>
             </div>
 
@@ -254,14 +277,14 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
               <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
                 关键字类型
               </label>
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex flex-wrap gap-1.5">
                 {(Object.keys(KEYWORD_TYPE_LABELS) as KeywordType[]).map((kt) => {
                   const active = fs.keywordType === kt;
                   return (
                     <button
                       key={kt}
                       onClick={() => patchActive({ keywordType: kt, error: "" })}
-                      className="text-xs px-2.5 py-1 rounded-lg border transition-colors"
+                      className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
                       style={{
                         background: active ? "var(--color-accent-muted)" : "var(--color-surface-1)",
                         borderColor: active
@@ -276,7 +299,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                   );
                 })}
               </div>
-              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-subtle)" }}>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
                 {fs.keywordType === "text" && "用元素的可见文本内容定位"}
                 {fs.keywordType === "href" && "用 <a> 的 href 属性值定位，关键字可以是链接的一部分"}
                 {fs.keywordType === "class" && "用元素的 class 名定位，适合有唯一 class 的容器"}
@@ -289,44 +312,56 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
               onClick={() => runGenerate(activeField)}
               disabled={!hasKeyword || fs.generating}
             >
+              {fs.generating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="h-3.5 w-3.5" />
+              )}
               {fs.generating
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <Wand2 className="w-3.5 h-3.5" />
-              }
-              {fs.generating ? "生成中…" : `生成 ${availableTargets.find((t) => t.field === activeField)?.label}`}
+                ? "生成中…"
+                : `生成 ${availableTargets.find((t) => t.field === activeField)?.label}`}
             </Button>
 
             {/* 定位表达式 */}
             {fs.anchorXPath && (
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+                  <label
+                    className="text-xs font-medium"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
                     定位表达式
                   </label>
                   {!fs.error && (
                     <span
-                      className="text-xs px-1.5 py-0.5 rounded-full"
-                      style={{ background: "var(--color-accent-muted)", color: "var(--color-accent)" }}
+                      className="rounded-full px-1.5 py-0.5 text-xs"
+                      style={{
+                        background: "var(--color-accent-muted)",
+                        color: "var(--color-accent)",
+                      }}
                     >
                       命中 {fs.anchorCount} 个
                     </span>
                   )}
                   {fs.error && (
                     <span
-                      className="text-xs px-1.5 py-0.5 rounded-full"
+                      className="rounded-full px-1.5 py-0.5 text-xs"
                       style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
                     >
                       可调整后重试
                     </span>
                   )}
                 </div>
-                <div className="flex gap-2 items-start">
+                <div className="flex items-start gap-2">
                   <div className="flex-1">
                     <Input
                       value={fs.anchorXPath}
                       onChange={(e) => patchActive({ anchorXPath: e.target.value })}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); handleAdjust(activeField); }
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAdjust(activeField);
+                        }
                       }}
                       placeholder="手动修改后按 Enter 或点调整"
                       style={{ fontFamily: "monospace", fontSize: 11 }}
@@ -338,7 +373,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                     onClick={() => handleAdjust(activeField)}
                     disabled={fs.generating}
                   >
-                    <RefreshCw className="w-3 h-3" />
+                    <RefreshCw className="h-3 w-3" />
                     调整
                   </Button>
                 </div>
@@ -350,7 +385,7 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
                     {fs.anchorSamples.slice(0, 3).map((s, i) => (
                       <span
                         key={i}
-                        className="text-xs truncate px-2 py-0.5 rounded"
+                        className="truncate rounded px-2 py-0.5 text-xs"
                         style={{
                           background: "var(--color-surface-2)",
                           color: "var(--color-text-muted)",
@@ -374,10 +409,10 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
             {/* 错误提示 */}
             {fs.error && (
               <div
-                className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+                className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
                 style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
               >
-                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>{fs.error}</span>
               </div>
             )}
@@ -385,14 +420,17 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
         </div>
 
         {/* ── Right panel ─────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-0 flex-1 overflow-hidden">
-          <div className="flex flex-col gap-2.5 p-4 flex-1 overflow-y-auto">
+        <div className="flex flex-1 flex-col gap-0 overflow-hidden">
+          <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
                 XPath 表达式结果
               </p>
               {anyGenerating && (
-                <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--color-accent)" }} />
+                <Loader2
+                  className="h-3 w-3 animate-spin"
+                  style={{ color: "var(--color-accent)" }}
+                />
               )}
             </div>
 
@@ -421,11 +459,11 @@ export function XPathToolPanel({ html, page, onApply, onClose }: XPathToolPanelP
 
           {/* Apply footer */}
           <div
-            className="flex items-center gap-2 px-4 py-3 border-t shrink-0"
+            className="flex shrink-0 items-center gap-2 border-t px-4 py-3"
             style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
           >
             <Button size="sm" onClick={handleApply} disabled={adoptedCount === 0}>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="h-3.5 w-3.5" />
               应用已选（{adoptedCount} 个）
             </Button>
             <Button variant="ghost" size="sm" onClick={onClose}>

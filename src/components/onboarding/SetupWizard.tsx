@@ -4,18 +4,19 @@
  * 3 步：欢迎 → 选择目录 → 完成
  * 只在 Tauri 模式下出现；完成后写入 base_dir 并标记 setup_complete。
  */
-import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, FolderOpen, CheckCircle2, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { BookOpen, CheckCircle2, ChevronRight, FolderOpen } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { apiCompleteSetup, apiPickDirectory } from "@/lib/api";
 
 // ─── 动效变体 ─────────────────────────────────────────────────────────────────
 
 const stepVariants = {
-  enter:  { opacity: 0, x: 24 },
+  enter: { opacity: 0, x: 24 },
   center: { opacity: 1, x: 0 },
-  exit:   { opacity: 0, x: -24 },
+  exit: { opacity: 0, x: -24 },
 };
 
 const stepTransition = {
@@ -35,9 +36,7 @@ function StepDots({ total, current }: { total: number; current: number }) {
           style={{
             width: i === current ? 20 : 8,
             height: 8,
-            background: i === current
-              ? "var(--color-accent)"
-              : "var(--color-border)",
+            background: i === current ? "var(--color-accent)" : "var(--color-border)",
           }}
         />
       ))}
@@ -49,33 +48,40 @@ function StepDots({ total, current }: { total: number; current: number }) {
 
 function Step1Welcome({ onNext }: { onNext: () => void }) {
   return (
-    <div className="flex flex-col items-center text-center gap-6">
+    <div className="flex flex-col items-center gap-6 text-center">
       {/* Icon */}
       <div
         className="flex items-center justify-center rounded-2xl"
         style={{
-          width: 72, height: 72,
+          width: 72,
+          height: 72,
           background: "var(--color-accent-muted)",
           border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
           boxShadow: "var(--shadow-accent)",
         }}
       >
-        <BookOpen className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+        <BookOpen className="h-8 w-8" style={{ color: "var(--color-accent)" }} />
       </div>
 
       {/* Copy */}
-      <div className="flex flex-col gap-2 max-w-xs">
+      <div className="flex max-w-xs flex-col gap-2">
         <h2 style={{ fontSize: "var(--text-2xl)", fontWeight: 600, color: "var(--color-text)" }}>
           欢迎使用 txtx
         </h2>
-        <p style={{ fontSize: "var(--text-base)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+        <p
+          style={{
+            fontSize: "var(--text-base)",
+            color: "var(--color-text-muted)",
+            lineHeight: 1.6,
+          }}
+        >
           帮你把喜欢的故事搬进书架。只需两步，就能开始下载。
         </p>
       </div>
 
       <Button size="lg" onClick={onNext}>
         开始设置
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
   );
@@ -106,7 +112,7 @@ function Step2Dir({
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex w-full flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-1">
         <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 600, color: "var(--color-text)" }}>
@@ -120,7 +126,7 @@ function Step2Dir({
       {/* Dir picker */}
       <div className="flex flex-col gap-2">
         <div
-          className="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+          className="flex items-center gap-2 rounded-xl border px-3 py-2.5"
           style={{
             background: "var(--color-surface-2)",
             borderColor: baseDir ? "var(--color-accent)" : "var(--color-border)",
@@ -130,20 +136,20 @@ function Step2Dir({
           onClick={() => inputRef.current?.focus()}
         >
           <FolderOpen
-            className="w-4 h-4 shrink-0"
+            className="h-4 w-4 shrink-0"
             style={{ color: baseDir ? "var(--color-accent)" : "var(--color-text-subtle)" }}
           />
           <input
             ref={inputRef}
             type="text"
             value={baseDir}
-            onChange={e => onDirChange(e.target.value)}
+            onChange={(e) => onDirChange(e.target.value)}
             placeholder="例：D:\Books 或点击右侧选择..."
-            className="flex-1 bg-transparent outline-none text-sm"
+            className="flex-1 bg-transparent text-sm outline-none"
             style={{ color: baseDir ? "var(--color-text)" : "var(--color-text-subtle)" }}
           />
           <button
-            className="shrink-0 text-xs px-2 py-1 rounded-lg transition-colors"
+            className="shrink-0 rounded-lg px-2 py-1 text-xs transition-colors"
             style={{
               background: "var(--color-accent-muted)",
               color: "var(--color-accent)",
@@ -157,10 +163,7 @@ function Step2Dir({
         </div>
 
         {baseDir && (
-          <p
-            className="text-xs pl-1"
-            style={{ color: "var(--color-text-subtle)" }}
-          >
+          <p className="pl-1 text-xs" style={{ color: "var(--color-text-subtle)" }}>
             将自动创建 temp/ 和 logs/ 子目录。
           </p>
         )}
@@ -170,7 +173,7 @@ function Step2Dir({
       <div className="flex items-center gap-2">
         <Button size="md" onClick={onNext} disabled={!baseDir.trim()}>
           继续
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="ghost" size="md" onClick={onBack}>
           返回
@@ -190,7 +193,7 @@ function Step3Done({
   saving: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center text-center gap-6">
+    <div className="flex flex-col items-center gap-6 text-center">
       {/* Animated check */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
@@ -198,23 +201,26 @@ function Step3Done({
         transition={{ duration: 0.2, ease: [0.34, 1.56, 0.64, 1] }}
         className="flex items-center justify-center rounded-2xl"
         style={{
-          width: 72, height: 72,
+          width: 72,
+          height: 72,
           background: "var(--color-success-bg)",
           border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)",
         }}
       >
-        <CheckCircle2 className="w-8 h-8" style={{ color: "var(--color-success)" }} />
+        <CheckCircle2 className="h-8 w-8" style={{ color: "var(--color-success)" }} />
       </motion.div>
 
-      <div className="flex flex-col gap-2 max-w-xs">
+      <div className="flex max-w-xs flex-col gap-2">
         <h2 style={{ fontSize: "var(--text-2xl)", fontWeight: 600, color: "var(--color-text)" }}>
           好了，可以开始了
         </h2>
-        <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+        <p
+          style={{ fontSize: "var(--text-sm)", color: "var(--color-text-muted)", lineHeight: 1.6 }}
+        >
           书架已经准备好，放在
         </p>
         <code
-          className="text-xs px-3 py-2 rounded-xl break-all"
+          className="rounded-xl px-3 py-2 text-xs break-all"
           style={{
             background: "var(--color-surface-2)",
             color: "var(--color-text-muted)",
@@ -271,12 +277,7 @@ export function SetupWizard({ onComplete }: Props) {
       onNext={() => setStep(2)}
       onBack={() => setStep(0)}
     />,
-    <Step3Done
-      key="done"
-      baseDir={baseDir}
-      onFinish={handleFinish}
-      saving={saving}
-    />,
+    <Step3Done key="done" baseDir={baseDir} onFinish={handleFinish} saving={saving} />,
   ];
 
   return (
@@ -322,7 +323,7 @@ export function SetupWizard({ onComplete }: Props) {
         {/* Error message */}
         {error && (
           <p
-            className="text-xs px-3 py-2 rounded-lg"
+            className="rounded-lg px-3 py-2 text-xs"
             style={{
               background: "var(--color-danger-bg)",
               color: "var(--color-danger)",

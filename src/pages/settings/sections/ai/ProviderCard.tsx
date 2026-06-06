@@ -1,14 +1,11 @@
 import { useState } from "react";
-import {
-  ChevronDown, Loader2, Copy, Activity, CheckCircle2, Trash2,
-} from "lucide-react";
-import { Input } from "@/components/Input";
+import { Activity, CheckCircle2, ChevronDown, Copy, Loader2, Trash2 } from "lucide-react";
+
 import { Button } from "@/components/Button";
-import {
-  useAiStore,
-  type AiProviderEntry,
-} from "@/store/aiStore";
-import { Field, ApiKeyInput, ModelSelect, ModelListEditor, TestResult } from "./AiFormFields";
+import { Input } from "@/components/Input";
+import { useAiStore, type AiProviderEntry } from "@/store/aiStore";
+
+import { ApiKeyInput, Field, ModelListEditor, ModelSelect, TestResult } from "./AiFormFields";
 
 export function ProviderCard({
   entry,
@@ -19,11 +16,14 @@ export function ProviderCard({
   isActive: boolean;
   allNames: string[];
 }) {
-  const { updateProvider, removeProvider, setActiveProvider, addProvider, testProvider } = useAiStore();
+  const { updateProvider, removeProvider, setActiveProvider, addProvider, testProvider } =
+    useAiStore();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...entry });
-  const set = <K extends keyof AiProviderEntry>(k: K) => (v: AiProviderEntry[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+  const set =
+    <K extends keyof AiProviderEntry>(k: K) =>
+    (v: AiProviderEntry[K]) =>
+      setForm((f) => ({ ...f, [k]: v }));
 
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [testMsg, setTestMsg] = useState("");
@@ -76,7 +76,7 @@ export function ProviderCard({
 
   return (
     <div
-      className="rounded-[12px] border overflow-hidden"
+      className="overflow-hidden rounded-[12px] border"
       style={{
         borderColor: isActive
           ? "color-mix(in srgb, var(--color-accent) 50%, var(--color-border))"
@@ -91,13 +91,13 @@ export function ProviderCard({
         style={{ background: "var(--color-surface)" }}
         onClick={() => setOpen((o) => !o)}
       >
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
             {entry.name}
           </span>
           {/* Model badge */}
           <span
-            className="text-xs rounded-md px-2 py-0.5 border"
+            className="rounded-md border px-2 py-0.5 text-xs"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",
@@ -108,7 +108,7 @@ export function ProviderCard({
           </span>
           {isActive && (
             <span
-              className="text-xs rounded-md px-2 py-0.5 font-medium"
+              className="rounded-md px-2 py-0.5 text-xs font-medium"
               style={{
                 background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
                 color: "var(--color-accent)",
@@ -120,20 +120,20 @@ export function ProviderCard({
           )}
         </div>
         <span
-          className="shrink-0 transition-transform duration-200 inline-flex"
+          className="inline-flex shrink-0 transition-transform duration-200"
           style={{
             color: "var(--color-text-subtle)",
             transform: open ? "rotate(180deg)" : "rotate(0deg)",
           }}
         >
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="h-4 w-4" />
         </span>
       </button>
 
       {/* Expanded body */}
       {open && (
         <div
-          className="border-t px-4 pb-4 pt-4 flex flex-col gap-3"
+          className="flex flex-col gap-3 border-t px-4 pt-4 pb-4"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
         >
           <div className="grid grid-cols-2 gap-3">
@@ -176,9 +176,7 @@ export function ProviderCard({
                 <Input
                   type="number"
                   value={String(form.max_tokens)}
-                  onChange={(e) =>
-                    set("max_tokens")(parseInt(e.target.value, 10) || 2048)
-                  }
+                  onChange={(e) => set("max_tokens")(parseInt(e.target.value, 10) || 2048)}
                 />
               </Field>
             </div>
@@ -189,9 +187,7 @@ export function ProviderCard({
                 <Input
                   type="number"
                   value={String(form.temperature)}
-                  onChange={(e) =>
-                    set("temperature")(parseFloat(e.target.value) || 0.2)
-                  }
+                  onChange={(e) => set("temperature")(parseFloat(e.target.value) || 0.2)}
                   placeholder="0.2"
                 />
               </Field>
@@ -200,10 +196,7 @@ export function ProviderCard({
             {/* Available models list */}
             <div className="col-span-2">
               <Field label="可用模型列表" hint="添加后可在上方下拉选择">
-                <ModelListEditor
-                  value={form.available_models}
-                  onChange={set("available_models")}
-                />
+                <ModelListEditor value={form.available_models} onChange={set("available_models")} />
               </Field>
             </div>
           </div>
@@ -215,12 +208,7 @@ export function ProviderCard({
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={save}
-              disabled={!hasChanges}
-            >
+            <Button variant="primary" size="sm" onClick={save} disabled={!hasChanges}>
               保存
             </Button>
             <Button
@@ -229,27 +217,21 @@ export function ProviderCard({
               onClick={test}
               disabled={testStatus === "testing"}
             >
-              {testStatus === "testing"
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <Activity className="w-3.5 h-3.5" />}
+              {testStatus === "testing" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Activity className="h-3.5 w-3.5" />
+              )}
               {testStatus === "testing" ? "测试中..." : "测试连接"}
             </Button>
             {!isActive && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setActiveProvider(entry.name)}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <Button variant="secondary" size="sm" onClick={() => setActiveProvider(entry.name)}>
+                <CheckCircle2 className="h-3.5 w-3.5" />
                 设为当前
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={copyProvider}
-            >
-              <Copy className="w-3.5 h-3.5" />
+            <Button variant="ghost" size="sm" onClick={copyProvider}>
+              <Copy className="h-3.5 w-3.5" />
               复制
             </Button>
             {!isActive && (
@@ -262,7 +244,7 @@ export function ProviderCard({
                   }
                 }}
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="h-3.5 w-3.5" />
                 删除
               </Button>
             )}

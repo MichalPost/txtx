@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
-import type { TaskRecord, TaskEvent, LogEntry } from "@/types";
+
 import { recordRuleUsage } from "@/lib/ruleHealth";
+import type { LogEntry, TaskEvent, TaskRecord } from "@/types";
 
 let logId = 0;
 

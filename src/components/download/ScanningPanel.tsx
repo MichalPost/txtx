@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { Loader2, CheckCircle, XCircle, Clock, Globe, BookOpen } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
+import { BookOpen, CheckCircle, Clock, Globe, Loader2, XCircle } from "lucide-react";
+
 import { animateEnter } from "@/lib/animations";
+import { useDownloadStore } from "@/store/downloadStore";
 import type { SiteProgress } from "@/types";
 
 function ScanSiteCard({ site, index }: { site: SiteProgress; index: number }) {
@@ -22,39 +23,52 @@ function ScanSiteCard({ site, index }: { site: SiteProgress; index: number }) {
   return (
     <div
       ref={cardRef}
-      className="flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors"
+      className="flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors"
       style={{
         opacity: 0,
-        borderColor: isError ? "var(--color-danger)" : isDone ? "var(--color-success)" : "var(--color-border)",
+        borderColor: isError
+          ? "var(--color-danger)"
+          : isDone
+            ? "var(--color-success)"
+            : "var(--color-border)",
         background: isError
           ? "color-mix(in srgb, var(--color-danger) 5%, var(--color-surface))"
           : isDone
-          ? "color-mix(in srgb, var(--color-success) 5%, var(--color-surface))"
-          : "var(--color-surface)",
+            ? "color-mix(in srgb, var(--color-success) 5%, var(--color-surface))"
+            : "var(--color-surface)",
         boxShadow: "var(--shadow-sm)",
       }}
     >
       <div className="shrink-0">
         {isScanning ? (
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-warning)" }} />
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--color-warning)" }} />
         ) : isDone ? (
-          <CheckCircle className="w-4 h-4" style={{ color: "var(--color-success)" }} />
+          <CheckCircle className="h-4 w-4" style={{ color: "var(--color-success)" }} />
         ) : isError ? (
-          <XCircle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />
+          <XCircle className="h-4 w-4" style={{ color: "var(--color-danger)" }} />
         ) : (
-          <Clock className="w-4 h-4" style={{ color: "var(--color-text-subtle)" }} />
+          <Clock className="h-4 w-4" style={{ color: "var(--color-text-subtle)" }} />
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: "var(--color-text)" }}>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium" style={{ color: "var(--color-text)" }}>
           {domain}
         </p>
         <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-          {isScanning ? "扫描中..." : isDone ? `发现 ${site.total} 本` : isError ? "扫描失败" : "等待中"}
+          {isScanning
+            ? "扫描中..."
+            : isDone
+              ? `发现 ${site.total} 本`
+              : isError
+                ? "扫描失败"
+                : "等待中"}
         </p>
       </div>
       {isDone && site.total > 0 && (
-        <span className="text-sm font-semibold tabular-nums shrink-0" style={{ color: "var(--color-accent)" }}>
+        <span
+          className="shrink-0 text-sm font-semibold tabular-nums"
+          style={{ color: "var(--color-accent)" }}
+        >
           {site.total}
         </span>
       )}
@@ -71,13 +85,15 @@ export function ScanningPanel() {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
-        {([
-          ["站点", `${done}/${sites.length}`, Globe, "var(--color-accent)"],
-          ["发现", total, BookOpen, "var(--color-success)"],
-        ] as [string, string | number, typeof Globe, string][]).map(([label, val, Icon, color]) => (
+        {(
+          [
+            ["站点", `${done}/${sites.length}`, Globe, "var(--color-accent)"],
+            ["发现", total, BookOpen, "var(--color-success)"],
+          ] as [string, string | number, typeof Globe, string][]
+        ).map(([label, val, Icon, color]) => (
           <div
             key={label}
-            className="flex flex-col gap-1 px-4 py-3 rounded-xl border"
+            className="flex flex-col gap-1 rounded-xl border px-4 py-3"
             style={{
               background: "var(--color-surface)",
               borderColor: "var(--color-border)",
@@ -85,10 +101,14 @@ export function ScanningPanel() {
             }}
           >
             <div className="flex items-center gap-1.5">
-              <Icon className="w-3.5 h-3.5" style={{ color }} />
-              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{label}</span>
+              <Icon className="h-3.5 w-3.5" style={{ color }} />
+              <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {label}
+              </span>
             </div>
-            <span className="text-xl font-bold tabular-nums" style={{ color }}>{val}</span>
+            <span className="text-xl font-bold tabular-nums" style={{ color }}>
+              {val}
+            </span>
           </div>
         ))}
       </div>
@@ -100,8 +120,10 @@ export function ScanningPanel() {
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-text-subtle)" }} />
-          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>正在连接站点...</p>
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-text-subtle)" }} />
+          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+            正在连接站点...
+          </p>
         </div>
       )}
     </div>

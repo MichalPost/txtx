@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useNavigate, useRouteError, isRouteErrorResponse } from "react-router-dom";
-import { AlertTriangle, RefreshCw, ArrowLeft, ChevronDown, Copy, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { isRouteErrorResponse, useNavigate, useRouteError } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, Copy, RefreshCw } from "lucide-react";
+
 import { Button } from "@/components/Button";
 
 // ─── 动效变体 ─────────────────────────────────────────────────────────────────
@@ -13,13 +14,17 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 14 },
-  show:   { opacity: 1, y: 0,  transition: { duration: 0.28, ease: [0.25, 0, 0, 1] as const } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.25, 0, 0, 1] as const } },
 };
 
 const stackVariants = {
   hidden: { opacity: 0, height: 0 },
-  show:   { opacity: 1, height: "auto", transition: { duration: 0.22, ease: [0.25, 0, 0, 1] as const } },
-  exit:   { opacity: 0, height: 0,      transition: { duration: 0.18, ease: [0.4, 0, 1, 1]  as const } },
+  show: {
+    opacity: 1,
+    height: "auto",
+    transition: { duration: 0.22, ease: [0.25, 0, 0, 1] as const },
+  },
+  exit: { opacity: 0, height: 0, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] as const } },
 };
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
@@ -27,19 +32,19 @@ const stackVariants = {
 function parseError(error: unknown): { title: string; detail: string; stack?: string } {
   if (isRouteErrorResponse(error)) {
     return {
-      title:  `${error.status} ${error.statusText || "请求错误"}`,
+      title: `${error.status} ${error.statusText || "请求错误"}`,
       detail: typeof error.data === "string" ? error.data : "路由响应出现了问题。",
     };
   }
   if (error instanceof Error) {
     return {
-      title:  error.name || "运行时错误",
+      title: error.name || "运行时错误",
       detail: error.message || "发生了一个未知错误。",
-      stack:  error.stack,
+      stack: error.stack,
     };
   }
   return {
-    title:  "未知错误",
+    title: "未知错误",
     detail: String(error) || "应用遇到了意外情况，无法继续。",
   };
 }
@@ -63,15 +68,17 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all"
+      className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all"
       style={{
-        background:   copied
+        background: copied
           ? "color-mix(in srgb, var(--color-success, #3a7d55) 12%, transparent)"
           : "var(--color-surface-2)",
-        color:        copied ? "var(--color-success, #3a7d55)" : "var(--color-text-muted)",
-        border:       `1px solid ${copied
-          ? "color-mix(in srgb, var(--color-success, #3a7d55) 25%, transparent)"
-          : "var(--color-border)"}`,
+        color: copied ? "var(--color-success, #3a7d55)" : "var(--color-text-muted)",
+        border: `1px solid ${
+          copied
+            ? "color-mix(in srgb, var(--color-success, #3a7d55) 25%, transparent)"
+            : "var(--color-border)"
+        }`,
       }}
       title="复制错误信息"
     >
@@ -80,24 +87,24 @@ function CopyButton({ text }: { text: string }) {
           <motion.span
             key="check"
             initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1,   opacity: 1 }}
-            exit={{    scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.6, opacity: 0 }}
             transition={{ duration: 0.15 }}
             className="flex items-center gap-1"
           >
-            <Check className="w-3 h-3" />
+            <Check className="h-3 w-3" />
             已复制
           </motion.span>
         ) : (
           <motion.span
             key="copy"
             initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1,   opacity: 1 }}
-            exit={{    scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.6, opacity: 0 }}
             transition={{ duration: 0.15 }}
             className="flex items-center gap-1"
           >
-            <Copy className="w-3 h-3" />
+            <Copy className="h-3 w-3" />
             复制
           </motion.span>
         )}
@@ -115,7 +122,7 @@ interface ErrorPageProps {
 
 export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
   const routeError = useRouteError();
-  const navigate   = useNavigate();
+  const navigate = useNavigate();
   const [showStack, setShowStack] = useState(false);
 
   const { title, detail, stack } = parseError(propError ?? routeError);
@@ -125,19 +132,22 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
 
   return (
     <div
-      className="flex flex-col items-center justify-center h-full w-full px-4 select-none"
+      className="flex h-full w-full flex-col items-center justify-center px-4 select-none"
       style={{ background: "var(--color-bg)" }}
     >
       {/* 背景装饰 */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 rounded-full blur-3xl"
+          className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full blur-3xl"
           style={{ background: "var(--color-danger, #c0392b)", opacity: 0.07 }}
         />
-        <svg className="absolute inset-0 w-full h-full opacity-[0.025]" style={{ color: "var(--color-text-muted)" }}>
+        <svg
+          className="absolute inset-0 h-full w-full opacity-[0.025]"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           <defs>
             <pattern id="err-grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
               <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="0.5" />
@@ -152,32 +162,37 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="relative z-10 w-full flex flex-col gap-5"
+        className="relative z-10 flex w-full flex-col gap-5"
         style={{ maxWidth: 480 }}
       >
         {/* 图标 + 标题 */}
         <motion.div variants={itemVariants} className="flex items-start gap-4">
           <motion.div
             initial={{ rotate: -10, scale: 0.7, opacity: 0 }}
-            animate={{ rotate: 0,   scale: 1,   opacity: 1 }}
+            animate={{ rotate: 0, scale: 1, opacity: 1 }}
             transition={{ delay: 0.08, duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
-            className="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center mt-0.5"
+            className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
             style={{
               background: "color-mix(in srgb, var(--color-danger, #c0392b) 12%, transparent)",
-              border:     "1.5px solid color-mix(in srgb, var(--color-danger, #c0392b) 28%, transparent)",
+              border:
+                "1.5px solid color-mix(in srgb, var(--color-danger, #c0392b) 28%, transparent)",
             }}
           >
-            <AlertTriangle className="w-6 h-6" style={{ color: "var(--color-danger, #c0392b)" }} strokeWidth={1.8} />
+            <AlertTriangle
+              className="h-6 w-6"
+              style={{ color: "var(--color-danger, #c0392b)" }}
+              strokeWidth={1.8}
+            />
           </motion.div>
           <div className="min-w-0">
             <div
-              className="text-xs font-mono font-semibold uppercase tracking-widest mb-1"
+              className="mb-1 font-mono text-xs font-semibold tracking-widest uppercase"
               style={{ color: "var(--color-danger, #c0392b)", opacity: 0.8 }}
             >
               Application Error
             </div>
             <h1
-              className="text-xl font-bold leading-snug truncate"
+              className="truncate text-xl leading-snug font-bold"
               style={{ color: "var(--color-text)" }}
             >
               {title}
@@ -191,17 +206,17 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           className="rounded-xl"
           style={{
             background: "var(--color-surface)",
-            border:     "1px solid var(--color-border)",
-            boxShadow:  "0 2px 8px rgba(0,0,0,0.06)",
+            border: "1px solid var(--color-border)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
           }}
         >
           {/* 卡头：标签 + 复制按钮 */}
           <div
-            className="flex items-center justify-between px-4 py-2.5 border-b"
+            className="flex items-center justify-between border-b px-4 py-2.5"
             style={{ borderColor: "var(--color-border)" }}
           >
             <span
-              className="text-xs font-mono font-semibold tracking-wide"
+              className="font-mono text-xs font-semibold tracking-wide"
               style={{ color: "var(--color-text-muted)" }}
             >
               Error Message
@@ -221,15 +236,15 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
         {stack && (
           <motion.div
             variants={itemVariants}
-            className="rounded-xl overflow-hidden"
+            className="overflow-hidden rounded-xl"
             style={{
-              border:     "1px solid var(--color-border)",
+              border: "1px solid var(--color-border)",
               background: "var(--color-surface)",
             }}
           >
             <button
               type="button"
-              className="w-full flex items-center justify-between px-4 py-3 text-xs font-mono transition-colors hover:bg-[var(--color-surface-2)]"
+              className="flex w-full items-center justify-between px-4 py-3 font-mono text-xs transition-colors hover:bg-[var(--color-surface-2)]"
               style={{ color: "var(--color-text-muted)" }}
               onClick={() => setShowStack((v) => !v)}
             >
@@ -239,7 +254,7 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
                 transition={{ duration: 0.2 }}
                 className="flex items-center"
               >
-                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
               </motion.span>
             </button>
             <AnimatePresence initial={false}>
@@ -253,14 +268,14 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
                   style={{ overflow: "hidden" }}
                 >
                   <pre
-                    className="px-4 pb-4 pt-0 text-[11px] leading-relaxed overflow-x-auto"
+                    className="overflow-x-auto px-4 pt-0 pb-4 text-[11px] leading-relaxed"
                     style={{
-                      color:         "var(--color-text-muted)",
-                      borderTop:     "1px solid var(--color-border)",
-                      maxHeight:     200,
-                      overflowY:     "auto",
-                      whiteSpace:    "pre-wrap",
-                      wordBreak:     "break-all",
+                      color: "var(--color-text-muted)",
+                      borderTop: "1px solid var(--color-border)",
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
                     }}
                   >
                     {stack}
@@ -274,11 +289,16 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
         {/* 操作按钮 */}
         <motion.div variants={itemVariants} className="flex gap-3">
           <Button variant="secondary" size="md" className="flex-1" onClick={() => navigate(-1)}>
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             返回
           </Button>
-          <Button variant="primary" size="md" className="flex-1" onClick={() => window.location.reload()}>
-            <RefreshCw className="w-3.5 h-3.5" />
+          <Button
+            variant="primary"
+            size="md"
+            className="flex-1"
+            onClick={() => window.location.reload()}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
             重新加载
           </Button>
         </motion.div>

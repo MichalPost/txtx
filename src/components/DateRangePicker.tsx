@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+
 import { animateDropdownOpen } from "@/lib/animations";
 
 type DatePreset = "1" | "3" | "7" | "14" | "30" | "60" | "custom";
@@ -19,9 +20,19 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
 
   // Sync preset from value
   useEffect(() => {
-    if (!value) { setActivePreset("7"); return; }
+    if (!value) {
+      setActivePreset("7");
+      return;
+    }
     const diff = today.diff(dayjs(value), "day");
-    const map: Record<number, DatePreset> = { 1: "1", 3: "3", 7: "7", 14: "14", 30: "30", 60: "60" };
+    const map: Record<number, DatePreset> = {
+      1: "1",
+      3: "3",
+      7: "7",
+      14: "14",
+      30: "30",
+      60: "60",
+    };
     setActivePreset(map[diff] ?? "custom");
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -32,7 +43,10 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   useEffect(() => {
     if (!showCalendar) return;
     const handler = (e: MouseEvent) => {
-      if (calRef.current && !calRef.current.closest(".date-picker-root")?.contains(e.target as Node)) {
+      if (
+        calRef.current &&
+        !calRef.current.closest(".date-picker-root")?.contains(e.target as Node)
+      ) {
         setShowCalendar(false);
       }
     };
@@ -77,18 +91,16 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   while (cells.length % 7 !== 0) cells.push(null);
 
   const selectedDay = value ? dayjs(value) : null;
-  const displayLabel = value
-    ? `${value} 至今 (${today.diff(dayjs(value), "day")}天)`
-    : "不限日期";
+  const displayLabel = value ? `${value} 至今 (${today.diff(dayjs(value), "day")}天)` : "不限日期";
 
   return (
     <div className="date-picker-root relative">
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex flex-wrap items-center gap-1.5">
         {presets.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => applyPreset(key)}
-            className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+            className="rounded-full px-3 py-1 text-xs font-medium transition-all"
             style={{
               background: activePreset === key ? "var(--color-accent)" : "var(--color-surface-1)",
               color: activePreset === key ? "#fff" : "var(--color-text-muted)",
@@ -101,17 +113,22 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
         ))}
       </div>
 
-      <div className="flex items-center gap-2 mt-2">
-        <Calendar className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+      <div className="mt-2 flex items-center gap-2">
+        <Calendar className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
         <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           扫描范围：
-          <span className="font-medium" style={{ color: "var(--color-text)" }}>{displayLabel}</span>
+          <span className="font-medium" style={{ color: "var(--color-text)" }}>
+            {displayLabel}
+          </span>
         </span>
         {value && (
           <button
-            className="text-xs ml-auto"
+            className="ml-auto text-xs"
             style={{ color: "var(--color-text-subtle)" }}
-            onClick={() => { onChange(null); setActivePreset("7"); }}
+            onClick={() => {
+              onChange(null);
+              setActivePreset("7");
+            }}
           >
             清除
           </button>
@@ -121,7 +138,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       {showCalendar && (
         <div
           ref={calRef}
-          className="absolute left-0 top-full mt-2 z-50 rounded-xl border shadow-xl overflow-hidden"
+          className="absolute top-full left-0 z-50 mt-2 overflow-hidden rounded-xl border shadow-xl"
           style={{
             opacity: 0,
             background: "var(--color-surface)",
@@ -130,62 +147,67 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           }}
         >
           <div
-            className="flex items-center justify-between px-4 py-3 border-b"
+            className="flex items-center justify-between border-b px-4 py-3"
             style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
           >
             <button
               onClick={() => setCalMonth((m) => m.subtract(1, "month"))}
-              className="p-1 rounded-lg hover:opacity-70 transition-opacity"
+              className="rounded-lg p-1 transition-opacity hover:opacity-70"
               style={{ color: "var(--color-text-muted)" }}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
               {calMonth.format("YYYY年M月")}
             </span>
             <button
               onClick={() => setCalMonth((m) => m.add(1, "month"))}
-              className="p-1 rounded-lg hover:opacity-70 transition-opacity"
+              className="rounded-lg p-1 transition-opacity hover:opacity-70"
               style={{ color: "var(--color-text-muted)" }}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
           <div className="grid grid-cols-7 px-3 pt-2 pb-1">
             {["一", "二", "三", "四", "五", "六", "日"].map((d) => (
-              <div key={d} className="text-center text-xs py-1 font-medium" style={{ color: "var(--color-text-subtle)" }}>
+              <div
+                key={d}
+                className="py-1 text-center text-xs font-medium"
+                style={{ color: "var(--color-text-subtle)" }}
+              >
                 {d}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 px-3 pb-3 gap-y-0.5">
+          <div className="grid grid-cols-7 gap-y-0.5 px-3 pb-3">
             {cells.map((d, i) => {
               if (!d) return <div key={`empty-${i}`} />;
               const isSelected = selectedDay?.isSame(d, "day");
               const isToday = today.isSame(d, "day");
               const isFuture = d.isAfter(today, "day");
-              const isInRange = selectedDay && d.isAfter(selectedDay, "day") && !d.isAfter(today, "day");
+              const isInRange =
+                selectedDay && d.isAfter(selectedDay, "day") && !d.isAfter(today, "day");
               return (
                 <button
                   key={d.format("YYYY-MM-DD")}
                   disabled={isFuture}
                   onClick={() => pickDay(d)}
-                  className="relative flex items-center justify-center h-8 rounded-lg text-xs font-medium transition-all"
+                  className="relative flex h-8 items-center justify-center rounded-lg text-xs font-medium transition-all"
                   style={{
                     background: isSelected
                       ? "var(--color-accent)"
                       : isInRange
-                      ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
-                      : "transparent",
+                        ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                        : "transparent",
                     color: isSelected
                       ? "#fff"
                       : isFuture
-                      ? "var(--color-text-subtle)"
-                      : isToday
-                      ? "var(--color-accent)"
-                      : "var(--color-text)",
+                        ? "var(--color-text-subtle)"
+                        : isToday
+                          ? "var(--color-accent)"
+                          : "var(--color-text)",
                     fontWeight: isToday ? 700 : undefined,
                     opacity: isFuture ? 0.3 : 1,
                     cursor: isFuture ? "not-allowed" : "pointer",
@@ -194,7 +216,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                   {d.date()}
                   {isToday && !isSelected && (
                     <span
-                      className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                      className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full"
                       style={{ background: "var(--color-accent)" }}
                     />
                   )}
@@ -206,7 +228,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           <div className="px-3 pb-3">
             <button
               onClick={() => pickDay(today)}
-              className="w-full py-1.5 rounded-lg text-xs font-medium transition-colors"
+              className="w-full rounded-lg py-1.5 text-xs font-medium transition-colors"
               style={{
                 background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
                 color: "var(--color-accent)",

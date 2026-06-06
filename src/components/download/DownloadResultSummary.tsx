@@ -1,17 +1,26 @@
 import { useEffect, useRef } from "react";
 import {
-  CheckCircle, XCircle, AlertCircle, RefreshCw, RotateCcw,
-  ListTodo, FolderOpen,
+  AlertCircle,
+  CheckCircle,
+  FolderOpen,
+  ListTodo,
+  RefreshCw,
+  RotateCcw,
+  XCircle,
 } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
-import { useConfigStore } from "@/store/configStore";
-import { Button } from "@/components/Button";
+
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
+import { Button } from "@/components/Button";
 import {
-  animateResultCard, animateCountUp, animateCelebration, animateStagger,
+  animateCelebration,
+  animateCountUp,
+  animateResultCard,
+  animateStagger,
 } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
 import { useAppNavigate } from "@/router";
+import { useConfigStore } from "@/store/configStore";
+import { useDownloadStore } from "@/store/downloadStore";
 
 export function DownloadResultSummary() {
   const { novelResults, overallTotal, overallCompleted, reset, retryFailed } = useDownloadStore();
@@ -32,7 +41,9 @@ export function DownloadResultSummary() {
     if (successNumRef.current) animateCountUp(successNumRef.current, 0, successCount, 900);
     if (errorNumRef.current) animateCountUp(errorNumRef.current, 0, errorCount, 900);
     if (successCount > 0 && errorCount === 0 && successCardRef.current) {
-      setTimeout(() => { if (successCardRef.current) animateCelebration(successCardRef.current); }, 500);
+      setTimeout(() => {
+        if (successCardRef.current) animateCelebration(successCardRef.current);
+      }, 500);
     }
     if (actionsRef.current) {
       const btns = actionsRef.current.querySelectorAll<HTMLElement>("button");
@@ -41,7 +52,11 @@ export function DownloadResultSummary() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleOpenDir = async () => {
-    try { await apiOpenOutputDir(); } catch { /* noop in web mode */ }
+    try {
+      await apiOpenOutputDir();
+    } catch {
+      /* noop in web mode */
+    }
   };
 
   return (
@@ -49,29 +64,36 @@ export function DownloadResultSummary() {
       <div className="grid grid-cols-2 gap-3">
         <div
           ref={successCardRef}
-          className="flex flex-col items-center gap-1 px-4 py-5 rounded-xl border"
+          className="flex flex-col items-center gap-1 rounded-xl border px-4 py-5"
           style={{
             background: "color-mix(in srgb, var(--color-success) 8%, var(--color-surface))",
             borderColor: "var(--color-success)",
           }}
         >
-          <CheckCircle className="w-7 h-7" style={{ color: "var(--color-success)" }} />
-          <span ref={successNumRef} className="text-3xl font-bold tabular-nums" style={{ color: "var(--color-success)" }}>
+          <CheckCircle className="h-7 w-7" style={{ color: "var(--color-success)" }} />
+          <span
+            ref={successNumRef}
+            className="text-3xl font-bold tabular-nums"
+            style={{ color: "var(--color-success)" }}
+          >
             0
           </span>
-          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>下载成功</span>
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            下载成功
+          </span>
         </div>
         <div
-          className="flex flex-col items-center gap-1 px-4 py-5 rounded-xl border"
+          className="flex flex-col items-center gap-1 rounded-xl border px-4 py-5"
           style={{
-            background: errorCount > 0
-              ? "color-mix(in srgb, var(--color-danger) 8%, var(--color-surface))"
-              : "var(--color-surface)",
+            background:
+              errorCount > 0
+                ? "color-mix(in srgb, var(--color-danger) 8%, var(--color-surface))"
+                : "var(--color-surface)",
             borderColor: errorCount > 0 ? "var(--color-danger)" : "var(--color-border)",
           }}
         >
           <XCircle
-            className="w-7 h-7"
+            className="h-7 w-7"
             style={{ color: errorCount > 0 ? "var(--color-danger)" : "var(--color-text-subtle)" }}
           />
           <span
@@ -81,29 +103,41 @@ export function DownloadResultSummary() {
           >
             0
           </span>
-          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>下载失败</span>
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            下载失败
+          </span>
         </div>
       </div>
 
       {overallTotal > 0 && (
         <div
-          className="px-4 py-3 rounded-xl border"
+          className="rounded-xl border px-4 py-3"
           style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
         >
-          <div className="flex justify-between text-xs mb-2" style={{ color: "var(--color-text-muted)" }}>
+          <div
+            className="mb-2 flex justify-between text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             <span>总体完成率</span>
-            <span className="tabular-nums font-medium" style={{ color: "var(--color-text)" }}>
+            <span className="font-medium tabular-nums" style={{ color: "var(--color-text)" }}>
               {overallTotal > 0 ? Math.round((overallCompleted / overallTotal) * 100) : 0}%
             </span>
           </div>
-          <AnimatedProgressBar value={overallCompleted} total={overallTotal} color="var(--color-success)" />
+          <AnimatedProgressBar
+            value={overallCompleted}
+            total={overallTotal}
+            color="var(--color-success)"
+          />
         </div>
       )}
 
       {errors.length > 0 && (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--color-border)" }}>
+        <div
+          className="overflow-hidden rounded-xl border"
+          style={{ borderColor: "var(--color-border)" }}
+        >
           <div
-            className="px-4 py-2.5 text-xs font-semibold border-b"
+            className="border-b px-4 py-2.5 text-xs font-semibold"
             style={{
               background: "var(--color-surface-1)",
               borderColor: "var(--color-border)",
@@ -116,14 +150,21 @@ export function DownloadResultSummary() {
             {errors.map((e) => (
               <div
                 key={e.name}
-                className="flex items-start gap-2 px-4 py-2 border-b last:border-0 text-xs"
+                className="flex items-start gap-2 border-b px-4 py-2 text-xs last:border-0"
                 style={{ borderColor: "var(--color-border)" }}
               >
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "var(--color-danger)" }} />
+                <AlertCircle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  style={{ color: "var(--color-danger)" }}
+                />
                 <div className="min-w-0">
-                  <p className="font-medium truncate" style={{ color: "var(--color-text)" }}>{e.name}</p>
+                  <p className="truncate font-medium" style={{ color: "var(--color-text)" }}>
+                    {e.name}
+                  </p>
                   {e.message && (
-                    <p className="truncate" style={{ color: "var(--color-text-muted)" }}>{e.message}</p>
+                    <p className="truncate" style={{ color: "var(--color-text-muted)" }}>
+                      {e.message}
+                    </p>
                   )}
                 </div>
               </div>
@@ -140,23 +181,30 @@ export function DownloadResultSummary() {
             onClick={retryFailed}
             style={{ background: "var(--color-warning)", color: "#fff", border: "none" }}
           >
-            <RefreshCw className="w-3.5 h-3.5" /> 重试失败 ({errorCount})
+            <RefreshCw className="h-3.5 w-3.5" /> 重试失败 ({errorCount})
           </Button>
         )}
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" className="flex-1" onClick={reset}>
-            <RotateCcw className="w-3.5 h-3.5" /> 重置
+            <RotateCcw className="h-3.5 w-3.5" /> 重置
           </Button>
-          <Button size="sm" className="flex-1" onClick={() => { reset(); navigate("/"); }}>
-            <ListTodo className="w-3.5 h-3.5" /> 返回任务发起台
+          <Button
+            size="sm"
+            className="flex-1"
+            onClick={() => {
+              reset();
+              navigate("/");
+            }}
+          >
+            <ListTodo className="h-3.5 w-3.5" /> 返回任务发起台
           </Button>
         </div>
         <Button variant="ghost" size="sm" className="w-full" onClick={() => navigate("/tasks")}>
-          <ListTodo className="w-3.5 h-3.5" /> 去任务管理
+          <ListTodo className="h-3.5 w-3.5" /> 去任务管理
         </Button>
         {config?.paths.base_dir && (
           <Button variant="ghost" size="sm" className="w-full" onClick={handleOpenDir}>
-            <FolderOpen className="w-3.5 h-3.5" /> 打开输出目录
+            <FolderOpen className="h-3.5 w-3.5" /> 打开输出目录
           </Button>
         )}
       </div>

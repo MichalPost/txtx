@@ -3,10 +3,11 @@
  * 将后端推送的 ProgressEvent 映射到 store 状态变更
  */
 import dayjs from "dayjs";
-import { computeSpeed } from "./speedTracker";
-import type { SpeedState } from "./speedTracker";
+
 import type { DownloadStats, LogEntry, ProgressEvent, SiteProgress } from "@/types";
-import type { NovelProgress, NovelResult, DownloadPhase } from "./downloadStore";
+
+import type { DownloadPhase, NovelProgress, NovelResult } from "./downloadStore";
+import { computeSpeed, type SpeedState } from "./speedTracker";
 
 let logIdCounter = 0;
 
@@ -23,14 +24,18 @@ export interface EventHandlerState {
 }
 
 type SetFn = (
-  partial: Partial<EventHandlerState> | ((s: EventHandlerState) => Partial<EventHandlerState>)
+  partial: Partial<EventHandlerState> | ((s: EventHandlerState) => Partial<EventHandlerState>),
 ) => void;
 
 type GetFn = () => EventHandlerState & {
   addLog: (level: LogEntry["level"], message: string) => void;
 };
 
-export function makeAddLog(set: (partial: { logs: LogEntry[] } | ((s: { logs: LogEntry[] }) => { logs: LogEntry[] })) => void) {
+export function makeAddLog(
+  set: (
+    partial: { logs: LogEntry[] } | ((s: { logs: LogEntry[] }) => { logs: LogEntry[] }),
+  ) => void,
+) {
   return (level: LogEntry["level"], message: string) => {
     const entry: LogEntry = {
       id: ++logIdCounter,
@@ -56,7 +61,12 @@ export function handleEvent(get: GetFn, set: SetFn) {
           set((s) => ({
             siteProgress: {
               ...s.siteProgress,
-              [payload.site!]: { domain: payload.site!, total: 0, completed: 0, status: "scanning" },
+              [payload.site!]: {
+                domain: payload.site!,
+                total: 0,
+                completed: 0,
+                status: "scanning",
+              },
             },
           }));
         }
@@ -80,13 +90,19 @@ export function handleEvent(get: GetFn, set: SetFn) {
       case "scan_complete": {
         const items = payload.items ?? [];
         const stats = payload.stats ?? null;
-        const selectedUrls = new Set(
-          items.filter(i => !i.excluded_reason).map(i => i.url)
-        );
+        const selectedUrls = new Set(items.filter((i) => !i.excluded_reason).map((i) => i.url));
         set({ phase: "preview", stats } as Partial<EventHandlerState>);
         // Note: selectedUrls and scanItems are managed in the store directly
-        (set as (p: object) => void)({ phase: "preview", scanItems: items, selectedUrls, scanStats: stats });
-        addLog("success", `扫描完成，共 ${items.filter(i => !i.excluded_reason).length} 本待下载`);
+        (set as (p: object) => void)({
+          phase: "preview",
+          scanItems: items,
+          selectedUrls,
+          scanStats: stats,
+        });
+        addLog(
+          "success",
+          `扫描完成，共 ${items.filter((i) => !i.excluded_reason).length} 本待下载`,
+        );
         break;
       }
 
@@ -109,7 +125,8 @@ export function handleEvent(get: GetFn, set: SetFn) {
             const newTimestamps = [...s.speed.chapterTimestamps, now];
             const activeNovels = Object.values(s.novelProgress);
             const remainingChapters = activeNovels.reduce(
-              (acc, n) => acc + Math.max(0, n.total - n.current), 0
+              (acc, n) => acc + Math.max(0, n.total - n.current),
+              0,
             );
             const newSpeed = computeSpeed(newTimestamps, remainingChapters);
             return {
@@ -138,18 +155,26 @@ export function handleEvent(get: GetFn, set: SetFn) {
           const np = { ...s.novelProgress };
           if (payload.novel) delete np[payload.novel];
 
-          const scanItem = s.scanItems.find(i => i.name === payload.novel);
+          const scanItem = s.scanItems.find((i) => i.name === payload.novel);
           const results: NovelResult[] = payload.novel
-            ? [...s.novelResults, {
-                name: payload.novel,
-                url: scanItem?.url ?? "",
-                site: scanItem?.site ?? (payload.site ?? ""),
-                date: scanItem?.date ?? "",
-                status: "success" as const,
-              }]
+            ? [
+                ...s.novelResults,
+                {
+                  name: payload.novel,
+                  url: scanItem?.url ?? "",
+                  site: scanItem?.site ?? payload.site ?? "",
+                  date: scanItem?.date ?? "",
+                  status: "success" as const,
+                },
+              ]
             : s.novelResults;
 
-          return { overallCompleted: completed, siteProgress: updated, novelProgress: np, novelResults: results };
+          return {
+            overallCompleted: completed,
+            siteProgress: updated,
+            novelProgress: np,
+            novelResults: results,
+          };
         });
         if (payload.novel) addLog("success", `✓ ${payload.novel}`);
         break;
@@ -157,16 +182,19 @@ export function handleEvent(get: GetFn, set: SetFn) {
       case "novel_error":
         if (payload.novel) {
           set((s) => {
-            const scanItem = s.scanItems.find(i => i.name === payload.novel);
+            const scanItem = s.scanItems.find((i) => i.name === payload.novel);
             return {
-              novelResults: [...s.novelResults, {
-                name: payload.novel!,
-                url: scanItem?.url ?? "",
-                site: scanItem?.site ?? (payload.site ?? ""),
-                date: scanItem?.date ?? "",
-                status: "error" as const,
-                message: payload.message,
-              }],
+              novelResults: [
+                ...s.novelResults,
+                {
+                  name: payload.novel!,
+                  url: scanItem?.url ?? "",
+                  site: scanItem?.site ?? payload.site ?? "",
+                  date: scanItem?.date ?? "",
+                  status: "error" as const,
+                  message: payload.message,
+                },
+              ],
             };
           });
           addLog("error", `✗ ${payload.novel}: ${payload.message ?? ""}`);

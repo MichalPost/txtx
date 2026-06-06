@@ -10,9 +10,10 @@
  * ai.ts 通过 useAiStore.getState().activeConfig() 获取当前活跃的 AiConfig，
  * 接口形状保持不变，向后兼容。
  */
-import { create } from "zustand";
 import { toast } from "sonner";
-import { IS_TAURI, API_BASE } from "@/lib/api/constants";
+import { create } from "zustand";
+
+import { API_BASE, IS_TAURI } from "@/lib/api/constants";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,13 +51,7 @@ export interface AiConfig {
 
 // ─── Provider presets ──────────────────────────────────────────────────────────
 
-export type AiProviderPresetKey =
-  | "openai"
-  | "deepseek"
-  | "ollama"
-  | "longcat"
-  | "iflow"
-  | "custom";
+export type AiProviderPresetKey = "openai" | "deepseek" | "ollama" | "longcat" | "iflow" | "custom";
 
 export const AI_PROVIDER_PRESETS: Record<
   AiProviderPresetKey,
@@ -207,8 +202,7 @@ export const useAiStore = create<AiStore>((set, get) => ({
 
   activeProvider: () => {
     const { config } = get();
-    return config.providers.find((p) => p.name === config.active_provider)
-      ?? config.providers[0];
+    return config.providers.find((p) => p.name === config.active_provider) ?? config.providers[0];
   },
 
   activeConfig: () => {
@@ -260,9 +254,7 @@ export const useAiStore = create<AiStore>((set, get) => ({
     set((s) => ({
       config: {
         ...s.config,
-        providers: s.config.providers.map((p) =>
-          p.name === name ? { ...p, ...patch } : p
-        ),
+        providers: s.config.providers.map((p) => (p.name === name ? { ...p, ...patch } : p)),
       },
     }));
     if (saveTimer) clearTimeout(saveTimer);
@@ -273,9 +265,7 @@ export const useAiStore = create<AiStore>((set, get) => ({
     set((s) => {
       const remaining = s.config.providers.filter((p) => p.name !== name);
       const active =
-        s.config.active_provider === name
-          ? (remaining[0]?.name ?? "")
-          : s.config.active_provider;
+        s.config.active_provider === name ? (remaining[0]?.name ?? "") : s.config.active_provider;
       return { config: { ...s.config, providers: remaining, active_provider: active } };
     });
     if (saveTimer) clearTimeout(saveTimer);

@@ -3,12 +3,13 @@
  * 汇总所有规则，确认后应用到 WebsiteConfig
  */
 import { useState } from "react";
-import { CheckCircle2, AlertCircle, Save, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Save } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { buildXPathFromRule } from "./ruleUtils";
-import type { WizardData } from "./ruleUtils";
 import type { WebsiteConfig } from "@/types";
+
+import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 
 interface Props {
   data: WizardData;
@@ -27,7 +28,7 @@ function isLikelyHttpUrl(value: string): boolean {
 
 export function WizardStep6Save({ data, onApply, onClose }: Props) {
   const [encoding, setEncoding] = useState(data.encoding ?? "");
-  const autoDetected = data.encoding?.trim() ?? "";  // what was auto-detected on fetch
+  const autoDetected = data.encoding?.trim() ?? ""; // what was auto-detected on fetch
   const listNameXPath = buildXPathFromRule(data.list_novel_name);
   const listUrlXPath = buildXPathFromRule(data.list_release_url);
   const listDateXPath = buildXPathFromRule(data.list_release_date);
@@ -60,7 +61,9 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
       try {
         const u = new URL(data.update_list_url);
         return u.pathname + (u.search || "");
-      } catch { return data.update_list_url; }
+      } catch {
+        return data.update_list_url;
+      }
     })();
     const part = data.page_insert_part.trim();
     if (!part) return null;
@@ -76,26 +79,29 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
   })();
 
   const summary: { label: string; value: string; required?: boolean }[] = [
-    { label: "站点根域名",       value: domainRoot,         required: true },
-    { label: "分页",             value: pageListPreview ?? "单页，无分页" },
-    { label: "章节名称 XPath",   value: listNameXPath,      required: true },
-    { label: "章节链接 XPath",   value: listUrlXPath,       required: true },
-    ...(listDateXPath   ? [{ label: "更新日期 XPath",   value: listDateXPath }]   : []),
+    { label: "站点根域名", value: domainRoot, required: true },
+    { label: "分页", value: pageListPreview ?? "单页，无分页" },
+    { label: "章节名称 XPath", value: listNameXPath, required: true },
+    { label: "章节链接 XPath", value: listUrlXPath, required: true },
+    ...(listDateXPath ? [{ label: "更新日期 XPath", value: listDateXPath }] : []),
     ...(chapterNameXPath ? [{ label: "详情页书名 XPath", value: chapterNameXPath }] : []),
     ...(data.chapter_next_page_xpath?.trim()
-      ? [{ label: "章节内分页 XPath",  value: data.chapter_next_page_xpath }]
+      ? [{ label: "章节内分页 XPath", value: data.chapter_next_page_xpath }]
       : []),
-    { label: "正文内容 XPath",   value: chapterContentXPath, required: true },
+    { label: "正文内容 XPath", value: chapterContentXPath, required: true },
     ...(data.chap_content_fallbacks.filter(Boolean).length > 0
-      ? [{ label: `备用规则（${data.chap_content_fallbacks.filter(Boolean).length} 条）`, value: data.chap_content_fallbacks.filter(Boolean).join("\n") }]
+      ? [
+          {
+            label: `备用规则（${data.chap_content_fallbacks.filter(Boolean).length} 条）`,
+            value: data.chap_content_fallbacks.filter(Boolean).join("\n"),
+          },
+        ]
       : []),
   ];
 
   // Validation: must-have fields
-  const missingRequired = !data.catalog_url
-    || !listNameXPath
-    || !listUrlXPath
-    || !chapterContentXPath;
+  const missingRequired =
+    !data.catalog_url || !listNameXPath || !listUrlXPath || !chapterContentXPath;
   const hasBlockingValidation = missingRequired || invalidDomain || invalidCatalogUrl;
 
   const handleApply = () => {
@@ -161,16 +167,16 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
 
     // Use the site root (from update list URL) as domain_name; fall back to catalog URL
     const patch: Partial<WebsiteConfig> = {
-      domain_name:   domainRoot,
-      list_novel_name:   listNameXPath,
-      release_date:      listDateXPath,
-      release_url:       listUrlXPath,
-      novel_name_x:      chapterNameXPath,
-      chapter_url_x:     chapterUrlXPath,
-      novel_content:     chapterContentXPath,
+      domain_name: domainRoot,
+      list_novel_name: listNameXPath,
+      release_date: listDateXPath,
+      release_url: listUrlXPath,
+      novel_name_x: chapterNameXPath,
+      chapter_url_x: chapterUrlXPath,
+      novel_content: chapterContentXPath,
       novel_content_fallbacks: data.chap_content_fallbacks.filter(Boolean),
       page_list,
-      encoding:          encoding.trim() || undefined,
+      encoding: encoding.trim() || undefined,
       chapter_next_page_xpath: data.chapter_next_page_xpath?.trim() || "",
     };
     onApply(patch);
@@ -186,10 +192,17 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           borderLeft: `2px solid ${missingRequired ? "var(--color-warning)" : "var(--color-success)"}`,
         }}
       >
-        {missingRequired
-          ? <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--color-warning)" }} />
-          : <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--color-success)" }} />
-        }
+        {missingRequired ? (
+          <AlertCircle
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: "var(--color-warning)" }}
+          />
+        ) : (
+          <CheckCircle2
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: "var(--color-success)" }}
+          />
+        )}
         <div className="flex flex-col gap-1">
           <p
             className="text-xs font-medium"
@@ -200,8 +213,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             {missingRequired
               ? "必填项：目录页链接、列表页书名、书目链接、正文内容"
-              : '向导配置完成，点击"应用到网站配置"将规则写入站点设置。已有站点会直接覆盖为最新规则。'
-            }
+              : '向导配置完成，点击"应用到网站配置"将规则写入站点设置。已有站点会直接覆盖为最新规则。'}
           </p>
           {invalidDomain && (
             <p className="text-xs" style={{ color: "var(--color-warning)" }}>
@@ -223,16 +235,16 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
 
       {/* Summary */}
       <div
-        className="flex flex-col gap-2 rounded-xl p-3 border"
+        className="flex flex-col gap-2 rounded-xl border p-3"
         style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
       >
-        <span className="text-xs font-semibold mb-1" style={{ color: "var(--color-text)" }}>
+        <span className="mb-1 text-xs font-semibold" style={{ color: "var(--color-text)" }}>
           规则汇总
         </span>
         {summary.map((item) => (
           <div key={item.label} className="flex items-start gap-2">
             <span
-              className="text-xs font-medium shrink-0 mt-0.5 w-28"
+              className="mt-0.5 w-28 shrink-0 text-xs font-medium"
               style={{ color: item.required ? "var(--color-text)" : "var(--color-text-muted)" }}
             >
               {item.label}
@@ -240,13 +252,16 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
             </span>
             {item.value ? (
               <code
-                className="text-xs font-mono break-all flex-1 px-2 py-1 rounded"
+                className="flex-1 rounded px-2 py-1 font-mono text-xs break-all"
                 style={{ background: "var(--color-surface-2)", color: "var(--color-text)" }}
               >
                 {item.value}
               </code>
             ) : (
-              <span className="text-xs flex-1 px-2 py-1" style={{ color: "var(--color-text-subtle)" }}>
+              <span
+                className="flex-1 px-2 py-1 text-xs"
+                style={{ color: "var(--color-text-subtle)" }}
+              >
                 未设置
               </span>
             )}
@@ -256,7 +271,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
 
       {/* Encoding input */}
       <div
-        className="flex flex-col gap-2 rounded-xl p-3 border"
+        className="flex flex-col gap-2 rounded-xl border p-3"
         style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
       >
         <div className="flex items-center gap-1.5">
@@ -265,15 +280,23 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           </span>
           {autoDetected ? (
             <span
-              className="text-xs px-1.5 py-0.5 rounded-full"
-              style={{ background: "var(--color-success-bg)", color: "var(--color-success)", border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)" }}
+              className="rounded-full px-1.5 py-0.5 text-xs"
+              style={{
+                background: "var(--color-success-bg)",
+                color: "var(--color-success)",
+                border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)",
+              }}
             >
               已自动检测
             </span>
           ) : (
             <span
-              className="text-xs px-1.5 py-0.5 rounded-full"
-              style={{ background: "var(--color-surface-2)", color: "var(--color-text-subtle)", border: "1px solid var(--color-border)" }}
+              className="rounded-full px-1.5 py-0.5 text-xs"
+              style={{
+                background: "var(--color-surface-2)",
+                color: "var(--color-text-subtle)",
+                border: "1px solid var(--color-border)",
+              }}
             >
               可选
             </span>
@@ -288,7 +311,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           />
           {encoding.trim() && encoding.trim() !== autoDetected && (
             <button
-              className="text-xs px-2 py-1 rounded-lg border transition-colors"
+              className="rounded-lg border px-2 py-1 text-xs transition-colors"
               style={{
                 background: "var(--color-surface-2)",
                 borderColor: "var(--color-border)",
@@ -301,13 +324,15 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
             </button>
           )}
         </div>
-        <div className="flex items-start gap-1.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
-          <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <div
+          className="flex items-start gap-1.5 text-xs"
+          style={{ color: "var(--color-text-subtle)" }}
+        >
+          <Info className="mt-0.5 h-3 w-3 shrink-0" style={{ color: "var(--color-accent)" }} />
           <span>
             {autoDetected
               ? `从页面 <meta charset> 自动检测到 "${autoDetected}"，如无乱码可保持不变。留空则跟随 HTTP 响应头。`
-              : "大多数现代站点无需填写（UTF-8）。如内容乱码，填入 gbk 或 big5 覆盖响应头的字符集声明。"
-            }
+              : "大多数现代站点无需填写（UTF-8）。如内容乱码，填入 gbk 或 big5 覆盖响应头的字符集声明。"}
           </span>
         </div>
       </div>
@@ -315,7 +340,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
       {/* Actions */}
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleApply} disabled={hasBlockingValidation}>
-          <Save className="w-3.5 h-3.5" />
+          <Save className="h-3.5 w-3.5" />
           应用到网站配置
         </Button>
         <Button variant="ghost" size="sm" onClick={onClose}>

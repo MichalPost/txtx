@@ -1,5 +1,6 @@
 import type { BookFile } from "@/types";
-import { IS_TAURI, API_BASE } from "./constants";
+
+import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiListBooks(dir: string): Promise<BookFile[]> {
   if (IS_TAURI) {

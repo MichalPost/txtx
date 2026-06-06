@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect } from "react";
-import { useDownloadStore } from "@/store/downloadStore";
+import { Trash2 } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { useDownloadStore } from "@/store/downloadStore";
 import type { LogEntry } from "@/types";
 
 type LogFilter = "all" | "error" | "success" | "warn";
@@ -17,8 +17,13 @@ function LogLine({ entry }: { entry: LogEntry }) {
     success: "var(--color-success)",
   };
   return (
-    <div className="flex gap-2 text-xs font-mono leading-5" style={{ color: colorMap[entry.level] }}>
-      <span className="shrink-0" style={{ color: "var(--color-text-subtle)" }}>{entry.timestamp}</span>
+    <div
+      className="flex gap-2 font-mono text-xs leading-5"
+      style={{ color: colorMap[entry.level] }}
+    >
+      <span className="shrink-0" style={{ color: "var(--color-text-subtle)" }}>
+        {entry.timestamp}
+      </span>
       <span className="break-all">{entry.message}</span>
     </div>
   );
@@ -51,41 +56,46 @@ export function LogPanel() {
 
   return (
     <Card
-      className="flex flex-col min-h-0 h-full"
+      className="flex h-full min-h-0 flex-col"
       title="运行日志"
       actions={
         <div className="flex items-center gap-1">
-          {([
-            ["all", "全部", "var(--color-text-muted)"],
-            ["error", `错误${errorCount > 0 ? ` ${errorCount}` : ""}`, "var(--color-danger)"],
-            ["success", "成功", "var(--color-success)"],
-          ] as [LogFilter, string, string][]).map(([f, label, color]) => (
+          {(
+            [
+              ["all", "全部", "var(--color-text-muted)"],
+              ["error", `错误${errorCount > 0 ? ` ${errorCount}` : ""}`, "var(--color-danger)"],
+              ["success", "成功", "var(--color-success)"],
+            ] as [LogFilter, string, string][]
+          ).map(([f, label, color]) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className="px-2 py-0.5 rounded text-xs font-medium transition-colors"
+              className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
               style={{
-                background: filter === f ? "color-mix(in srgb, currentColor 15%, transparent)" : "transparent",
+                background:
+                  filter === f
+                    ? "color-mix(in srgb, currentColor 15%, transparent)"
+                    : "transparent",
                 color: filter === f ? color : "var(--color-text-subtle)",
               }}
             >
               {label}
             </button>
           ))}
-          <div className="w-px h-3 mx-1" style={{ background: "var(--color-border)" }} />
+          <div className="mx-1 h-3 w-px" style={{ background: "var(--color-border)" }} />
           <Button variant="ghost" size="sm" onClick={clearLogs} aria-label="清空日志">
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       }
     >
       <div
-        className="flex-1 overflow-y-auto flex flex-col gap-0.5 min-h-0"
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
         ref={logParentRef}
         style={{ maxHeight: "calc(100vh - 300px)" }}
       >
         {filtered.length === 0 ? (
-          <p className="text-xs text-center py-8" style={{ color: "var(--color-text-muted)" }}>
+          <p className="py-8 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
             运行后日志会显示在这里
           </p>
         ) : (

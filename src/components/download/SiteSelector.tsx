@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Globe, ChevronDown, WifiOff } from "lucide-react";
+import { ChevronDown, Globe, WifiOff } from "lucide-react";
+
 import { animateDropdownOpen } from "@/lib/animations";
 import type { SiteHealth } from "@/types";
 
@@ -46,7 +47,7 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
     <div className="site-selector-root relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors"
+        className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
         style={{
           background: !isAll
             ? "color-mix(in srgb, var(--color-accent) 10%, var(--color-surface))"
@@ -55,15 +56,15 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
           color: !isAll ? "var(--color-accent)" : "var(--color-text-muted)",
         }}
       >
-        <Globe className="w-3.5 h-3.5" />
+        <Globe className="h-3.5 w-3.5" />
         {isAll ? `全部站点 (${allSites.length})` : `已选 ${activeCount}/${allSites.length} 站点`}
-        <ChevronDown className="w-3 h-3" />
+        <ChevronDown className="h-3 w-3" />
       </button>
 
       {open && (
         <div
           ref={ref}
-          className="absolute left-0 top-full mt-1 z-50 rounded-xl border shadow-xl overflow-hidden"
+          className="absolute top-full left-0 z-50 mt-1 overflow-hidden rounded-xl border shadow-xl"
           style={{
             opacity: 0,
             background: "var(--color-surface)",
@@ -72,13 +73,17 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
           }}
         >
           <div
-            className="px-3 py-2 border-b flex items-center justify-between"
+            className="flex items-center justify-between border-b px-3 py-2"
             style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
           >
             <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
               选择扫描站点
             </span>
-            <button className="text-xs" style={{ color: "var(--color-accent)" }} onClick={toggleAll}>
+            <button
+              className="text-xs"
+              style={{ color: "var(--color-accent)" }}
+              onClick={toggleAll}
+            >
               {isAll ? "取消全选" : "全选"}
             </button>
           </div>
@@ -88,7 +93,7 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
             return (
               <label
                 key={domain}
-                className="flex items-center gap-2.5 px-3 py-2 cursor-pointer border-b last:border-0 transition-colors"
+                className="flex cursor-pointer items-center gap-2.5 border-b px-3 py-2 transition-colors last:border-0"
                 style={{ borderColor: "var(--color-border)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-surface-1)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -99,17 +104,20 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
                   onChange={() => toggle(domain)}
                   style={{ accentColor: "var(--color-accent)" }}
                 />
-                <span className="flex-1 text-xs truncate" style={{ color: "var(--color-text)" }}>
+                <span className="flex-1 truncate text-xs" style={{ color: "var(--color-text)" }}>
                   {label}
                 </span>
                 {health && (
                   <span className="shrink-0">
                     {health.reachable ? (
-                      <span className="text-xs tabular-nums" style={{ color: "var(--color-success)" }}>
+                      <span
+                        className="text-xs tabular-nums"
+                        style={{ color: "var(--color-success)" }}
+                      >
                         {health.latency_ms}ms
                       </span>
                     ) : (
-                      <WifiOff className="w-3 h-3" style={{ color: "var(--color-danger)" }} />
+                      <WifiOff className="h-3 w-3" style={{ color: "var(--color-danger)" }} />
                     )}
                   </span>
                 )}

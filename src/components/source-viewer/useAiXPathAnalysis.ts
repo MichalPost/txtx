@@ -1,9 +1,10 @@
 /**
  * useAiXPathAnalysis — SourceViewer 的 AI 分析状态和逻辑
  */
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+
+import { aiComplete, extractJson, preprocessHtml, validateXPath } from "@/lib/ai";
 import { useAiStore } from "@/store/aiStore";
-import { aiComplete, preprocessHtml, extractJson, validateXPath } from "@/lib/ai";
 
 export interface AiXPathResult {
   xpath: string;
@@ -72,10 +73,13 @@ export function useAiXPathAnalysis(html: string) {
   };
 
   return {
-    aiOpen, setAiOpen,
-    aiIntent, setAiIntent,
+    aiOpen,
+    setAiOpen,
+    aiIntent,
+    setAiIntent,
     aiLoading,
-    aiResult, setAiResult,
+    aiResult,
+    setAiResult,
     aiError,
     runAiAnalysis,
   };

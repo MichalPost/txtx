@@ -1,11 +1,16 @@
 import { useFormContext } from "react-hook-form";
+
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
+
 import { FieldError } from "../SettingsFields";
 import type { SettingsForm } from "../settingsSchema";
 
 export function ConcurrencySection() {
-  const { register, formState: { errors } } = useFormContext<SettingsForm>();
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<SettingsForm>();
 
   return (
     <Card title="并发配置">

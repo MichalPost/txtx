@@ -1,5 +1,6 @@
 import type { BookCandidate, ProgressEvent, ScanOptions } from "@/types";
-import { IS_TAURI, WS_BASE, API_BASE } from "./constants";
+
+import { API_BASE, IS_TAURI, WS_BASE } from "./constants";
 
 export type UnsubscribeFn = () => void;
 
@@ -8,7 +9,11 @@ export type UnsubscribeFn = () => void;
 function makeWsDownload(wsUrl: string, onEvent: (ev: ProgressEvent) => void): UnsubscribeFn {
   const ws = new WebSocket(wsUrl);
   ws.onmessage = (e) => {
-    try { onEvent(JSON.parse(e.data as string)); } catch { /* ignore */ }
+    try {
+      onEvent(JSON.parse(e.data as string));
+    } catch {
+      /* ignore */
+    }
   };
   ws.onerror = () => {
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
@@ -38,7 +43,10 @@ function makeTauriDownload(
       });
     }
   })();
-  return () => { cancelled = true; unlisten?.(); };
+  return () => {
+    cancelled = true;
+    unlisten?.();
+  };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -52,9 +60,15 @@ export function apiStartScan(
     return makeTauriDownload("start_scan", { options: options ?? null }, onEvent);
   }
   const ws = new WebSocket(`${WS_BASE}/api/scan`);
-  ws.onopen = () => { if (options) ws.send(JSON.stringify(options)); };
+  ws.onopen = () => {
+    if (options) ws.send(JSON.stringify(options));
+  };
   ws.onmessage = (e) => {
-    try { onEvent(JSON.parse(e.data as string)); } catch { /* ignore */ }
+    try {
+      onEvent(JSON.parse(e.data as string));
+    } catch {
+      /* ignore */
+    }
   };
   ws.onerror = () => {
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
@@ -76,9 +90,15 @@ export function apiStartSelectedDownload(
     return makeTauriDownload("download_selected", { selected }, onEvent);
   }
   const ws = new WebSocket(`${WS_BASE}/api/download/selected`);
-  ws.onopen = () => { ws.send(JSON.stringify(selected)); };
+  ws.onopen = () => {
+    ws.send(JSON.stringify(selected));
+  };
   ws.onmessage = (e) => {
-    try { onEvent(JSON.parse(e.data as string)); } catch { /* ignore */ }
+    try {
+      onEvent(JSON.parse(e.data as string));
+    } catch {
+      /* ignore */
+    }
   };
   ws.onerror = () => {
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
@@ -98,7 +118,10 @@ export function apiStartDownload(onEvent: (ev: ProgressEvent) => void): Unsubscr
   return makeWsDownload(`${WS_BASE}/api/download`, onEvent);
 }
 
-export function apiStartSingleDownload(url: string, onEvent: (ev: ProgressEvent) => void): UnsubscribeFn {
+export function apiStartSingleDownload(
+  url: string,
+  onEvent: (ev: ProgressEvent) => void,
+): UnsubscribeFn {
   if (IS_TAURI) {
     return makeTauriDownload("download_single", { url }, onEvent);
   }

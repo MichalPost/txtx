@@ -134,7 +134,13 @@ export interface ScanOptions {
 // ─── Download / Progress Types ───────────────────────────────────────────────
 
 export type DownloadStatus =
-  | "idle" | "scanning" | "filtering" | "downloading" | "done" | "error" | "stopped";
+  | "idle"
+  | "scanning"
+  | "filtering"
+  | "downloading"
+  | "done"
+  | "error"
+  | "stopped";
 
 /** Phase of the three-step download workflow */
 export type DownloadPhase = "idle" | "scanning" | "preview" | "downloading" | "done" | "stopped";
@@ -180,9 +186,16 @@ export interface LogEntry {
 
 export interface ProgressEvent {
   type:
-    | "scan_start" | "scan_done" | "filter_done" | "scan_complete"
-    | "novel_start" | "novel_done" | "novel_error"
-    | "chapter_done" | "overall_done" | "log";
+    | "scan_start"
+    | "scan_done"
+    | "filter_done"
+    | "scan_complete"
+    | "novel_start"
+    | "novel_done"
+    | "novel_error"
+    | "chapter_done"
+    | "overall_done"
+    | "log";
   site?: string;
   novel?: string;
   total?: number;
@@ -233,11 +246,7 @@ export type QueueStatus = QueueInfo | QueueInfoLoaded;
 
 export type TaskId = string;
 
-export type TaskKind =
-  | "full_scan"
-  | "batch_download"
-  | "selected_download"
-  | "single_download";
+export type TaskKind = "full_scan" | "batch_download" | "selected_download" | "single_download";
 
 export type TaskStatus =
   | "queued"
@@ -294,9 +303,9 @@ export interface ScanTaskOptions {
 // ─── Bookshelf ────────────────────────────────────────────────────────────────
 
 export interface BookFile {
-  name: string;       // filename without extension
-  path: string;       // full path
-  size: number;       // bytes
-  modified: string;   // ISO timestamp or locale string
-  extension: string;  // "txt" | "epub" etc.
+  name: string; // filename without extension
+  path: string; // full path
+  size: number; // bytes
+  modified: string; // ISO timestamp or locale string
+  extension: string; // "txt" | "epub" etc.
 }

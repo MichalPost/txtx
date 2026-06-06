@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Sparkles, Loader2, Check, X, AlertCircle, ChevronRight, Code2, Wand2 } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, Code2, Loader2, Sparkles, Wand2, X } from "lucide-react";
+
 import { Button } from "@/components/Button";
-import { useAiStore } from "@/store/aiStore";
+import { aiComplete, aiExtract, extractJson, preprocessHtml, validateXPath } from "@/lib/ai";
 import { apiFetchSource } from "@/lib/api/files";
-import { aiComplete, aiExtract, preprocessHtml, extractJson, validateXPath } from "@/lib/ai";
+import { useAiStore } from "@/store/aiStore";
 import type { WebsiteConfig } from "@/types";
 
 // ─── Field definitions ─────────────────────────────────────────────────────────
@@ -21,20 +22,23 @@ const XPATH_FIELD_LABELS: Array<{
   label: string;
 }> = [
   { key: "list_novel_name", label: "列表页书名" },
-  { key: "release_date",    label: "更新日期" },
-  { key: "release_url",     label: "书目链接" },
-  { key: "novel_name_x",    label: "详情页书名" },
-  { key: "chapter_url_x",   label: "章节链接" },
-  { key: "novel_content",   label: "正文内容" },
+  { key: "release_date", label: "更新日期" },
+  { key: "release_url", label: "书目链接" },
+  { key: "novel_name_x", label: "详情页书名" },
+  { key: "chapter_url_x", label: "章节链接" },
+  { key: "novel_content", label: "正文内容" },
 ];
 
-type FieldKey = typeof XPATH_FIELD_LABELS[number]["key"];
+type FieldKey = (typeof XPATH_FIELD_LABELS)[number]["key"];
 
 // ─── Analysis mode ─────────────────────────────────────────────────────────────
 
 type AnalysisMode = "xpath" | "extract";
 
-const MODE_CONFIG: Record<AnalysisMode, { label: string; icon: React.FC<{ className?: string }>; desc: string }> = {
+const MODE_CONFIG: Record<
+  AnalysisMode,
+  { label: string; icon: React.FC<{ className?: string }>; desc: string }
+> = {
   xpath: {
     label: "XPath 模式",
     icon: ({ className }) => <Code2 className={className} />,
@@ -54,11 +58,11 @@ const EXTRACT_SCHEMA = {
   type: "object",
   properties: {
     list_novel_name: { type: "string", description: "列表页中第一本书的书名（纯文本）" },
-    release_date:    { type: "string", description: "第一本书的最新更新日期" },
-    release_url:     { type: "string", description: "第一本书详情页的完整 URL" },
-    novel_name_x:    { type: "string", description: "详情页书名的 XPath（如能推断）" },
-    chapter_url_x:   { type: "string", description: "章节列表链接的 XPath（如能推断）" },
-    novel_content:   { type: "string", description: "正文内容区域的 XPath（如能推断）" },
+    release_date: { type: "string", description: "第一本书的最新更新日期" },
+    release_url: { type: "string", description: "第一本书详情页的完整 URL" },
+    novel_name_x: { type: "string", description: "详情页书名的 XPath（如能推断）" },
+    chapter_url_x: { type: "string", description: "章节列表链接的 XPath（如能推断）" },
+    novel_content: { type: "string", description: "正文内容区域的 XPath（如能推断）" },
   },
   required: [],
 };
@@ -128,8 +132,16 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
       const item = parsed?.[key] ?? {};
       const xpath: string = item.xpath ?? "";
       const explanation: string = item.explanation ?? "";
-      const validation = (xpath && rawHtml) ? validateXPath(rawHtml, xpath) : null;
-      return { key, label, currentValue: (site[key] as string) ?? "", suggested: xpath, explanation, validation, adopted: !!xpath };
+      const validation = xpath && rawHtml ? validateXPath(rawHtml, xpath) : null;
+      return {
+        key,
+        label,
+        currentValue: (site[key] as string) ?? "",
+        suggested: xpath,
+        explanation,
+        validation,
+        adopted: !!xpath,
+      };
     });
   };
 
@@ -143,9 +155,10 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
       const value: string = extracted?.[key] ?? "";
       // In extract mode the "suggested" value is the extracted text/xpath — still validate if it looks like xpath
       const looksLikeXpath = value.startsWith("//") || value.startsWith("(//");
-      const validation = (looksLikeXpath && rawHtml) ? validateXPath(rawHtml, value) : null;
+      const validation = looksLikeXpath && rawHtml ? validateXPath(rawHtml, value) : null;
       return {
-        key, label,
+        key,
+        label,
         currentValue: (site[key] as string) ?? "",
         suggested: value,
         explanation: value ? "直接从页面提取的内容" : "",
@@ -164,9 +177,8 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
     try {
       const rawHtml = await apiFetchSource(site.domain_name);
       setPhase("analyzing");
-      const fieldResults = mode === "xpath"
-        ? await runXpathAnalysis(rawHtml)
-        : await runExtractAnalysis(rawHtml);
+      const fieldResults =
+        mode === "xpath" ? await runXpathAnalysis(rawHtml) : await runExtractAnalysis(rawHtml);
       setResults(fieldResults);
       setPhase("done");
     } catch (e) {
@@ -176,7 +188,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
   };
 
   const toggleAdopt = (key: FieldKey) => {
-    setResults((prev) => prev.map((r) => r.key === key ? { ...r, adopted: !r.adopted } : r));
+    setResults((prev) => prev.map((r) => (r.key === key ? { ...r, adopted: !r.adopted } : r)));
   };
 
   const applySelected = () => {
@@ -195,29 +207,26 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
 
   return (
     <div
-      className="flex flex-col gap-3 p-4 rounded-xl border"
+      className="flex flex-col gap-3 rounded-xl border p-4"
       style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
     >
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Sparkles className="w-4 h-4 shrink-0" style={{ color: "var(--color-accent)" }} />
-        <span className="text-sm font-semibold flex-1" style={{ color: "var(--color-text)" }}>
+        <Sparkles className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
+        <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           AI 批量分析 XPath
         </span>
         <button
-          className="w-6 h-6 flex items-center justify-center rounded-lg hover:opacity-70 transition-opacity"
+          className="flex h-6 w-6 items-center justify-center rounded-lg transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-muted)" }}
           onClick={onClose}
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
       {/* Mode switcher */}
-      <div
-        className="flex rounded-lg p-0.5 gap-0.5"
-        style={{ background: "var(--color-surface)" }}
-      >
+      <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--color-surface)" }}>
         {(Object.keys(MODE_CONFIG) as AnalysisMode[]).map((m) => {
           const Icon = MODE_CONFIG[m].icon;
           const active = m === mode;
@@ -225,14 +234,14 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
             <button
               key={m}
               onClick={() => handleModeChange(m)}
-              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all"
               style={{
                 background: active ? "var(--color-surface-1)" : "transparent",
                 color: active ? "var(--color-text)" : "var(--color-text-muted)",
                 boxShadow: active ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
               }}
             >
-              <Icon className="w-3 h-3" />
+              <Icon className="h-3 w-3" />
               {MODE_CONFIG[m].label}
             </button>
           );
@@ -241,7 +250,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
 
       {/* Mode description */}
       <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-        <ModeIcon className="w-3 h-3 inline mr-1 -mt-0.5" />
+        <ModeIcon className="-mt-0.5 mr-1 inline h-3 w-3" />
         {MODE_CONFIG[mode].desc}
       </p>
 
@@ -254,15 +263,15 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
         <div className="flex flex-col gap-2">
           {phase === "error" && (
             <div
-              className="flex items-start gap-2 px-3 py-2 rounded-lg text-xs"
+              className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
               style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
             >
-              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
           <Button size="sm" onClick={startAnalysis} disabled={!aiEnabled}>
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="h-3.5 w-3.5" />
             {phase === "error" ? "重新分析" : "开始 AI 分析"}
           </Button>
         </div>
@@ -271,11 +280,13 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
       {/* Fetching / Analyzing */}
       {(phase === "fetching" || phase === "analyzing") && (
         <div className="flex items-center gap-2 py-2">
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-accent)" }} />
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--color-accent)" }} />
           <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            {phase === "fetching" ? "正在获取页面源码..." : (
-              mode === "xpath" ? "AI 正在分析结构，请稍候..." : "kumo 正在提取结构化内容..."
-            )}
+            {phase === "fetching"
+              ? "正在获取页面源码..."
+              : mode === "xpath"
+                ? "AI 正在分析结构，请稍候..."
+                : "kumo 正在提取结构化内容..."}
           </span>
         </div>
       )}
@@ -287,7 +298,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
             {results.map((r) => (
               <div
                 key={r.key}
-                className="flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border transition-all"
+                className="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-all"
                 style={{
                   background: r.adopted
                     ? "color-mix(in srgb, var(--color-accent) 5%, var(--color-surface))"
@@ -306,18 +317,21 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
                   </span>
                   {r.suggested ? (
                     <div
-                      className="flex items-center justify-center w-4 h-4 rounded-full shrink-0 ml-auto transition-colors"
+                      className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors"
                       style={{
                         background: r.adopted ? "var(--color-accent)" : "var(--color-border)",
                         color: r.adopted ? "#fff" : "transparent",
                       }}
                     >
-                      <Check className="w-2.5 h-2.5" />
+                      <Check className="h-2.5 w-2.5" />
                     </div>
                   ) : (
                     <span
-                      className="ml-auto text-xs px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
+                      className="ml-auto rounded px-1.5 py-0.5 text-xs"
+                      style={{
+                        background: "var(--color-warning-bg)",
+                        color: "var(--color-warning)",
+                      }}
                     >
                       无法生成
                     </span>
@@ -327,23 +341,29 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
                 {/* Current vs Suggested */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <div className="text-xs mb-0.5" style={{ color: "var(--color-text-subtle)" }}>
+                    <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
                       当前
                     </div>
                     <code
-                      className="text-xs block truncate font-mono"
-                      style={{ color: r.currentValue ? "var(--color-text-muted)" : "var(--color-text-subtle)" }}
+                      className="block truncate font-mono text-xs"
+                      style={{
+                        color: r.currentValue
+                          ? "var(--color-text-muted)"
+                          : "var(--color-text-subtle)",
+                      }}
                     >
                       {r.currentValue || "未设置"}
                     </code>
                   </div>
                   <div>
-                    <div className="text-xs mb-0.5" style={{ color: "var(--color-text-subtle)" }}>
+                    <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
                       {mode === "xpath" ? "AI 建议 XPath" : "提取结果"}
                     </div>
                     <code
-                      className="text-xs block truncate font-mono"
-                      style={{ color: r.suggested ? "var(--color-accent)" : "var(--color-text-subtle)" }}
+                      className="block truncate font-mono text-xs"
+                      style={{
+                        color: r.suggested ? "var(--color-accent)" : "var(--color-text-subtle)",
+                      }}
                     >
                       {r.suggested || "—"}
                     </code>
@@ -352,7 +372,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
 
                 {/* Validation (only when value looks like xpath) */}
                 {r.validation && r.suggested && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {r.validation.error ? (
                       <span className="text-xs" style={{ color: "var(--color-danger)" }}>
                         XPath 语法错误
@@ -360,16 +380,25 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
                     ) : (
                       <>
                         <span
-                          className="text-xs px-1.5 py-0.5 rounded-full"
+                          className="rounded-full px-1.5 py-0.5 text-xs"
                           style={{
-                            background: r.validation.count > 0 ? "var(--color-success-bg)" : "var(--color-warning-bg)",
-                            color: r.validation.count > 0 ? "var(--color-success)" : "var(--color-warning)",
+                            background:
+                              r.validation.count > 0
+                                ? "var(--color-success-bg)"
+                                : "var(--color-warning-bg)",
+                            color:
+                              r.validation.count > 0
+                                ? "var(--color-success)"
+                                : "var(--color-warning)",
                           }}
                         >
                           命中 {r.validation.count} 个
                         </span>
                         {r.validation.samples.length > 0 && (
-                          <span className="text-xs truncate" style={{ color: "var(--color-text-muted)" }}>
+                          <span
+                            className="truncate text-xs"
+                            style={{ color: "var(--color-text-muted)" }}
+                          >
                             {r.validation.samples.slice(0, 2).join("、")}
                           </span>
                         )}
@@ -391,7 +420,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
           {/* Apply button */}
           <div className="flex items-center gap-2 pt-1">
             <Button size="sm" onClick={applySelected} disabled={adoptedCount === 0}>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="h-3.5 w-3.5" />
               应用已选字段（{adoptedCount} 个）
             </Button>
             <Button variant="ghost" size="sm" onClick={onClose}>

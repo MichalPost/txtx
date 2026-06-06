@@ -5,19 +5,23 @@
  * - 向导模式：引导普通用户一步步配置规则
  * - 列表模式：快速浏览和编辑已有站点规则
  */
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, FileDown, Plus, Upload } from "lucide-react";
+
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
 import { RuleWizard } from "@/components/rule-wizard/RuleWizard";
-import { useRulesPageActions } from "./useRulesPageActions";
-import { DEFAULT_SITE } from "./rulesPageUtils";
-import { SiteList } from "./components/SiteList";
+
 import { EmptyState } from "./components/EmptyState";
+import { SiteList } from "./components/SiteList";
+import { DEFAULT_SITE } from "./rulesPageUtils";
+import { useRulesPageActions } from "./useRulesPageActions";
 
 export function RulesPage() {
   const {
-    config, saving,
-    editingKey, setEditingKey,
+    config,
+    saving,
+    editingKey,
+    setEditingKey,
     recentlySavedKey,
     handleNewSite,
     handleWizardApply,
@@ -26,6 +30,10 @@ export function RulesPage() {
     deleteSite,
     getRuleStatus,
     quickSave,
+    duplicateSite,
+    reorderSites,
+    exportSites,
+    importSites,
   } = useRulesPageActions();
 
   if (!config) {
@@ -40,8 +48,8 @@ export function RulesPage() {
   const siteKeys = Object.keys(websites);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="px-5 pt-5 shrink-0">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 px-5 pt-5">
         <PageHeader
           title={editingKey ? (websites[editingKey] ? "编辑规则" : "新建规则") : "规则管理"}
           subtitle={
@@ -52,25 +60,32 @@ export function RulesPage() {
           actions={
             editingKey ? (
               <Button variant="secondary" size="sm" onClick={handleWizardClose}>
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 返回列表
               </Button>
             ) : (
-              <Button size="sm" onClick={handleNewSite} disabled={saving}>
-                <Plus className="w-3.5 h-3.5" />
-                新建规则
-              </Button>
+              <>
+                <Button variant="secondary" size="sm" onClick={importSites}>
+                  <Upload className="h-3.5 w-3.5" />
+                  导入
+                </Button>
+                <Button variant="secondary" size="sm" onClick={exportSites}>
+                  <FileDown className="h-3.5 w-3.5" />
+                  导出
+                </Button>
+                <Button size="sm" onClick={handleNewSite} disabled={saving}>
+                  <Plus className="h-3.5 w-3.5" />
+                  新建规则
+                </Button>
+              </>
             )
           }
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4">
-
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
         {/* ── Empty state ─────────────────────────────────────────────────── */}
-        {siteKeys.length === 0 && editingKey === null && (
-          <EmptyState onNew={handleNewSite} />
-        )}
+        {siteKeys.length === 0 && editingKey === null && <EmptyState onNew={handleNewSite} />}
 
         {/* ── Wizard panel ────────────────────────────────────────────────── */}
         {editingKey && (
@@ -92,6 +107,8 @@ export function RulesPage() {
             onToggle={toggleEnabled}
             onDelete={deleteSite}
             onQuickSave={quickSave}
+            onReorder={reorderSites}
+            onDuplicate={duplicateSite}
           />
         )}
       </div>

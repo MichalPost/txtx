@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    /* TS 6.0: target/module/strict 现已是默认值，显式写出以防项目迁移时被覆盖 */
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
-    "skipLibCheck": true,
 
-    /* Bundler mode */
+    /* Bundler mode — Vite 8 / rolldown */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -14,22 +13,28 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
+    /* TS 6.0: types 默认为 []，浏览器项目不需要 node 全局类型 */
+    "types": [],
+
+    /* TS 6.0: rootDir 默认变为 tsconfig 所在目录 "."，需显式指定 */
+    "rootDir": "./src",
+
+    /* Strict & linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
 
-    /* Path aliases - 与 vite.config.ts 保持一致 */
-    "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
+    /* Path aliases — baseUrl 已在 TS 6.0 弃用，路径相对于此文件 */
     "paths": {
-      "@/*": ["src/*"],
-      "@components/*": ["src/components/*"],
-      "@pages/*": ["src/pages/*"],
-      "@store/*": ["src/store/*"],
-      "@lib/*": ["src/lib/*"],
-      "@types/*": ["src/types/*"]
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@pages/*": ["./src/pages/*"],
+      "@store/*": ["./src/store/*"],
+      "@lib/*": ["./src/lib/*"],
+      "@types/*": ["./src/types/*"]
     }
   },
   "include": ["src"],

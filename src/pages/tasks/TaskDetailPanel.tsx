@@ -1,12 +1,21 @@
-import { useState, useRef, useEffect, useMemo } from "react";
-import { CheckCircle, AlertCircle, Loader2, FileText, RotateCcw, Download, FolderOpen } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle,
+  Download,
+  FileText,
+  FolderOpen,
+  Loader2,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
-import { useTaskStore } from "@/store/taskStore";
+
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import { Button } from "@/components/Button";
 import { animateFadeIn } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
-import type { TaskRecord, LogEntry, DownloadStats, ScanItem } from "@/types";
+import { useTaskStore } from "@/store/taskStore";
+import type { DownloadStats, LogEntry, ScanItem, TaskRecord } from "@/types";
 
 // ─── Stats grid ───────────────────────────────────────────────────────────────
 
@@ -19,7 +28,7 @@ function TaskStats({ stats }: { stats: DownloadStats }) {
   ];
   return (
     <div
-      className="rounded-xl overflow-hidden border"
+      className="overflow-hidden rounded-xl border"
       style={{ borderColor: "var(--color-border)" }}
     >
       {items.map(([label, val, color], i) => (
@@ -31,8 +40,12 @@ function TaskStats({ stats }: { stats: DownloadStats }) {
             borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
           }}
         >
-          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>{label}</span>
-          <span className="text-sm font-semibold tabular-nums" style={{ color }}>{val}</span>
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            {label}
+          </span>
+          <span className="text-sm font-semibold tabular-nums" style={{ color }}>
+            {val}
+          </span>
         </div>
       ))}
     </div>
@@ -41,28 +54,42 @@ function TaskStats({ stats }: { stats: DownloadStats }) {
 
 // ─── Counter pair ─────────────────────────────────────────────────────────────
 
-function CounterPair({ success, error, total }: { success: number; error: number; total?: number }) {
+function CounterPair({
+  success,
+  error,
+  total,
+}: {
+  success: number;
+  error: number;
+  total?: number;
+}) {
   const items: [string, number, string][] = [
     ["成功", success, "var(--color-success)"],
     ["失败", error, "var(--color-danger)"],
-    ...(total !== undefined ? [["合计", total, "var(--color-text)"] as [string, number, string]] : []),
+    ...(total !== undefined
+      ? [["合计", total, "var(--color-text)"] as [string, number, string]]
+      : []),
   ];
   return (
     <div
-      className="flex rounded-xl overflow-hidden border"
+      className="flex overflow-hidden rounded-xl border"
       style={{ borderColor: "var(--color-border)" }}
     >
       {items.map(([label, val, color], i) => (
         <div
           key={label}
-          className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-3"
           style={{
             background: i % 2 === 0 ? "var(--color-surface)" : "var(--color-surface-1)",
             borderLeft: i > 0 ? "1px solid var(--color-border)" : undefined,
           }}
         >
-          <span className="text-[11px] font-medium" style={{ color: "var(--color-text-muted)" }}>{label}</span>
-          <span className="text-xl font-bold tabular-nums" style={{ color }}>{val}</span>
+          <span className="text-[11px] font-medium" style={{ color: "var(--color-text-muted)" }}>
+            {label}
+          </span>
+          <span className="text-xl font-bold tabular-nums" style={{ color }}>
+            {val}
+          </span>
         </div>
       ))}
     </div>
@@ -73,19 +100,22 @@ function CounterPair({ success, error, total }: { success: number; error: number
 
 function DownloadingView({ task }: { task: TaskRecord }) {
   return (
-    <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
       {task.total > 0 && (
         <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <div
+            className="flex justify-between text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             <span>总进度</span>
-            <span>{task.completed}/{task.total}</span>
+            <span>
+              {task.completed}/{task.total}
+            </span>
           </div>
           <AnimatedProgressBar value={task.completed} total={task.total} />
         </div>
       )}
-      {(task.stats ?? task.scan_stats) && (
-        <TaskStats stats={(task.stats ?? task.scan_stats)!} />
-      )}
+      {(task.stats ?? task.scan_stats) && <TaskStats stats={(task.stats ?? task.scan_stats)!} />}
       <CounterPair success={task.success_count} error={task.error_count} />
     </div>
   );
@@ -105,19 +135,23 @@ function DoneView({
   onOpenDir?: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 p-4 overflow-y-auto h-full">
-      <div className="flex items-center gap-3 flex-wrap">
-        <CheckCircle className="w-7 h-7 shrink-0" style={{ color: "var(--color-success)" }} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>下载完成</p>
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <CheckCircle className="h-7 w-7 shrink-0" style={{ color: "var(--color-success)" }} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+            下载完成
+          </p>
           {task.finished_at && (
-            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>{task.finished_at}</p>
+            <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+              {task.finished_at}
+            </p>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex flex-wrap items-center gap-1.5">
           {task.error_count > 0 && (
             <Button variant="secondary" size="sm" onClick={onRetry}>
-              <RotateCcw className="w-3.5 h-3.5" /> 重试失败
+              <RotateCcw className="h-3.5 w-3.5" /> 重试失败
             </Button>
           )}
           {failedMessages.length > 0 && (
@@ -132,27 +166,25 @@ function DoneView({
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors hover:opacity-80"
+              className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
               style={{
                 borderColor: "var(--color-border)",
                 color: "var(--color-text-muted)",
                 background: "var(--color-surface-2)",
               }}
             >
-              <Download className="w-3.5 h-3.5" /> 导出失败日志
+              <Download className="h-3.5 w-3.5" /> 导出失败日志
             </button>
           )}
           {onOpenDir && (
             <Button variant="secondary" size="sm" onClick={onOpenDir} title="打开保存目录">
-              <FolderOpen className="w-3.5 h-3.5" /> 打开目录
+              <FolderOpen className="h-3.5 w-3.5" /> 打开目录
             </Button>
           )}
         </div>
       </div>
       <CounterPair success={task.success_count} error={task.error_count} total={task.total} />
-      {(task.stats ?? task.scan_stats) && (
-        <TaskStats stats={(task.stats ?? task.scan_stats)!} />
-      )}
+      {(task.stats ?? task.scan_stats) && <TaskStats stats={(task.stats ?? task.scan_stats)!} />}
     </div>
   );
 }
@@ -161,19 +193,21 @@ function DoneView({
 
 function FailedView({ task, onRetry }: { task: TaskRecord; onRetry: () => void }) {
   return (
-    <div className="flex flex-col gap-4 p-4 items-center justify-center h-full">
-      <AlertCircle className="w-10 h-10" style={{ color: "var(--color-danger)" }} />
-      <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>任务失败</p>
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-4">
+      <AlertCircle className="h-10 w-10" style={{ color: "var(--color-danger)" }} />
+      <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+        任务失败
+      </p>
       {task.error_message && (
         <pre
-          className="text-xs text-left max-w-full w-full px-3 py-2 rounded-lg overflow-auto max-h-32 whitespace-pre-wrap break-words"
+          className="max-h-32 w-full max-w-full overflow-auto rounded-lg px-3 py-2 text-left text-xs break-words whitespace-pre-wrap"
           style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
         >
           {task.error_message}
         </pre>
       )}
       <Button variant="secondary" size="sm" onClick={onRetry}>
-        <RotateCcw className="w-3.5 h-3.5" /> 重试
+        <RotateCcw className="h-3.5 w-3.5" /> 重试
       </Button>
     </div>
   );
@@ -190,10 +224,10 @@ function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
   }, [logs]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] flex flex-col gap-0.5">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-2 font-mono text-[11px]">
         {logs.length === 0 && (
-          <p className="text-center py-4" style={{ color: "var(--color-text-muted)" }}>
+          <p className="py-4 text-center" style={{ color: "var(--color-text-muted)" }}>
             任务开始后日志会显示在这里
           </p>
         )}
@@ -205,10 +239,13 @@ function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
             <span
               style={{
                 color:
-                  log.level === "error" ? "var(--color-danger)"
-                  : log.level === "warn" ? "var(--color-warning)"
-                  : log.level === "success" ? "var(--color-success)"
-                  : "var(--color-text-muted)",
+                  log.level === "error"
+                    ? "var(--color-danger)"
+                    : log.level === "warn"
+                      ? "var(--color-warning)"
+                      : log.level === "success"
+                        ? "var(--color-success)"
+                        : "var(--color-text-muted)",
               }}
             >
               {log.message}
@@ -234,9 +271,7 @@ function ScanPreviewPanel({
   onConfirm: (selected: string[]) => void;
 }) {
   const eligible = items.filter((i) => !i.excluded_reason);
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(eligible.map((i) => i.url))
-  );
+  const [selected, setSelected] = useState<Set<string>>(new Set(eligible.map((i) => i.url)));
   const [siteFilter, setSiteFilter] = useState("");
   const [scanSort, setScanSort] = useState<ScanSortKey>("date");
 
@@ -263,18 +298,18 @@ function ScanPreviewPanel({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 p-4 gap-3">
-      <div className="flex items-center justify-between shrink-0 flex-wrap gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
           扫描结果 — {eligible.length} 本可下载
         </p>
         {/* Filters + sort row */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           {sites.length > 1 && (
             <select
               value={siteFilter}
               onChange={(e) => setSiteFilter(e.target.value)}
-              className="text-xs px-2 py-1 rounded-lg border"
+              className="rounded-lg border px-2 py-1 text-xs"
               style={{
                 background: "var(--color-surface-2)",
                 borderColor: "var(--color-border)",
@@ -283,14 +318,16 @@ function ScanPreviewPanel({
             >
               <option value="">全部站点</option>
               {sites.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           )}
           <select
             value={scanSort}
             onChange={(e) => setScanSort(e.target.value as ScanSortKey)}
-            className="text-xs px-2 py-1 rounded-lg border"
+            className="rounded-lg border px-2 py-1 text-xs"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",
@@ -301,22 +338,31 @@ function ScanPreviewPanel({
             <option value="name">按名称</option>
             <option value="site">按站点</option>
           </select>
-          <Button variant="secondary" size="sm"
-            onClick={() => setSelected(new Set())}>全不选</Button>
-          <Button variant="secondary" size="sm"
-            onClick={() => setSelected(new Set(eligible.map((i) => i.url)))}>全选</Button>
-          <Button size="sm" disabled={selected.size === 0}
-            onClick={() => onConfirm(Array.from(selected))}>
+          <Button variant="secondary" size="sm" onClick={() => setSelected(new Set())}>
+            全不选
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setSelected(new Set(eligible.map((i) => i.url)))}
+          >
+            全选
+          </Button>
+          <Button
+            size="sm"
+            disabled={selected.size === 0}
+            onClick={() => onConfirm(Array.from(selected))}
+          >
             下载选中 ({selected.size})
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto flex flex-col gap-1">
+      <div className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {visible.map((item) => (
           <div
             key={item.url}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+            className="flex items-center gap-2 rounded-lg border px-3 py-2"
             style={{
               background: "var(--color-surface)",
               borderColor: "var(--color-border)",
@@ -331,11 +377,9 @@ function ScanPreviewPanel({
                 className="shrink-0 accent-[var(--color-accent)]"
               />
             )}
-            {item.excluded_reason && (
-              <div className="w-4 shrink-0" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate" style={{ color: "var(--color-text)" }}>
+            {item.excluded_reason && <div className="w-4 shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium" style={{ color: "var(--color-text)" }}>
                 {item.name}
               </p>
               <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
@@ -354,22 +398,22 @@ function ScanPreviewPanel({
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4">
+    <div className="flex h-full flex-col items-center justify-center gap-4">
       <div
-        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+        className="flex h-16 w-16 items-center justify-center rounded-2xl"
         style={{
           background: "var(--color-accent-muted)",
           border: "1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)",
           boxShadow: "var(--shadow-accent)",
         }}
       >
-        <FileText className="w-8 h-8" style={{ color: "var(--color-accent)" }} />
+        <FileText className="h-8 w-8" style={{ color: "var(--color-accent)" }} />
       </div>
       <div className="text-center">
         <p className="text-base font-semibold" style={{ color: "var(--color-text)" }}>
           选择任务查看详情
         </p>
-        <p className="text-sm mt-1" style={{ color: "var(--color-text-muted)" }}>
+        <p className="mt-1 text-sm" style={{ color: "var(--color-text-muted)" }}>
           从左侧选一个任务
         </p>
       </div>
@@ -408,72 +452,89 @@ export function TaskDetailPanel() {
   const failedMessages = logs.filter((l) => l.level === "error").map((l) => l.message);
 
   const statusColor =
-    task.status === "done" ? "var(--color-success)"
-    : task.status === "failed" ? "var(--color-danger)"
-    : task.status === "scanning" || task.status === "downloading"
-      ? "var(--color-accent)"
-    : "var(--color-text-muted)";
+    task.status === "done"
+      ? "var(--color-success)"
+      : task.status === "failed"
+        ? "var(--color-danger)"
+        : task.status === "scanning" || task.status === "downloading"
+          ? "var(--color-accent)"
+          : "var(--color-text-muted)";
 
   return (
-    <div ref={contentRef} className="flex flex-col h-full min-h-0">
+    <div ref={contentRef} className="flex h-full min-h-0 flex-col">
       {/* Task header */}
       <div
-        className="flex items-center gap-3 px-4 py-3 border-b shrink-0"
+        className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
         style={{ borderColor: "var(--color-border)" }}
       >
         {(task.status === "scanning" || task.status === "downloading") && (
-          <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: "var(--color-accent)" }} />
+          <Loader2
+            className="h-4 w-4 shrink-0 animate-spin"
+            style={{ color: "var(--color-accent)" }}
+          />
         )}
         {task.status === "done" && (
-          <CheckCircle className="w-4 h-4 shrink-0" style={{ color: "var(--color-success)" }} />
+          <CheckCircle className="h-4 w-4 shrink-0" style={{ color: "var(--color-success)" }} />
         )}
         {task.status === "failed" && (
-          <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "var(--color-danger)" }} />
+          <AlertCircle className="h-4 w-4 shrink-0" style={{ color: "var(--color-danger)" }} />
         )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate" style={{ color: "var(--color-text)" }}>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold" style={{ color: "var(--color-text)" }}>
             {task.label}
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             {task.created_at}
           </p>
         </div>
-        <span className="text-xs font-medium shrink-0" style={{ color: statusColor }}>
-          {task.status === "scanning" ? "扫描中"
-           : task.status === "downloading" ? "下载中"
-           : task.status === "preview" ? "待确认"
-           : task.status === "done" ? "完成"
-           : task.status === "failed" ? "失败"
-           : task.status === "paused" ? "已暂停"
-           : task.status === "cancelled" ? "已取消"
-           : task.status}
+        <span className="shrink-0 text-xs font-medium" style={{ color: statusColor }}>
+          {task.status === "scanning"
+            ? "扫描中"
+            : task.status === "downloading"
+              ? "下载中"
+              : task.status === "preview"
+                ? "待确认"
+                : task.status === "done"
+                  ? "完成"
+                  : task.status === "failed"
+                    ? "失败"
+                    : task.status === "paused"
+                      ? "已暂停"
+                      : task.status === "cancelled"
+                        ? "已取消"
+                        : task.status}
         </span>
       </div>
 
       {/* Content: preview takes full width; others split left + right */}
       {task.status === "preview" ? (
-        <div className="flex-1 min-h-0 flex gap-0">
-          <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex min-h-0 flex-1 gap-0">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <ScanPreviewPanel items={task.scan_items} onConfirm={handleConfirm} />
           </div>
           <div
-            className="w-72 shrink-0 border-l flex flex-col min-h-0"
+            className="flex min-h-0 w-72 shrink-0 flex-col border-l"
             style={{ borderColor: "var(--color-border)" }}
           >
             <TaskLogPanel logs={logs} />
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0">
+        <div className="flex min-h-0 flex-1">
           {/* Left status panel */}
           <div
             className="w-72 shrink-0 overflow-y-auto border-r"
             style={{ borderColor: "var(--color-border)" }}
           >
             {task.status === "scanning" && (
-              <div className="flex flex-col items-center justify-center h-full gap-3 p-4">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-accent)" }} />
-                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>正在扫描，请稍候</p>
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
+                <Loader2
+                  className="h-8 w-8 animate-spin"
+                  style={{ color: "var(--color-accent)" }}
+                />
+                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+                  正在扫描，请稍候
+                </p>
                 {task.scan_items.length > 0 && (
                   <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
                     已找到 {task.scan_items.length} 本
@@ -492,11 +553,9 @@ export function TaskDetailPanel() {
                 onOpenDir={() => apiOpenOutputDir().catch((e) => toast.error(String(e)))}
               />
             )}
-            {task.status === "failed" && (
-              <FailedView task={task} onRetry={handleRetry} />
-            )}
+            {task.status === "failed" && <FailedView task={task} onRetry={handleRetry} />}
             {(task.status === "cancelled" || task.status === "queued") && (
-              <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+              <div className="flex h-full flex-col items-center justify-center gap-2 p-4">
                 <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
                   {task.status === "cancelled" ? "已取消" : "排队中，等待执行"}
                 </p>
@@ -505,7 +564,7 @@ export function TaskDetailPanel() {
           </div>
 
           {/* Right log panel */}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col">
             <TaskLogPanel logs={logs} />
           </div>
         </div>

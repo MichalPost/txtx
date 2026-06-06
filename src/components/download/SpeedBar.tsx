@@ -1,6 +1,7 @@
 import { Gauge, Timer } from "lucide-react";
-import { useDownloadStore } from "@/store/downloadStore";
+
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
+import { useDownloadStore } from "@/store/downloadStore";
 
 function formatEta(seconds: number): string {
   if (seconds < 0) return "—";
@@ -17,31 +18,37 @@ export function SpeedBar() {
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2.5 rounded-xl border"
+      className="flex items-center gap-3 rounded-xl border px-4 py-2.5"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <Gauge className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between text-xs mb-1.5">
+      <Gauge className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex items-center justify-between text-xs">
           <span style={{ color: "var(--color-text-muted)" }}>总体进度</span>
-          <span className="tabular-nums font-medium" style={{ color: "var(--color-text)" }}>
+          <span className="font-medium tabular-nums" style={{ color: "var(--color-text)" }}>
             {overallTotal > 0 ? Math.round((overallCompleted / overallTotal) * 100) : 0}%
           </span>
         </div>
         <AnimatedProgressBar value={overallCompleted} total={overallTotal} />
       </div>
-      <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+      <div className="ml-2 flex shrink-0 flex-col items-end gap-0.5">
         {chaptersPerSecond > 0 && (
-          <span className="text-xs tabular-nums font-medium" style={{ color: "var(--color-accent)" }}>
+          <span
+            className="text-xs font-medium tabular-nums"
+            style={{ color: "var(--color-accent)" }}
+          >
             {chaptersPerSecond.toFixed(1)} 章/秒
           </span>
         )}
-        <div className="flex items-center gap-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
-          <Timer className="w-3 h-3" />
+        <div
+          className="flex items-center gap-1 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          <Timer className="h-3 w-3" />
           <span className="tabular-nums">{formatEta(etaSeconds)}</span>
         </div>
       </div>

@@ -2,10 +2,12 @@
  * useWizardListRulesAi — WizardStep2ListRules 的 AI 逻辑 hook
  */
 import { useState } from "react";
+
+import { aiComplete, extractJson, preprocessHtml } from "@/lib/ai";
 import { useAiStore } from "@/store/aiStore";
-import { aiComplete, preprocessHtml, extractJson } from "@/lib/ai";
-import { applyAiResult, AI_SYSTEM_LIST_FIELDS } from "../utils/wizardAiHelpers";
-import type { WizardData, FieldRule } from "../ruleUtils";
+
+import type { FieldRule, WizardData } from "../ruleUtils";
+import { AI_SYSTEM_LIST_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 
 export function useWizardListRulesAi(
   data: WizardData,
@@ -34,9 +36,9 @@ export function useWizardListRulesAi(
       onChange({
         ...data,
         catalog_html: html,
-        list_novel_name:   applyAiResult(data.list_novel_name,   parsed?.list_novel_name),
+        list_novel_name: applyAiResult(data.list_novel_name, parsed?.list_novel_name),
         list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url:  applyAiResult(data.list_release_url,  parsed?.list_release_url),
+        list_release_url: applyAiResult(data.list_release_url, parsed?.list_release_url),
       });
     } catch (e) {
       setError(String(e));
