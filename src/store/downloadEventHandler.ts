@@ -18,6 +18,7 @@ export interface EventHandlerState {
   novelProgress: Record<string, NovelProgress>;
   novelResults: NovelResult[];
   overallCompleted: number;
+  overallTotal: number;
   speed: SpeedState;
   stats: DownloadStats | null;
   logs: LogEntry[];
@@ -91,13 +92,13 @@ export function handleEvent(get: GetFn, set: SetFn) {
         const items = payload.items ?? [];
         const stats = payload.stats ?? null;
         const selectedUrls = new Set(items.filter((i) => !i.excluded_reason).map((i) => i.url));
-        set({ phase: "preview", stats } as Partial<EventHandlerState>);
-        // Note: selectedUrls and scanItems are managed in the store directly
+        // Merge into a single set() call to avoid intermediate render with empty scanItems
         (set as (p: object) => void)({
           phase: "preview",
           scanItems: items,
           selectedUrls,
           scanStats: stats,
+          stats,
         });
         addLog(
           "success",
@@ -123,11 +124,22 @@ export function handleEvent(get: GetFn, set: SetFn) {
           set((s) => {
             const now = Date.now();
             const newTimestamps = [...s.speed.chapterTimestamps, now];
+
+            // Sum remaining chapters for novels currently in progress
             const activeNovels = Object.values(s.novelProgress);
-            const remainingChapters = activeNovels.reduce(
+            const activeRemaining = activeNovels.reduce(
               (acc, n) => acc + Math.max(0, n.total - n.current),
               0,
             );
+            // Estimate remaining chapters for novels not yet started:
+            // use the average chapter count of in-progress novels as a rough proxy.
+            const pendingNovels = Math.max(0, s.overallTotal - s.overallCompleted - activeNovels.length);
+            const avgChapters =
+              activeNovels.length > 0
+                ? activeNovels.reduce((acc, n) => acc + n.total, 0) / activeNovels.length
+                : 0;
+            const remainingChapters = activeRemaining + pendingNovels * avgChapters;
+
             const newSpeed = computeSpeed(newTimestamps, remainingChapters);
             return {
               novelProgress: {
@@ -183,7 +195,17 @@ export function handleEvent(get: GetFn, set: SetFn) {
         if (payload.novel) {
           set((s) => {
             const scanItem = s.scanItems.find((i) => i.name === payload.novel);
+            const site = payload.site;
+            const updated = { ...s.siteProgress };
+            if (site && updated[site]) {
+              updated[site] = { ...updated[site], completed: updated[site].completed + 1 };
+            }
+            const np = { ...s.novelProgress };
+            delete np[payload.novel!];
             return {
+              overallCompleted: s.overallCompleted + 1,
+              siteProgress: updated,
+              novelProgress: np,
               novelResults: [
                 ...s.novelResults,
                 {

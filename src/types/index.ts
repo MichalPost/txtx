@@ -66,6 +66,8 @@ export interface WebsiteConfig {
   encoding?: string;
   /** XPath to locate the "next page" link inside a chapter page. Empty = single-page chapters. */
   chapter_next_page_xpath?: string;
+  /** XPath to extract the book introduction/summary from the catalog page. Optional. */
+  book_intro_x?: string;
 }
 
 export interface TextConversionConfig {
@@ -108,6 +110,14 @@ export interface AdvancedNetworkConfig {
   chapter_fail_threshold: number;
 }
 
+export interface PostProcessConfig {
+  enabled: boolean;
+  /** Shell command; %DIR% is replaced with the download base_dir */
+  script: string;
+  /** Run once after entire batch (true) or after each novel (false) */
+  run_on_batch_done: boolean;
+}
+
 export interface AppConfig {
   paths: PathsConfig;
   network: NetworkConfig;
@@ -120,6 +130,7 @@ export interface AppConfig {
   content_filter: ContentFilterConfig;
   rate_limit: RateLimitConfig;
   advanced_network: AdvancedNetworkConfig;
+  post_process?: PostProcessConfig;
 }
 
 // ─── Scan Options ─────────────────────────────────────────────────────────────

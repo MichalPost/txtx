@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -68,20 +68,30 @@ export function RootLayout() {
   } = useSchedulerStore();
   const createBatchTask = useTaskStore((s) => s.createBatchTask);
 
+  // Keep refs up-to-date so the interval closure always reads the latest values
+  // without needing to be recreated every time they change.
+  const schedRef = useRef({ schedHour, schedLastRun, schedMarkRan, createBatchTask });
+  useEffect(() => {
+    schedRef.current = { schedHour, schedLastRun, schedMarkRan, createBatchTask };
+  });
+
   useEffect(() => {
     if (!schedEnabled) return;
+
     const check = () => {
+      const { schedHour: hour, schedLastRun: lastRun, schedMarkRan: markRan, createBatchTask: createTask } = schedRef.current;
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
-      if (now.getHours() === schedHour && schedLastRun !== today) {
-        schedMarkRan();
-        createBatchTask().catch(console.error);
+      if (now.getHours() === hour && lastRun !== today) {
+        markRan();
+        createTask().catch(console.error);
       }
     };
+
     check();
     const id = setInterval(check, 60_000);
     return () => clearInterval(id);
-  }, [schedEnabled, schedHour, schedLastRun, schedMarkRan, createBatchTask]);
+  }, [schedEnabled, schedHour]); // only re-run when enabled state or target hour changes
 
   // 首次运行：全屏向导（不渲染 Sidebar/主内容）
   if (firstRun === true) {
@@ -94,7 +104,7 @@ export function RootLayout() {
       style={{ background: "var(--color-bg)" }}
     >
       <Sidebar />
-      <main className="relative flex-1 overflow-hidden">
+      <main className="relative flex h-full flex-1 flex-col overflow-hidden">
         {error && (
           <div
             className="m-4 rounded-lg border px-4 py-3 text-sm"
@@ -127,7 +137,7 @@ export function RootLayout() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}
-            className="h-full w-full"
+            className="h-full w-full overflow-hidden"
             variants={pageVariants}
             initial="initial"
             animate="animate"

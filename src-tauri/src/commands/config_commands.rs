@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::AppHandle;
 use super::worker::app_data_dir;
 
 #[tauri::command]

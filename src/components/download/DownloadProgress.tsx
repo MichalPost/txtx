@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { AlertCircle, CheckCircle, Loader2, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, RotateCcw, Zap } from "lucide-react";
 
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import { DownloadResultSummary } from "@/components/download/DownloadResultSummary";
@@ -41,15 +41,28 @@ function StatCell({ label, value, color }: { label: string; value: number; color
 }
 
 export function DownloadProgress() {
-  const { siteProgress, novelProgress, novelResults, stats, phase, speed } = useDownloadStore();
+  const { siteProgress, novelProgress, novelResults, stats, phase, speed, queueStatus } = useDownloadStore();
   const sites = Object.values(siteProgress);
   const novels = Object.values(novelProgress);
+  // 如果下载开始时队列存在，认为是续传模式
+  const isResuming = queueStatus?.exists === true;
 
   if (phase === "done") return <DownloadResultSummary />;
 
   return (
     <div className="flex flex-col gap-3 overflow-y-auto">
       <SpeedBar />
+
+      {/* 续传模式标签 */}
+      {isResuming && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
+        >
+          <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+          <span>续传模式——已下载的章节自动跳过，只补下缺失内容</span>
+        </div>
+      )}
 
       {stats && (
         <div className="grid grid-cols-2 gap-2">

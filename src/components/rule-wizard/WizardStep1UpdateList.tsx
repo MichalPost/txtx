@@ -36,11 +36,13 @@ import {
   type WizardData,
 } from "./ruleUtils";
 import { evalXPathAll, mergeBooks } from "./utils/xpathEval";
+import { detectPagination } from "./utils/paginationDetect";
+import type { PaginationDetectResult } from "./utils/paginationDetect";
 
 // Re-export for consumers that import from here
 export type { UpdateListBookItem };
-export { detectPagination } from "./utils/paginationDetect";
-export type { PaginationDetectResult } from "./utils/paginationDetect";
+export { detectPagination };
+export type { PaginationDetectResult };
 
 interface Props {
   data: WizardData;
@@ -109,13 +111,13 @@ export function WizardStep1UpdateList({ data, onChange }: Props) {
     setFetchError("");
     setPaginationDetected(null);
     try {
-      const { detectPagination } = await import("./utils/paginationDetect");
       const html = await apiFetchSource(url);
       const detectedEncoding = detectCharset(html);
       const books = reparseBooks({ ...data, update_list_html: html });
 
       let paginationPatch: Partial<WizardData> = {};
       const detected = detectPagination(html, url);
+
       if (detected && !data.has_pagination) {
         paginationPatch = {
           has_pagination: true,

@@ -140,3 +140,17 @@ pub async fn open_book(app: AppHandle, path: String) -> Result<(), String> {
 pub async fn detect_calibre() -> Result<Option<String>, String> {
     Ok(crate::bookshelf::detect_calibre())
 }
+
+#[tauri::command]
+pub async fn merge_files(paths: Vec<String>, output: String) -> Result<String, String> {
+    crate::text_tools::merge_files(paths, output)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn split_file(path: String, pattern: Option<String>) -> Result<Vec<String>, String> {
+    crate::text_tools::split_file(path, pattern)
+        .await
+        .map_err(|e| e.to_string())
+}

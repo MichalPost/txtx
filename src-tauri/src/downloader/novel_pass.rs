@@ -132,6 +132,8 @@ pub(super) async fn run_repair_pass(
     novel_name: &str,
     total_chapters: usize,
     failed_indices: Vec<usize>,
+    content_filter: &crate::models::ContentFilterConfig,
+    xpath_fallbacks: &[String],
 ) -> Result<()> {
     // Collect small files too
     let mut small_indices: Vec<usize> = Vec::new();
@@ -165,20 +167,23 @@ pub(super) async fn run_repair_pass(
             let client = client.clone();
             let url = chapter_urls[idx].clone();
             let xpath = site_cfg.novel_content.clone();
+            let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
             let enc = net_cfg.encoding_map.clone();
             let rc = net_cfg.retry_count;
             let rd = net_cfg.retry_delay;
             let temp_dir = temp_dir.to_path_buf();
             let sem = repair_sem.clone();
+            let content_filter = content_filter.clone();
+            let fallbacks = xpath_fallbacks.to_vec();
 
             tokio::spawn(async move {
                 let _p = sem.acquire().await.unwrap();
                 let result = (|| async {
                     let text = download_chapter_paged(
-                        &client, &url, &xpath, &[],
+                        &client, &url, &xpath, &fallbacks,
                         &enc, rc, rd,
-                        &crate::models::ContentFilterConfig::default(),
-                        "",
+                        &content_filter,
+                        &next_page_xpath,
                     ).await?;
                     if text.is_empty() {
                         return Err(anyhow::anyhow!("empty chapter"));

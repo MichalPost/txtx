@@ -16,6 +16,7 @@ pub(super) fn open_db(app_data_dir: &Path) -> Result<Connection> {
         .with_context(|| format!("无法打开数据库: {}", path.display()))?;
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
     migrate(&conn)?;
+    migrate_post_process(&conn);
     let _ = migrate_ttks_to_rate_limit_rules(&conn);
     Ok(conn)
 }
@@ -128,6 +129,20 @@ pub(super) fn migrate(conn: &Connection) -> Result<()> {
         ",
     )?;
     Ok(())
+}
+
+// ─── Soft migration: post_process columns ────────────────────────────────────
+
+fn migrate_post_process(conn: &Connection) {
+    let _ = conn.execute_batch(
+        "ALTER TABLE app_config ADD COLUMN pp_enabled INTEGER NOT NULL DEFAULT 0;"
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE app_config ADD COLUMN pp_script TEXT NOT NULL DEFAULT '';"
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE app_config ADD COLUMN pp_batch_done INTEGER NOT NULL DEFAULT 1;"
+    );
 }
 
 // ─── Soft migration: ttks → rate_limit_rules ─────────────────────────────────

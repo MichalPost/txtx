@@ -27,6 +27,7 @@ import { WizardSection } from "./components/WizardSection";
 import { FieldRuleEditor } from "./FieldRuleEditor";
 import { useCatalogAi } from "./hooks/useCatalogAi";
 import { buildXPathFromRule, detectCharset, type FieldRule, type WizardData } from "./ruleUtils";
+import { evalXPathAll, resolveUrl } from "./utils/xpathEval";
 
 interface Props {
   data: WizardData;
@@ -74,7 +75,6 @@ export function WizardStepCatalog({ data, onChange }: Props) {
     setFetchStatus("loading");
     setFetchError("");
     try {
-      const { evalXPathAll, resolveUrl } = await import("./utils/xpathEval");
       const html = await apiFetchSource(url);
       const detectedEncoding = detectCharset(html);
 
@@ -120,7 +120,6 @@ export function WizardStepCatalog({ data, onChange }: Props) {
 
   const patchRule = useCallback(
     async (key: "list_novel_name" | "list_release_date" | "list_release_url", rule: FieldRule) => {
-      const { evalXPathAll, resolveUrl } = await import("./utils/xpathEval");
       const next = { ...data, [key]: rule };
       const html = next.catalog_html;
       if (!html) {
@@ -152,7 +151,6 @@ export function WizardStepCatalog({ data, onChange }: Props) {
     setAutoMatchLoading(true);
     setAiError("");
     try {
-      const { evalXPathAll, resolveUrl } = await import("./utils/xpathEval");
       const html = await ensureHtml();
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
@@ -457,6 +455,23 @@ export function WizardStepCatalog({ data, onChange }: Props) {
           bookNamePreview={bookNamePreview}
           bookNameTest={bookNameTest}
           testBookName={testBookName}
+        />
+      </WizardSection>
+
+      {/* ── Book intro (optional) ───────────────────────────────────────── */}
+      <WizardSection title="书籍简介 XPath（选填）" color="var(--color-text-subtle)">
+        <p className="text-xs mb-2" style={{ color: "var(--color-text-subtle)" }}>
+          从目录页提取书籍简介，下载完成后会写入文件头部。常见位置：
+          <code className="font-mono ml-1">{"//div[@class='intro']"}</code>
+        </p>
+        <FieldRuleEditor
+          label="简介 XPath"
+          rule={data.chap_intro}
+          onChange={(r) => onChange({ ...data, chap_intro: r })}
+          aiEnabled={aiEnabled}
+          onAiRequest={() => runFieldAi("chap_intro", "书籍简介")}
+          aiLoading={aiLoading === "chap_intro"}
+          html={data.catalog_html || undefined}
         />
       </WizardSection>
 

@@ -8,7 +8,9 @@ export async function apiPickDirectory(): Promise<string | null> {
     const result = await open({ directory: true, multiple: false });
     return result as string | null;
   }
-  return null;
+  // Dev mode: fall back to a prompt so the field is still editable
+  const input = window.prompt("请输入目录路径：");
+  return input?.trim() || null;
 }
 
 export async function apiPickFile(
@@ -19,7 +21,10 @@ export async function apiPickFile(
     const result = await open({ multiple: false, filters });
     return result as string | null;
   }
-  return null;
+  // Dev mode: fall back to a prompt
+  const ext = filters?.flatMap((f) => f.extensions).join(", ") ?? "";
+  const input = window.prompt(`请输入文件路径${ext ? `（${ext}）` : ""}：`);
+  return input?.trim() || null;
 }
 
 export async function apiCheckSites(): Promise<SiteHealth[]> {
@@ -107,4 +112,35 @@ export async function apiDetectCalibre(): Promise<string | null> {
   if (!res || !res.ok) return null;
   const data = await res.json().catch(() => null);
   return (data as { path?: string } | null)?.path ?? null;
+}
+
+/** Merge multiple txt files into one output file. Returns a status message. */
+export async function apiMergeFiles(paths: string[], output: string): Promise<string> {
+  if (IS_TAURI) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string>("merge_files", { paths, output });
+  }
+  const res = await fetch(`${API_BASE}/api/tools/merge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paths, output }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return (data as { message: string }).message;
+}
+
+/** Split a txt file into multiple files by chapter headings. Returns list of output paths. */
+export async function apiSplitFile(path: string, pattern?: string): Promise<string[]> {
+  if (IS_TAURI) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<string[]>("split_file", { path, pattern: pattern ?? null });
+  }
+  const res = await fetch(`${API_BASE}/api/tools/split`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, pattern: pattern ?? null }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }

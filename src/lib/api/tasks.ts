@@ -55,11 +55,12 @@ export async function apiConfirmTaskDownload(
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("confirm_task_download", { taskId, selected });
   }
-  await fetch(`${API_BASE}/api/tasks/${taskId}/confirm`, {
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(selected),
   });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function apiListTasks(): Promise<TaskRecord[]> {
@@ -88,7 +89,8 @@ export async function apiCancelTask(taskId: TaskId): Promise<void> {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("cancel_task", { taskId });
   }
-  await fetch(`${API_BASE}/api/tasks/${taskId}/cancel`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function apiPauseTask(taskId: TaskId): Promise<void> {
@@ -96,7 +98,8 @@ export async function apiPauseTask(taskId: TaskId): Promise<void> {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("pause_task", { taskId });
   }
-  await fetch(`${API_BASE}/api/tasks/${taskId}/pause`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}/pause`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function apiDeleteTask(taskId: TaskId): Promise<void> {
@@ -104,7 +107,8 @@ export async function apiDeleteTask(taskId: TaskId): Promise<void> {
     const { invoke } = await import("@tauri-apps/api/core");
     return invoke("delete_task", { taskId });
   }
-  await fetch(`${API_BASE}/api/tasks/${taskId}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function apiLoadPersistedTasks(): Promise<TaskRecord[]> {

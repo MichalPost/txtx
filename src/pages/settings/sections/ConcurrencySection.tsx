@@ -16,8 +16,11 @@ export function ConcurrencySection() {
     <Card title="并发配置">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Input label="小说并发数" type="number" {...register("novel_threads")} />
+          <Input label="并行下载数（任务并发上限）" type="number" {...register("novel_threads")} />
           <FieldError msg={errors.novel_threads?.message} />
+          <p className="mt-1 text-xs" style={{ color: "var(--color-text-subtle)" }}>
+            1 = 串行稳定，2–3 = 推荐，最大 5。同时控制任务管理器最多并行运行的任务数。
+          </p>
         </div>
         <div>
           <Input label="章节并发数" type="number" {...register("chapter_threads")} />

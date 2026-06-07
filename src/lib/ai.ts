@@ -55,11 +55,15 @@ export async function aiComplete(
   userPrompt: string,
   systemPrompt: string,
   config: AiConfig,
+  signal?: AbortSignal,
 ): Promise<string> {
   const request = buildRequest(userPrompt, systemPrompt, config);
 
   if (IS_TAURI) {
     const { invoke } = await import("@tauri-apps/api/core");
+    // Tauri invoke doesn't natively support AbortSignal, but we can check
+    // before invoking and throw if already aborted
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const res = await invoke<{ text: string }>("ai_complete", { request });
     return res.text;
   }
@@ -68,7 +72,7 @@ export async function aiComplete(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
-    signal: AbortSignal.timeout(60_000),
+    signal: signal ?? AbortSignal.timeout(60_000),
   });
 
   if (!response.ok) {

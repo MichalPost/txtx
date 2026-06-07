@@ -19,8 +19,15 @@ function makeWsDownload(wsUrl: string, onEvent: (ev: ProgressEvent) => void): Un
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
   };
   return () => {
+    // Only send "stop" when the connection is fully open; close regardless
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send("stop");
+      } catch {
+        /* ignore send errors */
+      }
+    }
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-      ws.send("stop");
       ws.close();
     }
   };
@@ -74,8 +81,14 @@ export function apiStartScan(
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
   };
   return () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send("stop");
+      } catch {
+        /* ignore send errors */
+      }
+    }
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-      ws.send("stop");
       ws.close();
     }
   };
@@ -104,8 +117,14 @@ export function apiStartSelectedDownload(
     onEvent({ type: "log", level: "error", message: "WebSocket 连接失败，请确认后端已启动" });
   };
   return () => {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send("stop");
+      } catch {
+        /* ignore send errors */
+      }
+    }
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-      ws.send("stop");
       ws.close();
     }
   };

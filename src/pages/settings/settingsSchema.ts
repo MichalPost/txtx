@@ -25,7 +25,7 @@ export const settingsSchema = z.object({
   timeout: z.coerce.number().int().min(5).max(120),
   retry_count: z.coerce.number().int().min(0).max(10),
   retry_delay: z.coerce.number().int().min(1).max(60),
-  novel_threads: z.coerce.number().int().min(1).max(10),
+  novel_threads: z.coerce.number().int().min(1).max(5),
   chapter_threads: z.coerce.number().int().min(1).max(30),
   max_connections_per_host: z.coerce.number().int().min(1).max(50),
   connection_pool_size: z.coerce.number().int().min(1).max(500),
@@ -56,6 +56,10 @@ export const settingsSchema = z.object({
   chapter_fail_threshold: z.coerce.number().min(0).max(1),
   // Rate limit rules
   rate_limit_rules: z.array(rateLimitRuleFormSchema),
+  // Post-process script
+  post_process_enabled: z.boolean(),
+  post_process_script: z.string(),
+  post_process_batch_done: z.boolean(),
 });
 
 export type SettingsForm = z.infer<typeof settingsSchema>;
@@ -106,6 +110,9 @@ export function configToForm(config: AppConfig): SettingsForm {
       ua_pool: r.ua_pool.join("\n"),
       stealth: r.stealth,
     })),
+    post_process_enabled: config.post_process?.enabled ?? false,
+    post_process_script: config.post_process?.script ?? "",
+    post_process_batch_done: config.post_process?.run_on_batch_done ?? true,
   };
 }
 
@@ -190,6 +197,11 @@ export function formToConfig(form: SettingsForm, original: AppConfig): AppConfig
       tcp_keepalive_secs: form.tcp_keepalive_secs,
       min_chapter_bytes: form.min_chapter_bytes,
       chapter_fail_threshold: form.chapter_fail_threshold,
+    },
+    post_process: {
+      enabled: form.post_process_enabled,
+      script: form.post_process_script,
+      run_on_batch_done: form.post_process_batch_done,
     },
   };
 }

@@ -19,6 +19,7 @@ import { EbookSection } from "./sections/EbookSection";
 import { FilterSection } from "./sections/FilterSection";
 import { NetworkSection } from "./sections/NetworkSection";
 import { PathSection } from "./sections/PathSection";
+import { PostScriptSection } from "./sections/PostScriptSection";
 import { TextConversionSection } from "./sections/TextConversionSection";
 import { configToForm, formToConfig, settingsSchema, type SettingsForm } from "./settingsSchema";
 
@@ -138,13 +139,27 @@ export function SettingsPage() {
         />
 
         <div className="flex-1 overflow-y-auto pr-1">
-          <div className="flex max-w-3xl flex-col gap-4">
-            <PathSection />
-            <NetworkSection />
-            <ConcurrencySection />
-            <FilterSection />
-            <TextConversionSection />
-            <EbookSection />
+          <div className="flex flex-col gap-4">
+            {/* ── Two-column grid ──────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Left column */}
+              <div className="flex flex-col gap-4">
+                <PathSection />
+                <FilterSection />
+                <TextConversionSection />
+                <EbookSection />
+              </div>
+
+              {/* Right column */}
+              <div className="flex flex-col gap-4">
+                <NetworkSection />
+                <ConcurrencySection />
+                <AdvancedNetworkSection />
+                <PostScriptSection />
+              </div>
+            </div>
+
+            {/* ── Full-width sections ──────────────────────────────────────── */}
             {/* Rate-limit rules moved to Rules page — edit per-site under each site card */}
             <div
               className="flex items-center gap-3 rounded-xl border px-4 py-3"
@@ -176,7 +191,6 @@ export function SettingsPage() {
                 前往规则管理
               </Link>
             </div>
-            <AdvancedNetworkSection />
             <AiSection />
           </div>
         </div>

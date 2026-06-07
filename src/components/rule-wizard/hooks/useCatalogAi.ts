@@ -79,7 +79,7 @@ export function useCatalogAi(
   };
 
   const runFieldAi = async (
-    key: "list_novel_name" | "list_release_date" | "list_release_url",
+    key: "list_novel_name" | "list_release_date" | "list_release_url" | "chap_intro",
     label: string,
   ) => {
     if (!aiEnabled) return;

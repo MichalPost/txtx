@@ -179,6 +179,8 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
           mode: "xpath",
           xpath: res.book_name,
         };
+      if (res.book_intro)
+        patch.chap_intro = { ...data.chap_intro, mode: "xpath", xpath: res.book_intro };
     } else {
       if (res.novel_content)
         patch.chap_content = { ...data.chap_content, mode: "xpath", xpath: res.novel_content };

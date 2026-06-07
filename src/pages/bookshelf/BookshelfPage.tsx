@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { filesize } from "filesize";
 import {
+  Activity,
   ArrowDown,
   ArrowUp,
   BookOpen,
@@ -9,22 +12,19 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
+import { ChapterQualityReport } from "@/components/download/ChapterQualityReport";
 import { PageHeader } from "@/components/PageHeader";
 import { apiDeleteBook, apiListBooks, apiOpenBook } from "@/lib/api";
 import { useConfigStore } from "@/store/configStore";
+import type { BookFile } from "@/types";
 
 type SortKey = "name" | "size" | "modified";
 type SortDir = "asc" | "desc";
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-}
 
 function formatDate(iso: string): string {
   try {
@@ -45,6 +45,9 @@ export function BookshelfPage() {
   const [sortKey, setSortKey] = useState<SortKey>("modified");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [qualityReport, setQualityReport] = useState<{ book: BookFile; content: string } | null>(null);
+  const [checkingQuality, setCheckingQuality] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const baseDir = config?.paths.base_dir ?? "";
 
@@ -85,6 +88,13 @@ export function BookshelfPage() {
     return list;
   }, [books, search, sortKey, sortDir]);
 
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 72, // px per row (py-3 + content + border ≈ 72px)
+    overscan: 8,
+  });
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -94,8 +104,33 @@ export function BookshelfPage() {
     }
   };
 
-  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => {
-    const isActive = sortKey === k;
+  const handleCheckQuality = async (book: BookFile) => {
+    if (checkingQuality === book.path) {
+      setQualityReport(null);
+      setCheckingQuality(null);
+      return;
+    }
+    setCheckingQuality(book.path);
+    try {
+      // Use Tauri fs plugin if available, otherwise show unsupported message
+      const isTauri = typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== "undefined";
+      if (!isTauri) {
+        toast.error("质量检查仅在桌面版（Tauri）中可用");
+        return;
+      }
+      // Use Function constructor to avoid TypeScript static module resolution
+      const fs = await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(() => null) as { readTextFile: (p: string) => Promise<string> } | null;
+      if (!fs) { toast.error("文件读取不可用"); return; }
+      const content = await fs.readTextFile(book.path);
+      setQualityReport({ book, content });
+    } catch (e) {
+      toast.error(`无法读取文件: ${String(e)}`);
+    } finally {
+      setCheckingQuality(null);
+    }
+  };
+
+  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => {    const isActive = sortKey === k;
     const Icon = sortDir === "asc" ? ArrowUp : ArrowDown;
     return (
       <button
@@ -170,8 +205,7 @@ export function BookshelfPage() {
       )}
 
       {/* Book list */}
-      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-        {isLoading && (
+      <div ref={listRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto">        {isLoading && (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
               加载中...
@@ -200,81 +234,145 @@ export function BookshelfPage() {
             </div>
           </div>
         )}
-        {filtered.map((book) => (
+        {!isLoading && filtered.length > 0 && (
           <div
-            key={book.path}
-            className="flex items-center gap-3 rounded-xl border px-4 py-3 transition-all"
             style={{
-              background: "var(--color-surface)",
-              borderColor: "var(--color-border)",
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
             }}
           >
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-              style={{
-                background: "var(--color-accent-muted)",
-                border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
-              }}
-            >
-              <FileText className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium" style={{ color: "var(--color-text)" }}>
-                {book.name}
-              </p>
-              <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                {formatSize(book.size)} · {formatDate(book.modified)} ·{" "}
-                {book.extension.toUpperCase()}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                onClick={() => apiOpenBook(book.path).catch((e) => toast.error(String(e)))}
-                className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
-                style={{
-                  borderColor: "var(--color-border)",
-                  color: "var(--color-text-muted)",
-                  background: "var(--color-surface-2)",
-                }}
-                title="打开文件"
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                打开
-              </button>
-              {confirmDelete === book.path ? (
-                <div className="ml-1 flex items-center gap-1.5">
-                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                    确认删除？
-                  </span>
-                  <button
-                    onClick={() => deleteMutation.mutate(book.path)}
-                    className="rounded px-2 py-1 text-xs font-medium"
-                    style={{ background: "var(--color-danger)", color: "#fff" }}
-                  >
-                    删除
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(null)}
-                    className="rounded border px-2 py-1 text-xs"
-                    style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
-                  >
-                    取消
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmDelete(book.path)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
-                  style={{ color: "var(--color-danger)" }}
-                  title="删除"
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const book = filtered[virtualRow.index];
+              return (
+                <div
+                  key={book.path}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: "6px",
+                  }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+                  <div
+                    className="flex items-center gap-3 rounded-xl border px-4 py-3 transition-all"
+                    style={{
+                      background: "var(--color-surface)",
+                      borderColor: "var(--color-border)",
+                    }}
+                  >
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                      style={{
+                        background: "var(--color-accent-muted)",
+                        border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
+                      }}
+                    >
+                      <FileText className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium" style={{ color: "var(--color-text)" }}>
+                        {book.name}
+                      </p>
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        {filesize(book.size, { locale: false, standard: "iec" })} · {formatDate(book.modified)} ·{" "}
+                        {book.extension.toUpperCase()}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => apiOpenBook(book.path).catch((e) => toast.error(String(e)))}
+                        className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
+                        style={{
+                          borderColor: "var(--color-border)",
+                          color: "var(--color-text-muted)",
+                          background: "var(--color-surface-2)",
+                        }}
+                        title="打开文件"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                        打开
+                      </button>
+                      <button
+                        onClick={() => void handleCheckQuality(book)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
+                        style={{
+                          color: qualityReport?.book.path === book.path
+                            ? "var(--color-accent)"
+                            : "var(--color-text-muted)",
+                        }}
+                        title="章节质量检查"
+                      >
+                        <Activity className="h-3.5 w-3.5" />
+                      </button>
+                      {confirmDelete === book.path ? (
+                        <div className="ml-1 flex items-center gap-1.5">
+                          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                            确认删除？
+                          </span>
+                          <button
+                            onClick={() => deleteMutation.mutate(book.path)}
+                            className="rounded px-2 py-1 text-xs font-medium"
+                            style={{ background: "var(--color-danger)", color: "#fff" }}
+                          >
+                            删除
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="rounded border px-2 py-1 text-xs"
+                            style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(book.path)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
+                          style={{ color: "var(--color-danger)" }}
+                          title="删除"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        )}
       </div>
+
+      {/* Quality report panel */}
+      {qualityReport && (
+        <div
+          className="shrink-0 rounded-xl border p-4"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: "var(--color-border)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+              《{qualityReport.book.name}》章节质量报告
+            </span>
+            <button
+              onClick={() => setQualityReport(null)}
+              className="rounded-md p-1 hover:opacity-70"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ChapterQualityReport content={qualityReport.content} />
+        </div>
+      )}
     </div>
   );
 }

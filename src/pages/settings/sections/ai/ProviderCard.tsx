@@ -3,12 +3,7 @@ import { Activity, CheckCircle2, ChevronDown, Copy, Loader2, Trash2 } from "luci
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import {
-  AI_PROVIDER_PRESET_LABELS,
-  type AiProviderPresetKey,
-  useAiStore,
-  type AiProviderEntry,
-} from "@/store/aiStore";
+import { useAiStore, type AiProviderEntry } from "@/store/aiStore";
 
 import { ApiKeyInput, Field, ModelListEditor, ModelSelect, TestResult } from "./AiFormFields";
 
@@ -33,7 +28,10 @@ export function ProviderCard({
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [testMsg, setTestMsg] = useState("");
 
+  const [nameError, setNameError] = useState("");
+
   const hasChanges =
+    form.name !== entry.name ||
     form.base_url !== entry.base_url ||
     form.api_key !== entry.api_key ||
     form.model !== entry.model ||
@@ -42,7 +40,18 @@ export function ProviderCard({
     JSON.stringify(form.available_models) !== JSON.stringify(entry.available_models);
 
   const save = () => {
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      setNameError("名称不能为空");
+      return;
+    }
+    if (trimmedName !== entry.name && allNames.includes(trimmedName)) {
+      setNameError("名称已存在");
+      return;
+    }
+    setNameError("");
     updateProvider(entry.name, {
+      name: trimmedName,
       base_url: form.base_url,
       api_key: form.api_key,
       model: form.model,
@@ -98,7 +107,7 @@ export function ProviderCard({
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-            {AI_PROVIDER_PRESET_LABELS[entry.name as AiProviderPresetKey] ?? entry.name}
+            {entry.name}
           </span>
           {/* Model badge */}
           <span
@@ -142,6 +151,21 @@ export function ProviderCard({
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
         >
           <div className="grid grid-cols-2 gap-3">
+            {/* Name */}
+            <div className="col-span-2">
+              <Field label="供应商名称">
+                <Input
+                  value={form.name}
+                  onChange={(e) => {
+                    set("name")(e.target.value);
+                    setNameError("");
+                  }}
+                  placeholder="如：我的 DeepSeek"
+                  error={nameError}
+                />
+              </Field>
+            </div>
+
             {/* API Key */}
             <div className="col-span-2">
               <Field label="API Key" hint="仅存本地，不写入配置文件">

@@ -179,9 +179,33 @@ pub struct WebsiteConfig {
     /// content across all sub-pages before writing the chapter file.
     #[serde(default)]
     pub chapter_next_page_xpath: String,
+    /// XPath to extract book introduction from the catalog page. Empty = skip.
+    #[serde(default)]
+    pub book_intro_x: String,
 }
 
 fn default_special_mode() -> String { "normal".into() }
+
+// ─── Post-process ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostProcessConfig {
+    /// Whether post-process script is enabled.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Shell command to run; %DIR% is replaced with the download base_dir.
+    #[serde(default)]
+    pub script: String,
+    /// If true, run once after entire batch finishes. If false, run after each novel.
+    #[serde(default = "default_true")]
+    pub run_on_batch_done: bool,
+}
+
+impl Default for PostProcessConfig {
+    fn default() -> Self {
+        Self { enabled: false, script: String::new(), run_on_batch_done: true }
+    }
+}
 
 // ─── AppConfig ────────────────────────────────────────────────────────────────
 
@@ -206,4 +230,6 @@ pub struct AppConfig {
     pub rate_limit: RateLimitConfig,
     #[serde(default)]
     pub advanced_network: AdvancedNetworkConfig,
+    #[serde(default)]
+    pub post_process: PostProcessConfig,
 }

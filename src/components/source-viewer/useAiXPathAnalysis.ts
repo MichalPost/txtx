@@ -53,7 +53,7 @@ export function useAiXPathAnalysis(html: string) {
     try {
       const processedHtml = preprocessHtml(html);
       const userPrompt = `目标：${aiIntent}\n\nHTML：\n${processedHtml}`;
-      const raw = await aiComplete(userPrompt, AI_SYSTEM_PROMPT, aiConfig);
+      const raw = await aiComplete(userPrompt, AI_SYSTEM_PROMPT, aiConfig, aiAbortRef.current.signal);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parsed = extractJson(raw) as any;
       const xpath: string = parsed?.xpath ?? "";

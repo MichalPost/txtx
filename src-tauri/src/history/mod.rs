@@ -96,7 +96,8 @@ pub async fn query_history(base_dir: &Path, query: HistoryQuery) -> Result<Histo
         }
         if let Some(ref status) = query.status {
             if status == "success" || status == "error" {
-                conditions.push(format!("status = '{}'", status));
+                conditions.push(format!("status = ?{}", params_vec.len() + 1));
+                params_vec.push(Box::new(status.clone()));
             }
         }
         if let Some(ref site) = query.site {

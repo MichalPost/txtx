@@ -271,8 +271,10 @@ pub async fn build_scan_items(
     let blacklist = Blacklist::new(&config.blacklist);
 
     for c in all_candidates {
+        // A candidate is a duplicate if its name has duplicates AND it is not the
+        // winner kept in name_map (i.e. its URL differs from the winning entry).
         let is_dup = dup_names.contains(&c.name)
-            && name_map.get(&c.name).map(|e| e.url != c.url).unwrap_or(false);
+            && name_map.get(&c.name).map(|winner| winner.url != c.url).unwrap_or(true);
 
         let excluded_reason = if is_dup {
             Some("重复".to_string())

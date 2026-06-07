@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity,
@@ -37,6 +38,7 @@ const navItems: Array<{
 export function Sidebar() {
   const { collapsed, toggle } = useSidebarStore();
   const location = useLocation();
+  const [hoveredRoute, setHoveredRoute] = useState<string | null>(null);
 
   return (
     <aside
@@ -131,25 +133,21 @@ export function Sidebar() {
                 gap: collapsed ? 0 : 10,
                 background: isActive
                   ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
-                  : "transparent",
-                color: isActive ? "var(--color-accent)" : "var(--color-text-muted)",
+                  : hoveredRoute === to
+                    ? "var(--color-surface-2)"
+                    : "transparent",
+                color: isActive
+                  ? "var(--color-accent)"
+                  : hoveredRoute === to
+                    ? "var(--color-text)"
+                    : "var(--color-text-muted)",
                 fontWeight: isActive ? 600 : 400,
                 boxShadow: isActive
                   ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent)"
                   : "none",
               }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLElement).style.background = "var(--color-surface-2)";
-                  (e.currentTarget as HTMLElement).style.color = "var(--color-text)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                  (e.currentTarget as HTMLElement).style.color = "var(--color-text-muted)";
-                }
-              }}
+              onMouseEnter={() => { if (!isActive) setHoveredRoute(to); }}
+              onMouseLeave={() => setHoveredRoute(null)}
             >
               <Icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate text-xs font-medium">{label}</span>}

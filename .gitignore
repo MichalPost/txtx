@@ -64,3 +64,9 @@ cs/
 .codegraph/errors.log
 .codegraph/codegraph.db-shm
 .codegraph/codegraph.db-wal
+
+# ── Dev data (local SQLite databases, dev mode only) ─────────────────────────
+data/
+
+# ── Tauri app data (local runtime DB, written by dev builds) ─────────────────
+txtx/

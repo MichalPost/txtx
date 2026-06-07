@@ -119,7 +119,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   clearLogs: () => set({ logs: [] }),
 
-  reset: () =>
+  reset: () => {
+    // Cancel any active WebSocket/Tauri subscription before resetting state
+    get()._unsub?.();
     set({
       phase: "idle",
       status: "idle",
@@ -133,7 +135,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       overallTotal: 0,
       overallCompleted: 0,
       speed: initialSpeed,
-    }),
+      _unsub: null,
+    });
+  },
 
   toggleSelect: (url) => {
     set((s) => {
@@ -209,13 +213,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   // ── Retry failed ──────────────────────────────────────────────────────────
   retryFailed: () => {
     const { novelResults, scanItems } = get();
-    const failedNames = new Set(
-      novelResults.filter((r) => r.status === "error").map((r) => r.name),
+    // Use URL as the unique key to avoid name collisions across different sites
+    const failedUrls = new Set(
+      novelResults.filter((r) => r.status === "error").map((r) => r.url).filter(Boolean),
     );
-    if (failedNames.size === 0) return;
+    if (failedUrls.size === 0) return;
 
     const selected: BookCandidate[] = scanItems
-      .filter((i) => failedNames.has(i.name))
+      .filter((i) => failedUrls.has(i.url))
       .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
 
     if (selected.length === 0) {

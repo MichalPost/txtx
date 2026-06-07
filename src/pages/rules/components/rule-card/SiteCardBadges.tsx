@@ -8,7 +8,7 @@ interface SiteCardBadgesProps {
   highlighted?: boolean;
   health?: {
     lastStatus: string;
-    lastUsed: number;
+    lastUsed: string;
     successCount: number;
     errorCount: number;
     lastError?: string;

@@ -20,6 +20,40 @@ use self::queue::{load_queue, remove_queue, save_queue, make_queue_snapshot};
 use self::logger::{FileLogger, log};
 use self::scan_filter::run_scan_and_filter;
 
+// ─── Post-process script helper ───────────────────────────────────────────────
+
+/// Run the configured post-process script cross-platform.
+/// On Windows uses `cmd /C`; on Unix uses `sh -c`.
+async fn run_post_process_script(
+    post: &crate::models::PostProcessConfig,
+    base_dir: &std::path::Path,
+    tx: &mpsc::Sender<ProgressEvent>,
+    logger: Option<&FileLogger>,
+) {
+    if !post.enabled || post.script.is_empty() || !post.run_on_batch_done {
+        return;
+    }
+    let script = post.script.replace("%DIR%", base_dir.to_str().unwrap_or(""));
+    log(tx, logger, "info", format!("执行后处理脚本: {}", &post.script)).await;
+
+    #[cfg(target_os = "windows")]
+    let result = tokio::process::Command::new("cmd")
+        .args(["/C", &script])
+        .spawn();
+
+    #[cfg(not(target_os = "windows"))]
+    let result = tokio::process::Command::new("sh")
+        .args(["-c", &script])
+        .spawn();
+
+    match result {
+        Ok(_) => {}
+        Err(e) => {
+            log(tx, logger, "warn", format!("后处理脚本启动失败: {}", e)).await;
+        }
+    }
+}
+
 // ─── Scan options (overrides from frontend) ───────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -93,10 +127,16 @@ pub async fn run_download(
     ).await;
 
     remove_queue(&base_dir).await;
+    let app_data = dirs::data_local_dir()
+        .map(|p| p.join("txtx"))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let _ = crate::config_db::update_last_download_date(
-        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        &app_data,
         &Local::now().format("%Y-%m-%d").to_string()
     );
+
+    // ── Post-process script ───────────────────────────────────────────────────
+    run_post_process_script(&config.post_process, &base_dir, &tx, logger.as_ref()).await;
 
     log(&tx, logger.as_ref(), "success", "所有下载任务完成！".into()).await;
     let _ = tx.send(ProgressEvent::OverallDone).await;
@@ -144,10 +184,16 @@ pub async fn run_download_selected(
         &target_date, &tx, &logger, &cancel,
     ).await;
 
+    let app_data2 = dirs::data_local_dir()
+        .map(|p| p.join("txtx"))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let _ = crate::config_db::update_last_download_date(
-        &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        &app_data2,
         &Local::now().format("%Y-%m-%d").to_string()
     );
+
+    // ── Post-process script ───────────────────────────────────────────────────
+    run_post_process_script(&config.post_process, &base_dir, &tx, logger.as_ref()).await;
 
     log(&tx, logger.as_ref(), "success", "所有下载任务完成！".into()).await;
     let _ = tx.send(ProgressEvent::OverallDone).await;

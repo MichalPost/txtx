@@ -19,18 +19,21 @@ pub mod ttks_downloader;
 pub mod dev_tools;
 
 pub mod kumo_scanner;
+pub mod text_tools;
 
 // ─── Tauri integration ────────────────────────────────────────────────────────
 
 #[cfg(feature = "tauri-build")]
-mod tauri_app {
-    pub mod commands;
+pub mod commands;
 
+#[cfg(feature = "tauri-build")]
+mod tauri_app {
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use tauri::Manager;
     use crate::task_manager::{TaskManager, SharedTaskManager};
-    use commands::*;
+    #[allow(unused_imports)]
+    use crate::commands::*;
 
     pub fn run() {
         let task_manager: SharedTaskManager =
@@ -45,14 +48,17 @@ mod tauri_app {
                 // Re-initialize task manager base_dir after app is running
                 // (app_data_dir is now available via the app handle)
                 let tm = app.state::<SharedTaskManager>();
-                let data_dir = app.path().app_data_dir()
-                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                let data_dir = crate::commands::worker::get_app_data_dir(app.handle());
                 if let Ok(cfg) = crate::config_db::load_config(&data_dir) {
-                    if !cfg.paths.base_dir.is_empty() {
-                        let base = std::path::PathBuf::from(&cfg.paths.base_dir);
-                        let mut mgr = tm.blocking_lock();
-                        mgr.base_dir = base;
-                    }
+                    let base = if !cfg.paths.base_dir.is_empty() {
+                        std::path::PathBuf::from(&cfg.paths.base_dir)
+                    } else {
+                        std::path::PathBuf::from(".")
+                    };
+                    let max_c = cfg.concurrency.novel_threads.clamp(1, 5);
+                    let mut mgr = tm.blocking_lock();
+                    mgr.base_dir = base;
+                    mgr.max_concurrent = max_c;
                 }
                 Ok(())
             })
@@ -94,6 +100,9 @@ mod tauri_app {
                 delete_book,
                 open_book,
                 detect_calibre,
+                // Text tools
+                merge_files,
+                split_file,
                 // AI
                 ai_complete,
                 ai_stream_complete,

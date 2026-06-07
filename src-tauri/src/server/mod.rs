@@ -11,6 +11,7 @@ pub mod source_routes;
 pub mod state;
 pub mod ai_routes;
 pub mod task_routes;
+pub mod tools_routes;
 
 use std::sync::Arc;
 use axum::{routing::{get, post}, Router};
@@ -24,6 +25,7 @@ use download_routes::{post_stop, ws_download, ws_download_selected, ws_scan, ws_
 use history_routes::{delete_history, get_history, get_history_page, get_history_stats};
 use health_routes::get_health;
 use convert_routes::post_convert_text;
+use tools_routes::{post_merge_files, post_split_file};
 use queue_routes::{delete_queue, get_queue};
 use novel_routes::{get_novel_name, post_open_dir};
 use source_routes::get_source;
@@ -44,10 +46,17 @@ pub async fn run_server() {
         running: false,
     }));
 
-    let base_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let base_dir = dirs::data_local_dir()
+        .map(|p| p.join("txtx"))
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")));
 
-    // Task manager (mirrors Tauri mode)
-    let task_manager: SharedTaskManager = Arc::new(Mutex::new(TaskManager::new(base_dir.clone())));
+    // Task manager — read novel_threads from config for max_concurrent (mirrors Tauri mode)
+    let max_concurrent = crate::config_db::load_config(&base_dir)
+        .map(|cfg| cfg.concurrency.novel_threads.clamp(1, 5))
+        .unwrap_or(3);
+    let task_manager: SharedTaskManager = Arc::new(Mutex::new(
+        TaskManager::new_with_max(base_dir.clone(), max_concurrent),
+    ));
 
     let app_state = AppState { download: download_state, base_dir, task_manager };
 
@@ -68,6 +77,8 @@ pub async fn run_server() {
         .route("/api/history/stats",       get(get_history_stats))
         .route("/api/health",              get(get_health))
         .route("/api/convert/text",        post(post_convert_text))
+        .route("/api/tools/merge",         post(post_merge_files))
+        .route("/api/tools/split",         post(post_split_file))
         .route("/api/queue",               get(get_queue).delete(delete_queue))
         .route("/api/novel-name",          get(get_novel_name))
         .route("/api/open-dir",            post(post_open_dir))

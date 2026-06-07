@@ -28,6 +28,11 @@ interface PerTaskLogs {
   [taskId: string]: LogEntry[];
 }
 
+// Module-level promise cache to prevent concurrent init() calls (race condition fix)
+let _initPromise: Promise<void> | null = null;
+// Module-level interval id so it can be cleared on re-init (HMR / test safety)
+let _pollIntervalId: ReturnType<typeof setInterval> | null = null;
+
 interface TaskStore {
   tasks: TaskRecord[];
   activeTaskId: TaskId | null;
@@ -60,10 +65,12 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   _initialized: false,
 
   init: async () => {
-    if (get()._initialized) return;
-    set({ _initialized: true });
+    if (_initPromise) return _initPromise;
+    _initPromise = (async () => {
+      if (get()._initialized) return;
+      set({ _initialized: true });
 
-    // Load persisted + in-memory tasks
+      // Load persisted + in-memory tasks
     const [persisted, current] = await Promise.all([
       apiLoadPersistedTasks().catch(() => [] as TaskRecord[]),
       apiListTasks().catch(() => [] as TaskRecord[]),
@@ -132,10 +139,18 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       };
 
       // Start polling every 2 seconds
-      setInterval(() => {
+      if (_pollIntervalId !== null) clearInterval(_pollIntervalId);
+      _pollIntervalId = setInterval(() => {
         void pollTasks();
       }, 2000);
     }
+    })().catch((err) => {
+      // Reset promise on failure so init() can be retried
+      _initPromise = null;
+      set({ _initialized: false });
+      throw err;
+    });
+    return _initPromise;
   },
 
   getTask: (id) => get().tasks.find((t) => t.id === id),
@@ -249,7 +264,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set((s) => {
       const remaining = s.tasks.filter((t) => t.id !== id);
       const nextActive = s.activeTaskId === id ? (remaining[0]?.id ?? null) : s.activeTaskId;
-      return { tasks: remaining, activeTaskId: nextActive };
+      // Also clean up logs to prevent unbounded memory growth
+      const { [id]: _removed, ...remainingLogs } = s.logs;
+      return { tasks: remaining, activeTaskId: nextActive, logs: remainingLogs };
     });
   },
 

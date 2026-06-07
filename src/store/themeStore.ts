@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Theme = "light" | "warm" | "sage" | "sky" | "dark";
+export type Theme = "light" | "warm" | "sage" | "sky" | "dark" | "custom";
 
 export interface ThemeMeta {
   id: Theme;
@@ -43,10 +43,65 @@ export const THEMES: ThemeMeta[] = [
   },
 ];
 
+// ─── Custom theme ─────────────────────────────────────────────────────────────
+
+export interface CustomThemeVars {
+  accent: string;
+  bg: string;
+  surface: string;
+  text: string;
+}
+
+const CUSTOM_THEME_KEY = "txtx-custom-theme";
 const STORAGE_KEY = "txtx-theme";
 
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute("data-theme", theme);
+function loadCustomTheme(): CustomThemeVars | null {
+  try {
+    const raw = localStorage.getItem(CUSTOM_THEME_KEY);
+    return raw ? (JSON.parse(raw) as CustomThemeVars) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCustomTheme(vars: CustomThemeVars) {
+  try {
+    localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(vars));
+  } catch {
+    // ignore
+  }
+}
+
+/** Apply custom CSS variable overrides on top of the base "light" theme */
+function applyCustomVars(vars: CustomThemeVars) {
+  const root = document.documentElement;
+  // Base on light theme
+  root.setAttribute("data-theme", "light");
+  // Override with custom values
+  root.style.setProperty("--color-accent", vars.accent);
+  root.style.setProperty("--color-accent-hover", vars.accent);
+  root.style.setProperty("--color-bg", vars.bg);
+  root.style.setProperty("--color-surface", vars.surface);
+  root.style.setProperty("--color-text", vars.text);
+}
+
+/** Remove custom inline style overrides (returns to pure data-theme CSS) */
+function clearCustomVars() {
+  const root = document.documentElement;
+  root.style.removeProperty("--color-accent");
+  root.style.removeProperty("--color-accent-hover");
+  root.style.removeProperty("--color-bg");
+  root.style.removeProperty("--color-surface");
+  root.style.removeProperty("--color-text");
+}
+
+function applyTheme(theme: Theme, customVars?: CustomThemeVars | null) {
+  if (theme === "custom" && customVars) {
+    applyCustomVars(customVars);
+  } else {
+    clearCustomVars();
+    document.documentElement.setAttribute("data-theme", theme === "custom" ? "light" : theme);
+  }
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
@@ -57,26 +112,57 @@ function applyTheme(theme: Theme) {
 function getInitialTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    if (stored && THEMES.some((t) => t.id === stored)) return stored;
+    if (stored && (THEMES.some((t) => t.id === stored) || stored === "custom")) return stored;
   } catch {
     // ignore
   }
-  // Default to light
   return "light";
 }
 
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 interface ThemeState {
   theme: Theme;
+  customVars: CustomThemeVars | null;
   setTheme: (theme: Theme) => void;
+  setCustomVars: (vars: CustomThemeVars) => void;
+  clearCustom: () => void;
 }
 
 const initialTheme = getInitialTheme();
-applyTheme(initialTheme);
+const initialCustomVars = loadCustomTheme();
+applyTheme(initialTheme, initialCustomVars);
 
 export const useThemeStore = create<ThemeState>((set) => ({
   theme: initialTheme,
+  customVars: initialCustomVars,
+
   setTheme: (theme) => {
-    applyTheme(theme);
+    const { customVars } = useThemeStore.getState();
+    applyTheme(theme, customVars);
     set({ theme });
+  },
+
+  setCustomVars: (vars) => {
+    saveCustomTheme(vars);
+    applyCustomVars(vars);
+    set({ theme: "custom", customVars: vars });
+    try {
+      localStorage.setItem(STORAGE_KEY, "custom");
+    } catch {
+      // ignore
+    }
+  },
+
+  clearCustom: () => {
+    try {
+      localStorage.removeItem(CUSTOM_THEME_KEY);
+      localStorage.setItem(STORAGE_KEY, "light");
+    } catch {
+      // ignore
+    }
+    clearCustomVars();
+    document.documentElement.setAttribute("data-theme", "light");
+    set({ theme: "light", customVars: null });
   },
 }));

@@ -7,15 +7,21 @@ use crate::models::WebsiteConfig;
 // ─── Websites ─────────────────────────────────────────────────────────────────
 
 pub(super) fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, WebsiteConfig>> {
-    // Add column if it doesn't exist yet (safe migration for existing DBs)
+    // Soft migrations: add columns if they don't exist yet (safe for existing DBs)
     let _ = conn.execute_batch(
         "ALTER TABLE websites ADD COLUMN chapter_next_page_xpath TEXT NOT NULL DEFAULT '';"
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE websites ADD COLUMN encoding TEXT NOT NULL DEFAULT '';"
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE websites ADD COLUMN book_intro_x TEXT NOT NULL DEFAULT '';"
     );
 
     let mut stmt = conn.prepare(
         "SELECT key, enabled, domain_name, release_date, release_url, list_novel_name,
                 novel_content, novel_name_x, chapter_url_x, page_list, special_mode,
-                novel_content_fallbacks, chapter_next_page_xpath
+                novel_content_fallbacks, chapter_next_page_xpath, encoding, book_intro_x
          FROM websites",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -32,6 +38,8 @@ pub(super) fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, W
         let special_mode: String = row.get(10)?;
         let fallbacks_json: String = row.get(11)?;
         let chapter_next_page_xpath: String = row.get(12).unwrap_or_default();
+        let encoding: String = row.get(13).unwrap_or_default();
+        let book_intro_x: String = row.get(14).unwrap_or_default();
 
         let page_list: Vec<String> = serde_json::from_str(&page_list_json).unwrap_or_default();
         let novel_content_fallbacks: Vec<String> =
@@ -49,8 +57,9 @@ pub(super) fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, W
             page_list,
             special_mode,
             novel_content_fallbacks,
-            encoding: String::new(),
+            encoding,
             chapter_next_page_xpath,
+            book_intro_x,
         }))
     })?;
 
@@ -78,14 +87,17 @@ pub(super) fn save_all_websites_inner(
         conn.execute(
             "INSERT INTO websites (key, enabled, domain_name, release_date, release_url,
                 list_novel_name, novel_content, novel_name_x, chapter_url_x,
-                page_list, special_mode, novel_content_fallbacks, chapter_next_page_xpath)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                page_list, special_mode, novel_content_fallbacks, chapter_next_page_xpath,
+                encoding, book_intro_x)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             params![
                 key, site.enabled as i64,
                 site.domain_name, site.release_date, site.release_url,
                 site.list_novel_name, site.novel_content, site.novel_name_x,
                 site.chapter_url_x, page_list, site.special_mode, fallbacks,
                 site.chapter_next_page_xpath,
+                site.encoding,
+                site.book_intro_x,
             ],
         )?;
     }

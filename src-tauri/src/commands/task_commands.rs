@@ -147,7 +147,11 @@ pub async fn confirm_task_download(
             r.status = TaskStatus::Downloading;
             r.total = n;
         });
-        // Replace cancel handle for this task
+        // Notify the old cancel handle (scan worker) before replacing it,
+        // so any still-running scan is signalled to stop.
+        if let Some(h) = mgr.handles.get(&task_id) {
+            h.cancel.notify_waiters();
+        }
         if let Some(h) = mgr.handles.get_mut(&task_id) {
             h.cancel = cancel.clone();
         }

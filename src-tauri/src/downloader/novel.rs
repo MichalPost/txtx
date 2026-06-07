@@ -66,6 +66,7 @@ pub async fn download_novel(
         client, &chapter_urls, site_cfg, net_cfg,
         &temp_dir, &tx, &candidate.name,
         total_chapters, failed_indices,
+        &content_filter, &xpath_fallbacks,
     ).await?;
 
     // ── Merge ─────────────────────────────────────────────────────────────────
@@ -94,7 +95,17 @@ pub async fn merge_chapters(temp_dir: &Path, final_path: &Path, total: usize) ->
             if !content.is_empty() {
                 file.write_all(content.as_bytes()).await?;
                 file.write_all(b"\n").await?;
+            } else {
+                // File exists but is empty — write a placeholder so the gap is visible
+                file.write_all(
+                    format!("\n【第 {} 章内容下载失败，已跳过】\n\n", i + 1).as_bytes()
+                ).await?;
             }
+        } else {
+            // File missing entirely — write a placeholder so the gap is visible
+            file.write_all(
+                format!("\n【第 {} 章内容缺失，已跳过】\n\n", i + 1).as_bytes()
+            ).await?;
         }
     }
     file.flush().await?;

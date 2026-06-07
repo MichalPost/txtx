@@ -6206,6 +6206,7 @@ dependencies = [
  "backon",
  "bytes",
  "chrono",
+ "dirs",
  "encoding_rs",
  "epub-builder",
  "futures",

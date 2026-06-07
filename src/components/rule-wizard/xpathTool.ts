@@ -17,6 +17,7 @@ export type TargetField =
   | "chapter_name"
   | "chapter_url"
   | "book_name"
+  | "book_intro"
   | "novel_content"
   | "update_book_name"
   | "update_book_url"
@@ -32,6 +33,7 @@ export const XPATH_TARGETS: XPathTarget[] = [
   { field: "chapter_name", label: "章节名称", page: "catalog" },
   { field: "chapter_url", label: "章节链接", page: "catalog" },
   { field: "book_name", label: "书籍名称", page: "catalog" },
+  { field: "book_intro", label: "书籍简介", page: "catalog" },
   { field: "novel_content", label: "小说正文", page: "chapter" },
   { field: "update_book_name", label: "书名", page: "update_list" },
   { field: "update_book_url", label: "书籍链接", page: "update_list" },
@@ -283,6 +285,8 @@ function deriveTargetXPath(
     case "update_book_date":
       // Date text usually sits as a sibling span/td near the book-name anchor
       return deriveUpdateDate(doc, anchor, anchorXPath);
+    default:
+      return "";
   }
 }
 

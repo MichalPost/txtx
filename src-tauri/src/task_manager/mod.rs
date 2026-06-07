@@ -29,6 +29,15 @@ impl TaskManager {
         }
     }
 
+    /// Create a TaskManager with a custom concurrency limit (clamped to 1..=5).
+    pub fn new_with_max(base_dir: PathBuf, max_concurrent: usize) -> Self {
+        Self {
+            handles: HashMap::new(),
+            base_dir,
+            max_concurrent: max_concurrent.clamp(1, 5),
+        }
+    }
+
     pub fn new_task_id() -> TaskId {
         Uuid::new_v4().to_string()
     }
@@ -37,7 +46,10 @@ impl TaskManager {
         self.handles.values().filter(|h| {
             matches!(
                 h.record.status,
-                TaskStatus::Scanning | TaskStatus::Downloading | TaskStatus::Preview
+                // Preview means the scan worker has finished and we are waiting
+                // for the user to confirm — no worker is actively consuming
+                // resources, so it must NOT count against the concurrency limit.
+                TaskStatus::Scanning | TaskStatus::Downloading
             )
         }).count()
     }

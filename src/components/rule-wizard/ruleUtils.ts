@@ -186,6 +186,10 @@ export interface WizardData {
   book_name_attr: string;
   book_name_val: string;
 
+  // ── Step 3: 目录规则（可选扩展）─────────────────────────────────────────────
+  /** 书籍简介 XPath（可选，从目录页提取） */
+  chap_intro: FieldRule;
+
   // ── Step 5: 章节页规则 ────────────────────────────────────────────────────
   chap_novel_name: FieldRule;
   chap_chapter_url: FieldRule;
@@ -267,6 +271,7 @@ export function emptyWizardData(domain_name = "", encoding = ""): WizardData {
     chap_content: emptyFieldRule("xpath"),
     chap_content_fallbacks: [],
     chapter_next_page_xpath: "",
+    chap_intro: emptyFieldRule("xpath"),
 
     encoding,
 
@@ -289,6 +294,7 @@ export function wizardDataFromSite(site: {
   novel_content: string;
   novel_content_fallbacks?: string[];
   chapter_next_page_xpath?: string;
+  book_intro_x?: string;
 }): WizardData {
   const baseUrl = site.domain_name || "https://";
   return {
@@ -303,6 +309,7 @@ export function wizardDataFromSite(site: {
     chap_content: fieldRuleFromXPath(site.novel_content),
     chap_content_fallbacks: [...(site.novel_content_fallbacks ?? [])],
     chapter_next_page_xpath: site.chapter_next_page_xpath ?? "",
+    chap_intro: fieldRuleFromXPath(site.book_intro_x ?? ""),
   };
 }
 

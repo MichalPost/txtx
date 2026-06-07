@@ -168,9 +168,12 @@ interface AiStore {
   testProvider: (name: string) => Promise<{ ok: boolean; message: string }>;
 }
 
+export const useAiStore = create<AiStore>((set, get) => {
+// saveTimer lives inside the closure so it is scoped per store instance.
+// This prevents stale timer references across HMR reloads in development.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const useAiStore = create<AiStore>((set, get) => ({
+return ({
   config: DEFAULT_MULTI_CONFIG,
   loaded: false,
 
@@ -251,12 +254,14 @@ export const useAiStore = create<AiStore>((set, get) => ({
   },
 
   updateProvider: (name, patch) => {
-    set((s) => ({
-      config: {
-        ...s.config,
-        providers: s.config.providers.map((p) => (p.name === name ? { ...p, ...patch } : p)),
-      },
-    }));
+    set((s) => {
+      const newName = patch.name ?? name;
+      const providers = s.config.providers.map((p) => (p.name === name ? { ...p, ...patch } : p));
+      // 如果改了名字，同步更新 active_provider
+      const active_provider =
+        s.config.active_provider === name ? newName : s.config.active_provider;
+      return { config: { ...s.config, providers, active_provider } };
+    });
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => get().save(), 600);
   },
@@ -298,4 +303,4 @@ export const useAiStore = create<AiStore>((set, get) => ({
       return { ok: false, message: String(e) };
     }
   },
-}));
+})});

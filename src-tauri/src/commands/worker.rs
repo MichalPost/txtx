@@ -1,10 +1,27 @@
-use std::sync::Arc;
-use tokio::sync::{mpsc, Notify};
-use tauri::{AppHandle, Emitter, Manager};
+use tokio::sync::mpsc;
+use tauri::{AppHandle, Emitter};
 use crate::models::{ProgressEvent, TaskId, TaskEvent, TaskStatus};
-use crate::task_manager::{SharedTaskManager, TaskManager};
+use crate::task_manager::SharedTaskManager;
 
 pub(super) fn app_data_dir(app: &AppHandle) -> std::path::PathBuf {
+    get_app_data_dir(app)
+}
+
+/// 公开版本，供 lib.rs 的 setup 阶段使用
+pub fn get_app_data_dir(app: &AppHandle) -> std::path::PathBuf {
+    // 开发模式：把数据库放在项目目录下的 data/ 文件夹，方便直接查看和调试
+    #[cfg(debug_assertions)]
+    {
+        let _ = app; // 避免 unused 警告
+        let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let data_dir = manifest_dir.parent()
+            .unwrap_or(&manifest_dir)
+            .join("data");
+        std::fs::create_dir_all(&data_dir).ok();
+        return data_dir;
+    }
+    // 生产模式：使用系统 AppData 目录
+    #[cfg(not(debug_assertions))]
     app.path().app_data_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
 }

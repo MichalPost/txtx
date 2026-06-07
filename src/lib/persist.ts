@@ -37,9 +37,15 @@ export async function persistDel(key: string): Promise<void> {
 export function usePersistedState<T>(key: string, fallback: T): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(fallback);
   const loaded = useRef(false);
+  // Keep a stable ref to the latest fallback so the effect always uses the
+  // current value even if the caller passes a new reference each render.
+  const fallbackRef = useRef(fallback);
+  useEffect(() => {
+    fallbackRef.current = fallback;
+  });
 
   useEffect(() => {
-    persistGet<T>(key, fallback).then((v) => {
+    persistGet<T>(key, fallbackRef.current).then((v) => {
       setValue(v);
       loaded.current = true;
     });

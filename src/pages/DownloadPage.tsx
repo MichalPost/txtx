@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, FileUp, Globe, ListTodo, ScanSearch } from "lucide-react";
+import { Activity, ArrowRight, FileUp, Globe, ListTodo, ScanSearch } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { IdlePanel } from "@/components/download/IdlePanel";
 import { ImportUrlPanel } from "@/components/download/ImportUrlPanel";
+import { PreflightPanel } from "@/components/download/PreflightPanel";
 import { QueueResumePanel } from "@/components/download/QueueResumePanel";
 import { SingleDownloadInput } from "@/components/download/SingleDownloadInput";
 import { PageHeader } from "@/components/PageHeader";
@@ -20,6 +21,7 @@ export function DownloadPage() {
   const { phase } = useDownloadStore();
   const { init: initTasks, createSingleTask, createScanTask, setActive } = useTaskStore();
   const [showImport, setShowImport] = useState(false);
+  const [showPreflight, setShowPreflight] = useState(false);
   const navigate = useAppNavigate();
 
   useEffect(() => {
@@ -41,6 +43,14 @@ export function DownloadPage() {
     <>
       <Button variant="secondary" size="sm" onClick={() => navigate("/tasks")}>
         <ListTodo className="h-3.5 w-3.5" /> 查看任务
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setShowPreflight((v) => !v)}
+        title="下载前检测站点可达性"
+      >
+        <Activity className="h-3.5 w-3.5" /> 预检站点
       </Button>
       {!isRunning && (
         <Button
@@ -75,6 +85,19 @@ export function DownloadPage() {
       {phase === "idle" && (
         <div className="mt-4 shrink-0 px-5">
           <QueueResumePanel />
+        </div>
+      )}
+
+      {/* ── Preflight panel ──────────────────────────────────────────── */}
+      {showPreflight && (
+        <div className="mt-3 shrink-0 px-5">
+          <PreflightPanel
+            onDismiss={() => setShowPreflight(false)}
+            onConfirm={() => {
+              setShowPreflight(false);
+              void handleCreateScanTask();
+            }}
+          />
         </div>
       )}
 

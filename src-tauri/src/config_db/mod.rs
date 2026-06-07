@@ -8,7 +8,7 @@ use rusqlite::params;
 
 use crate::models::{
     AppConfig, PathsConfig, NetworkConfig, ConcurrencyConfig, FilteringConfig,
-    BlacklistConfig, GradingRules,
+    BlacklistConfig, GradingRules, PostProcessConfig,
     conversion::{TextConversionConfig, EbookConversionConfig},
     filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig},
 };
@@ -50,7 +50,8 @@ pub fn load_config(app_data_dir: &Path) -> Result<AppConfig> {
             tc_enabled, tc_t2s, tc_auto,
             eb_enabled, eb_formats, eb_calibre,
             cf_ad_patterns, cf_nav_keywords, cf_safety_threshold, cf_fallback_trim_lines,
-            an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold
+            an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold,
+            pp_enabled, pp_script, pp_batch_done
          FROM app_config WHERE id = 1",
         [],
         |row| row_to_config(row),
@@ -124,6 +125,11 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
     let an_min_chapter_bytes: u64 = row.get::<_, i64>(39)? as u64;
     let an_chapter_fail_threshold: f64 = row.get(40)?;
 
+    // Post-process (columns 41-43, may not exist in older DBs → use unwrap_or_default)
+    let pp_enabled: bool = row.get::<_, i64>(41).unwrap_or(0) != 0;
+    let pp_script: String = row.get(42).unwrap_or_default();
+    let pp_batch_done: bool = row.get::<_, i64>(43).unwrap_or(1) != 0;
+
     // Parse JSON fields (fall back to empty on parse error)
     let encoding_map: HashMap<String, String> =
         serde_json::from_str(&encoding_map_json).unwrap_or_default();
@@ -191,6 +197,11 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
             min_chapter_bytes: an_min_chapter_bytes,
             chapter_fail_threshold: an_chapter_fail_threshold,
         },
+        post_process: PostProcessConfig {
+            enabled: pp_enabled,
+            script: pp_script,
+            run_on_batch_done: pp_batch_done,
+        },
     })
 }
 
@@ -223,7 +234,8 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             tc_enabled, tc_t2s, tc_auto,
             eb_enabled, eb_formats, eb_calibre,
             cf_ad_patterns, cf_nav_keywords, cf_safety_threshold, cf_fallback_trim_lines,
-            an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold
+            an_pool_idle_timeout_secs, an_tcp_keepalive_secs, an_min_chapter_bytes, an_chapter_fail_threshold,
+            pp_enabled, pp_script, pp_batch_done
          ) VALUES (
             1,
             ?1, ?2, ?3,
@@ -236,7 +248,8 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             ?28, ?29, ?30,
             ?31, ?32, ?33,
             ?34, ?35, ?36, ?37,
-            ?38, ?39, ?40, ?41
+            ?38, ?39, ?40, ?41,
+            ?42, ?43, ?44
          )
          ON CONFLICT(id) DO UPDATE SET
             base_dir = excluded.base_dir,
@@ -279,7 +292,10 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             an_pool_idle_timeout_secs = excluded.an_pool_idle_timeout_secs,
             an_tcp_keepalive_secs = excluded.an_tcp_keepalive_secs,
             an_min_chapter_bytes = excluded.an_min_chapter_bytes,
-            an_chapter_fail_threshold = excluded.an_chapter_fail_threshold",
+            an_chapter_fail_threshold = excluded.an_chapter_fail_threshold,
+            pp_enabled = excluded.pp_enabled,
+            pp_script = excluded.pp_script,
+            pp_batch_done = excluded.pp_batch_done",
         params![
             config.paths.base_dir, config.paths.temp_dir, config.paths.log_dir,
             config.network.user_agent, config.network.proxy,
@@ -310,6 +326,9 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
             config.advanced_network.tcp_keepalive_secs as i64,
             config.advanced_network.min_chapter_bytes as i64,
             config.advanced_network.chapter_fail_threshold,
+            config.post_process.enabled as i64,
+            config.post_process.script,
+            config.post_process.run_on_batch_done as i64,
         ],
     )?;
 
@@ -364,5 +383,6 @@ fn default_app_config() -> AppConfig {
         content_filter: ContentFilterConfig::default(),
         rate_limit: RateLimitConfig::default(),
         advanced_network: AdvancedNetworkConfig::default(),
+        post_process: PostProcessConfig::default(),
     }
 }
