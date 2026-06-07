@@ -4,207 +4,28 @@
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::params;
 
 use crate::models::{
     AppConfig, PathsConfig, NetworkConfig, ConcurrencyConfig, FilteringConfig,
-    BlacklistConfig, GradingRules, WebsiteConfig,
+    BlacklistConfig, GradingRules,
     conversion::{TextConversionConfig, EbookConversionConfig},
     filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig},
 };
+
+mod migrate;
+mod websites;
+
+pub use migrate::{is_first_run, mark_setup_complete, maybe_migrate_from_yaml};
+
+use migrate::open_db;
+use websites::{load_websites_inner, save_all_websites_inner, save_rate_limit_rules, load_rate_limit_rules};
 
 // ─── DB path ──────────────────────────────────────────────────────────────────
 
 /// Returns the path to app.db under the given Tauri appDataDir.
 pub fn db_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("txtx").join("app.db")
-}
-
-// ─── Open & migrate ───────────────────────────────────────────────────────────
-
-fn open_db(app_data_dir: &Path) -> Result<Connection> {
-    let path = db_path(app_data_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("无法创建数据目录: {}", parent.display()))?;
-    }
-    let conn = Connection::open(&path)
-        .with_context(|| format!("无法打开数据库: {}", path.display()))?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;")?;
-    migrate(&conn)?;
-    let _ = migrate_ttks_to_rate_limit_rules(&conn);
-    Ok(conn)
-}
-
-fn migrate(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "
-        CREATE TABLE IF NOT EXISTS app_meta (
-            key   TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS app_config (
-            id                          INTEGER PRIMARY KEY DEFAULT 1,
-            -- paths
-            base_dir                    TEXT    NOT NULL DEFAULT '',
-            temp_dir                    TEXT    NOT NULL DEFAULT '',
-            log_dir                     TEXT    NOT NULL DEFAULT '',
-            -- network
-            user_agent                  TEXT    NOT NULL DEFAULT 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            proxy                       TEXT,
-            retry_count                 INTEGER NOT NULL DEFAULT 5,
-            retry_delay                 INTEGER NOT NULL DEFAULT 8,
-            timeout                     INTEGER NOT NULL DEFAULT 45,
-            encoding_map                TEXT    NOT NULL DEFAULT '{}',
-            -- concurrency
-            novel_threads               INTEGER NOT NULL DEFAULT 2,
-            chapter_threads             INTEGER NOT NULL DEFAULT 2,
-            max_connections_per_host    INTEGER NOT NULL DEFAULT 10,
-            connection_pool_size        INTEGER NOT NULL DEFAULT 50,
-            -- filtering
-            days_limit                  INTEGER NOT NULL DEFAULT 60,
-            last_download_date          TEXT,
-            min_days_limit              INTEGER NOT NULL DEFAULT 1,
-            site_priority               TEXT    NOT NULL DEFAULT '{}',
-            -- blacklist
-            bl_enabled                  INTEGER NOT NULL DEFAULT 1,
-            bl_filter_level             TEXT    NOT NULL DEFAULT 'moderate',
-            bl_case_insensitive         INTEGER NOT NULL DEFAULT 1,
-            bl_fuzzy_match              INTEGER NOT NULL DEFAULT 1,
-            bl_regex_match              INTEGER NOT NULL DEFAULT 1,
-            bl_tag_filter               INTEGER NOT NULL DEFAULT 0,
-            bl_filtered_tags            TEXT    NOT NULL DEFAULT '[]',
-            bl_keywords                 TEXT    NOT NULL DEFAULT '[]',
-            bl_regex_patterns           TEXT    NOT NULL DEFAULT '[]',
-            bl_grading_rules            TEXT    NOT NULL DEFAULT '{}',
-            -- text conversion
-            tc_enabled                  INTEGER NOT NULL DEFAULT 0,
-            tc_t2s                      INTEGER NOT NULL DEFAULT 0,
-            tc_auto                     INTEGER NOT NULL DEFAULT 1,
-            -- ebook conversion
-            eb_enabled                  INTEGER NOT NULL DEFAULT 0,
-            eb_formats                  TEXT    NOT NULL DEFAULT '[]',
-            eb_calibre                  TEXT,
-            -- content filter
-            cf_ad_patterns              TEXT    NOT NULL DEFAULT '[]',
-            cf_nav_keywords             TEXT    NOT NULL DEFAULT '[]',
-            cf_safety_threshold         REAL    NOT NULL DEFAULT 0.3,
-            cf_fallback_trim_lines      INTEGER NOT NULL DEFAULT 2,
-            -- ttks
-            ttks_domains                TEXT    NOT NULL DEFAULT '[]',
-            ttks_delay_min              INTEGER NOT NULL DEFAULT 3000,
-            ttks_delay_max              INTEGER NOT NULL DEFAULT 8000,
-            ttks_ua_pool                TEXT    NOT NULL DEFAULT '[]',
-            -- advanced network
-            an_pool_idle_timeout_secs   INTEGER NOT NULL DEFAULT 90,
-            an_tcp_keepalive_secs       INTEGER NOT NULL DEFAULT 60,
-            an_min_chapter_bytes        INTEGER NOT NULL DEFAULT 1024,
-            an_chapter_fail_threshold   REAL    NOT NULL DEFAULT 0.05
-        );
-
-        CREATE TABLE IF NOT EXISTS rate_limit_rules (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sort_order  INTEGER NOT NULL DEFAULT 0,
-            name        TEXT    NOT NULL DEFAULT '',
-            domains     TEXT    NOT NULL DEFAULT '[]',
-            delay_min   INTEGER NOT NULL DEFAULT 1000,
-            delay_max   INTEGER NOT NULL DEFAULT 3000,
-            rps         INTEGER NOT NULL DEFAULT 0,
-            ua_pool     TEXT    NOT NULL DEFAULT '[]',
-            stealth     INTEGER NOT NULL DEFAULT 1
-        );
-
-        CREATE TABLE IF NOT EXISTS websites (
-            key                     TEXT PRIMARY KEY,
-            enabled                 INTEGER NOT NULL DEFAULT 1,
-            domain_name             TEXT    NOT NULL DEFAULT '',
-            release_date            TEXT    NOT NULL DEFAULT '',
-            release_url             TEXT    NOT NULL DEFAULT '',
-            list_novel_name         TEXT    NOT NULL DEFAULT '',
-            novel_content           TEXT    NOT NULL DEFAULT '',
-            novel_name_x            TEXT    NOT NULL DEFAULT '',
-            chapter_url_x           TEXT    NOT NULL DEFAULT '',
-            page_list               TEXT    NOT NULL DEFAULT '[]',
-            special_mode            TEXT    NOT NULL DEFAULT 'normal',
-            novel_content_fallbacks TEXT    NOT NULL DEFAULT '[]',
-            chapter_next_page_xpath TEXT    NOT NULL DEFAULT ''
-        );
-
-        CREATE TABLE IF NOT EXISTS ai_config (
-            id          INTEGER PRIMARY KEY DEFAULT 1,
-            enabled     INTEGER NOT NULL DEFAULT 0,
-            provider    TEXT    NOT NULL DEFAULT 'deepseek',
-            base_url    TEXT    NOT NULL DEFAULT '',
-            api_key     TEXT    NOT NULL DEFAULT '',
-            model       TEXT    NOT NULL DEFAULT '',
-            max_tokens  INTEGER NOT NULL DEFAULT 2048,
-            temperature REAL    NOT NULL DEFAULT 0.2
-        );
-        ",
-    )?;
-    Ok(())
-}
-
-// ─── Soft migration: ttks → rate_limit_rules ─────────────────────────────────
-
-/// 一次性将旧 ttks_* 列数据迁移到 rate_limit_rules 表
-fn migrate_ttks_to_rate_limit_rules(conn: &Connection) -> Result<()> {
-    // 只在表为空时执行
-    let already: i64 = conn
-        .query_row("SELECT COUNT(*) FROM rate_limit_rules", [], |r| r.get(0))
-        .unwrap_or(0);
-    if already > 0 { return Ok(()); }
-
-    // 尝试读旧 ttks_* 列（老 DB 中存在）
-    let row: rusqlite::Result<(String, i64, i64, String)> = conn.query_row(
-        "SELECT ttks_domains, ttks_delay_min, ttks_delay_max, ttks_ua_pool
-         FROM app_config WHERE id = 1",
-        [],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-    );
-    let Ok((domains_json, delay_min, delay_max, ua_pool_json)) = row else {
-        return Ok(()); // 无 config 行或列不存在，跳过
-    };
-
-    let domains: Vec<String> = serde_json::from_str(&domains_json).unwrap_or_default();
-    let ua_pool: Vec<String> = serde_json::from_str(&ua_pool_json).unwrap_or_default();
-    // 只在有实际内容时才插入
-    if domains.is_empty() && ua_pool.is_empty() { return Ok(()); }
-
-    conn.execute(
-        "INSERT INTO rate_limit_rules (sort_order, name, domains, delay_min, delay_max, rps, ua_pool, stealth)
-         VALUES (0, 'TTKS（迁移）', ?1, ?2, ?3, 0, ?4, 1)",
-        params![domains_json, delay_min, delay_max, ua_pool_json],
-    )?;
-    Ok(())
-}
-
-// ─── First-run detection ──────────────────────────────────────────────────────
-
-/// Returns true if the user has not yet completed initial setup.
-pub fn is_first_run(app_data_dir: &Path) -> bool {
-    let Ok(conn) = open_db(app_data_dir) else { return true; };
-    let result: rusqlite::Result<String> = conn.query_row(
-        "SELECT value FROM app_meta WHERE key = 'setup_complete'",
-        [],
-        |row| row.get(0),
-    );
-    match result {
-        Ok(v) => v != "1",
-        Err(_) => true,
-    }
-}
-
-/// Mark setup as complete (called after the onboarding wizard finishes).
-pub fn mark_setup_complete(app_data_dir: &Path) -> Result<()> {
-    let conn = open_db(app_data_dir)?;
-    conn.execute(
-        "INSERT INTO app_meta (key, value) VALUES ('setup_complete', '1')
-         ON CONFLICT(key) DO UPDATE SET value = '1'",
-        [],
-    )?;
-    Ok(())
 }
 
 // ─── Load config ──────────────────────────────────────────────────────────────
@@ -373,33 +194,6 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
     })
 }
 
-fn load_rate_limit_rules(conn: &Connection) -> Vec<crate::models::filters::RateLimitRule> {
-    let Ok(mut stmt) = conn.prepare(
-        "SELECT name, domains, delay_min, delay_max, rps, ua_pool, stealth
-         FROM rate_limit_rules ORDER BY sort_order ASC"
-    ) else { return vec![]; };
-
-    let rows = stmt.query_map([], |row| {
-        let name: String = row.get(0)?;
-        let domains_json: String = row.get(1)?;
-        let delay_min: u64 = row.get::<_, i64>(2)? as u64;
-        let delay_max: u64 = row.get::<_, i64>(3)? as u64;
-        let rps: u32 = row.get::<_, i64>(4)? as u32;
-        let ua_pool_json: String = row.get(5)?;
-        let stealth: bool = row.get::<_, i64>(6)? != 0;
-        let domains = serde_json::from_str(&domains_json).unwrap_or_default();
-        let ua_pool = serde_json::from_str(&ua_pool_json).unwrap_or_default();
-        Ok(crate::models::filters::RateLimitRule {
-            name, domains,
-            delay_min_ms: delay_min, delay_max_ms: delay_max,
-            requests_per_second: rps, ua_pool, stealth,
-        })
-    });
-    rows.ok()
-        .map(|iter| iter.filter_map(|r| r.ok()).collect())
-        .unwrap_or_default()
-}
-
 // ─── Save config ──────────────────────────────────────────────────────────────
 
 /// Save (upsert) AppConfig to DB. Websites are saved separately per-row.
@@ -528,118 +322,6 @@ pub fn save_config(app_data_dir: &Path, config: &AppConfig) -> Result<()> {
     Ok(())
 }
 
-// ─── Websites ─────────────────────────────────────────────────────────────────
-
-fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, WebsiteConfig>> {
-    // Add column if it doesn't exist yet (safe migration for existing DBs)
-    let _ = conn.execute_batch(
-        "ALTER TABLE websites ADD COLUMN chapter_next_page_xpath TEXT NOT NULL DEFAULT '';"
-    );
-
-    let mut stmt = conn.prepare(
-        "SELECT key, enabled, domain_name, release_date, release_url, list_novel_name,
-                novel_content, novel_name_x, chapter_url_x, page_list, special_mode,
-                novel_content_fallbacks, chapter_next_page_xpath
-         FROM websites",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        let key: String = row.get(0)?;
-        let enabled: bool = row.get::<_, i64>(1)? != 0;
-        let domain_name: String = row.get(2)?;
-        let release_date: String = row.get(3)?;
-        let release_url: String = row.get(4)?;
-        let list_novel_name: String = row.get(5)?;
-        let novel_content: String = row.get(6)?;
-        let novel_name_x: String = row.get(7)?;
-        let chapter_url_x: String = row.get(8)?;
-        let page_list_json: String = row.get(9)?;
-        let special_mode: String = row.get(10)?;
-        let fallbacks_json: String = row.get(11)?;
-        let chapter_next_page_xpath: String = row.get(12).unwrap_or_default();
-
-        let page_list: Vec<String> = serde_json::from_str(&page_list_json).unwrap_or_default();
-        let novel_content_fallbacks: Vec<String> =
-            serde_json::from_str(&fallbacks_json).unwrap_or_default();
-
-        Ok((key, WebsiteConfig {
-            enabled,
-            domain_name,
-            release_date,
-            release_url,
-            list_novel_name,
-            novel_content,
-            novel_name_x,
-            chapter_url_x,
-            page_list,
-            special_mode,
-            novel_content_fallbacks,
-            encoding: String::new(),
-            chapter_next_page_xpath,
-        }))
-    })?;
-
-    let mut map = HashMap::new();
-    for row in rows {
-        let (key, site) = row?;
-        map.insert(key, site);
-    }
-    Ok(map)
-}
-
-/// Replace ALL website rows with the given HashMap (full sync).
-fn save_all_websites_inner(
-    conn: &Connection,
-    websites: &HashMap<String, WebsiteConfig>,
-) -> Result<()> {
-    // Delete rows that no longer exist
-    let keys_json = serde_json::to_string(&websites.keys().collect::<Vec<_>>())?;
-    // SQLite doesn't support NOT IN with a JSON array directly, so we delete-then-insert
-    conn.execute("DELETE FROM websites", [])?;
-
-    for (key, site) in websites {
-        let page_list = serde_json::to_string(&site.page_list)?;
-        let fallbacks = serde_json::to_string(&site.novel_content_fallbacks)?;
-        conn.execute(
-            "INSERT INTO websites (key, enabled, domain_name, release_date, release_url,
-                list_novel_name, novel_content, novel_name_x, chapter_url_x,
-                page_list, special_mode, novel_content_fallbacks, chapter_next_page_xpath)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![
-                key, site.enabled as i64,
-                site.domain_name, site.release_date, site.release_url,
-                site.list_novel_name, site.novel_content, site.novel_name_x,
-                site.chapter_url_x, page_list, site.special_mode, fallbacks,
-                site.chapter_next_page_xpath,
-            ],
-        )?;
-    }
-    let _ = keys_json; // suppress unused warning
-    Ok(())
-}
-
-fn save_rate_limit_rules(conn: &Connection, rules: &[crate::models::filters::RateLimitRule]) -> Result<()> {
-    conn.execute("DELETE FROM rate_limit_rules", [])?;
-    for (i, rule) in rules.iter().enumerate() {
-        let domains_json = serde_json::to_string(&rule.domains)?;
-        let ua_pool_json = serde_json::to_string(&rule.ua_pool)?;
-        conn.execute(
-            "INSERT INTO rate_limit_rules (sort_order, name, domains, delay_min, delay_max, rps, ua_pool, stealth)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                i as i64,
-                rule.name,
-                domains_json,
-                rule.delay_min_ms as i64,
-                rule.delay_max_ms as i64,
-                rule.requests_per_second as i64,
-                ua_pool_json,
-                rule.stealth as i64,
-            ],
-        )?;
-    }
-    Ok(())
-}
-
 // ─── Update helpers ───────────────────────────────────────────────────────────
 
 /// Update just the last_download_date field without rewriting the whole config.
@@ -650,38 +332,6 @@ pub fn update_last_download_date(app_data_dir: &Path, date: &str) -> Result<()> 
         params![date],
     )?;
     Ok(())
-}
-
-// ─── Legacy migration ─────────────────────────────────────────────────────────
-
-/// If a legacy config.yml exists next to the executable, import it into the DB
-/// and rename it to config.yml.bak. Safe to call repeatedly (no-op after first run).
-pub fn maybe_migrate_from_yaml(app_data_dir: &Path) {
-    // Only migrate if DB has no config row yet
-    let Ok(conn) = open_db(app_data_dir) else { return; };
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM app_config", [], |r| r.get(0))
-        .unwrap_or(0);
-    if count > 0 {
-        return; // already have data
-    }
-
-    // Try to find config.yml using the legacy search logic
-    let yaml_path = crate::config::config_path();
-    if !yaml_path.exists() {
-        return;
-    }
-
-    let Ok(content) = std::fs::read_to_string(&yaml_path) else { return; };
-    let Ok(cfg) = serde_yaml::from_str::<AppConfig>(&content) else { return; };
-
-    // Import to DB
-    if save_config(app_data_dir, &cfg).is_ok() {
-        // Rename to .bak — don't delete in case user wants to roll back
-        let bak = yaml_path.with_extension("yml.bak");
-        let _ = std::fs::rename(&yaml_path, &bak);
-        tracing::info!("配置已从 config.yml 迁移到 SQLite，原文件重命名为 config.yml.bak");
-    }
 }
 
 // ─── Default AppConfig ────────────────────────────────────────────────────────
