@@ -3,7 +3,12 @@ import { Activity, CheckCircle2, ChevronDown, Copy, Loader2, Trash2 } from "luci
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { useAiStore, type AiProviderEntry } from "@/store/aiStore";
+import {
+  AI_PROVIDER_PRESET_LABELS,
+  type AiProviderPresetKey,
+  useAiStore,
+  type AiProviderEntry,
+} from "@/store/aiStore";
 
 import { ApiKeyInput, Field, ModelListEditor, ModelSelect, TestResult } from "./AiFormFields";
 
@@ -93,7 +98,7 @@ export function ProviderCard({
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-            {entry.name}
+            {AI_PROVIDER_PRESET_LABELS[entry.name as AiProviderPresetKey] ?? entry.name}
           </span>
           {/* Model badge */}
           <span
