@@ -167,13 +167,16 @@ export function handleEvent(get: GetFn, set: SetFn) {
           const np = { ...s.novelProgress };
           if (payload.novel) delete np[payload.novel];
 
-          const scanItem = s.scanItems.find((i) => i.name === payload.novel);
+          // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
+          const scanItem = payload.url
+            ? s.scanItems.find((i) => i.url === payload.url)
+            : s.scanItems.find((i) => i.name === payload.novel && i.site === (payload.site ?? i.site));
           const results: NovelResult[] = payload.novel
             ? [
                 ...s.novelResults,
                 {
                   name: payload.novel,
-                  url: scanItem?.url ?? "",
+                  url: scanItem?.url ?? payload.url ?? "",
                   site: scanItem?.site ?? payload.site ?? "",
                   date: scanItem?.date ?? "",
                   status: "success" as const,
@@ -194,7 +197,10 @@ export function handleEvent(get: GetFn, set: SetFn) {
       case "novel_error":
         if (payload.novel) {
           set((s) => {
-            const scanItem = s.scanItems.find((i) => i.name === payload.novel);
+            // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
+            const scanItem = payload.url
+              ? s.scanItems.find((i) => i.url === payload.url)
+              : s.scanItems.find((i) => i.name === payload.novel && i.site === (payload.site ?? i.site));
             const site = payload.site;
             const updated = { ...s.siteProgress };
             if (site && updated[site]) {
@@ -210,7 +216,7 @@ export function handleEvent(get: GetFn, set: SetFn) {
                 ...s.novelResults,
                 {
                   name: payload.novel!,
-                  url: scanItem?.url ?? "",
+                  url: scanItem?.url ?? payload.url ?? "",
                   site: scanItem?.site ?? payload.site ?? "",
                   date: scanItem?.date ?? "",
                   status: "error" as const,

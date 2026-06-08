@@ -10,7 +10,7 @@ import { RegexPanel } from "./RegexPanel";
 import { TagPanel } from "./TagPanel";
 
 export function BlacklistPage() {
-  const { config, saveConfig, saving } = useConfigStore();
+  const { config, saveConfig, saving, updateConfig } = useConfigStore();
 
   if (!config) {
     return (
@@ -23,7 +23,8 @@ export function BlacklistPage() {
   const bl = config.blacklist;
 
   const update = (patch: Partial<typeof bl>) => {
-    useConfigStore.setState({ config: { ...config, blacklist: { ...bl, ...patch } } });
+    // Use updateConfig with a functional updater to avoid stale-closure race conditions
+    updateConfig((c) => ({ ...c, blacklist: { ...c.blacklist, ...patch } }));
   };
 
   return (
@@ -32,7 +33,7 @@ export function BlacklistPage() {
         title="黑名单管理"
         subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则，支持模糊搜索`}
         actions={
-          <Button size="sm" onClick={() => saveConfig(config)} disabled={saving}>
+          <Button size="sm" onClick={() => saveConfig(useConfigStore.getState().config!)} disabled={saving}>
             <Save className="h-3.5 w-3.5" />
             {saving ? "保存中..." : "保存"}
           </Button>

@@ -32,6 +32,8 @@ interface PerTaskLogs {
 let _initPromise: Promise<void> | null = null;
 // Module-level interval id so it can be cleared on re-init (HMR / test safety)
 let _pollIntervalId: ReturnType<typeof setInterval> | null = null;
+// Module-level Tauri event unlisten function so it can be cleaned up on re-init
+let _tauriUnlisten: (() => void) | null = null;
 
 interface TaskStore {
   tasks: TaskRecord[];
@@ -84,7 +86,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     // Subscribe to task_event (Tauri)
     try {
       const { listen } = await import("@tauri-apps/api/event");
-      await listen<TaskEvent>("task_event", (e) => {
+      // Clean up any existing Tauri listener before registering a new one (HMR safety)
+      _tauriUnlisten?.();
+      _tauriUnlisten = null;
+      const unlisten = await listen<TaskEvent>("task_event", (e) => {
         const event = e.payload;
         set((s) => {
           // Check if task exists; if not (race condition), skip
@@ -106,6 +111,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           return { tasks, logs: newLogs };
         });
       });
+      _tauriUnlisten = unlisten;
     } catch {
       // Non-Tauri environment: poll /api/tasks every 2s
       const pollTasks = async () => {

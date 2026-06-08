@@ -131,14 +131,22 @@ export function DownloadPage() {
                 await createSingleTask(urls[0]);
                 toast.success("已创建单本下载任务，请在任务管理查看进度");
               } else {
+                let successCount = 0;
+                const failedUrls: string[] = [];
                 for (const url of urls) {
                   try {
                     await createSingleTask(url);
+                    successCount++;
                   } catch (e) {
                     console.error("创建任务失败:", url, e);
+                    failedUrls.push(url);
                   }
                 }
-                toast.success(`已创建 ${urls.length} 个下载任务，请前往「任务管理」查看`);
+                if (failedUrls.length > 0) {
+                  toast.error(`${failedUrls.length} 个任务创建失败，已成功创建 ${successCount} 个`);
+                } else {
+                  toast.success(`已创建 ${successCount} 个下载任务，请前往「任务管理」查看`);
+                }
               }
               setShowImport(false);
             }}

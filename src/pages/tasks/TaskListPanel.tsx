@@ -66,10 +66,10 @@ export function TaskListPanel({ onNewScan, onNewBatch, onNewSingle }: Props) {
             task={task}
             isActive={task.id === activeTaskId}
             onSelect={() => setActive(task.id)}
-            onCancel={() => cancelTask(task.id)}
-            onPause={() => pauseTask(task.id)}
-            onDelete={() => deleteTask(task.id)}
-            onRetry={() => retryTask(task.id)}
+            onCancel={() => void cancelTask(task.id)}
+            onPause={() => void pauseTask(task.id)}
+            onDelete={() => void deleteTask(task.id)}
+            onRetry={() => void retryTask(task.id)}
           />
         ))}
       </div>

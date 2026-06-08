@@ -45,7 +45,9 @@ export function detectPagination(html: string, currentUrl: string): PaginationDe
   // ── Pattern matchers ────────────────────────────────────────────────────────
 
   function maxPage(nums: number[]): number {
-    return Math.max(...nums.filter((n) => n >= 2 && n <= 999));
+    const filtered = nums.filter((n) => n >= 2 && n <= 999);
+    if (filtered.length === 0) return 0;
+    return Math.max(...filtered);
   }
 
   // 1. Query string: ?page=N or ?p=N or ?pageNum=N

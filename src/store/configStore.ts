@@ -37,8 +37,8 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   error: null,
 
   loadConfig: async () => {
-    // 已加载过则跳过，避免重复请求
-    if (get().config !== null) return;
+    // 已加载过或正在加载则跳过，避免并发重复请求
+    if (get().config !== null || get().loading) return;
     set({ loading: true, error: null });
     try {
       const config = await loadConfigWithRetry();

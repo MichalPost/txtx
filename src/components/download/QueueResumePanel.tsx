@@ -15,7 +15,9 @@ export function QueueResumePanel() {
 
   useEffect(() => {
     void loadQueueStatus();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // loadQueueStatus is a stable zustand action reference, intentionally omitted from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (queueStatus?.exists && panelRef.current) {

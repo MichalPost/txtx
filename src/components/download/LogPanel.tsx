@@ -50,7 +50,9 @@ export function LogPanel() {
     if (filter === "all" && filtered.length > 0) {
       virtualizer.scrollToIndex(filtered.length - 1, { behavior: "smooth" });
     }
-  }, [filtered.length, filter]); // eslint-disable-line react-hooks/exhaustive-deps
+    // virtualizer instance is stable (tanstack-virtual guarantees this); filtered.length and filter are the real triggers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered.length, filter]);
 
   const errorCount = logs.filter((l) => l.level === "error").length;
 
