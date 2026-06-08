@@ -28,6 +28,10 @@ pub(super) fn compute_target_date(cfg: &AppConfig) -> String {
     (now - chrono::Duration::days(actual_days)).format("%Y-%m-%d").to_string()
 }
 
+fn normalize_worker_count(value: usize) -> usize {
+    value.max(1)
+}
+
 // ─── Shared download execution batch ─────────────────────────────────────────
 
 /// 核心并发下载循环，由 run_download 和 run_download_selected 共用。
@@ -45,8 +49,8 @@ pub(super) async fn execute_download_batch(
         .map(|s| (s.domain_name.clone(), s.clone()))
         .collect();
 
-    let novel_sem = Arc::new(Semaphore::new(config.concurrency.novel_threads));
-    let chapter_sem = Arc::new(Semaphore::new(config.concurrency.chapter_threads));
+    let novel_sem = Arc::new(Semaphore::new(normalize_worker_count(config.concurrency.novel_threads)));
+    let chapter_sem = Arc::new(Semaphore::new(normalize_worker_count(config.concurrency.chapter_threads)));
     let remaining: Arc<Mutex<Vec<BookCandidate>>> =
         Arc::new(Mutex::new(candidates.clone()));
 
@@ -81,6 +85,7 @@ pub(super) async fn execute_download_batch(
 
             let name = candidate.name.clone();
             let domain = candidate.crawler_domain.clone();
+            let url = candidate.url.clone();
 
             let _ = tx.send(ProgressEvent::NovelStart {
                 novel: name.clone(), site: domain.clone(),
@@ -112,12 +117,12 @@ pub(super) async fn execute_download_batch(
                         level: "success".into(),
                     }).await;
                     let _ = tx.send(ProgressEvent::NovelDone {
-                        novel: name.clone(), site: domain,
+                        novel: name.clone(), site: domain, url,
                     }).await;
                 }
                 Err(e) => {
                     let _ = tx.send(ProgressEvent::NovelError {
-                        novel: name.clone(), site: domain,
+                        novel: name.clone(), site: domain, url,
                         message: e.to_string(),
                     }).await;
                 }
@@ -133,4 +138,15 @@ pub(super) async fn execute_download_batch(
     }
 
     futures::future::join_all(tasks).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_worker_count;
+
+    #[test]
+    fn normalize_worker_count_prevents_zero_permit_deadlock() {
+        assert_eq!(normalize_worker_count(0), 1);
+        assert_eq!(normalize_worker_count(3), 3);
+    }
 }

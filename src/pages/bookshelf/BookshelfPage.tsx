@@ -45,7 +45,9 @@ export function BookshelfPage() {
   const [sortKey, setSortKey] = useState<SortKey>("modified");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [qualityReport, setQualityReport] = useState<{ book: BookFile; content: string } | null>(null);
+  const [qualityReport, setQualityReport] = useState<{ book: BookFile; content: string } | null>(
+    null,
+  );
   const [checkingQuality, setCheckingQuality] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -113,14 +115,20 @@ export function BookshelfPage() {
     setCheckingQuality(book.path);
     try {
       // Use Tauri fs plugin if available, otherwise show unsupported message
-      const isTauri = typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== "undefined";
+      const isTauri =
+        typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== "undefined";
       if (!isTauri) {
         toast.error("质量检查仅在桌面版（Tauri）中可用");
         return;
       }
       // Use Function constructor to avoid TypeScript static module resolution
-      const fs = await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(() => null) as { readTextFile: (p: string) => Promise<string> } | null;
-      if (!fs) { toast.error("文件读取不可用"); return; }
+      const fs = (await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(
+        () => null,
+      )) as { readTextFile: (p: string) => Promise<string> } | null;
+      if (!fs) {
+        toast.error("文件读取不可用");
+        return;
+      }
       const content = await fs.readTextFile(book.path);
       setQualityReport({ book, content });
     } catch (e) {
@@ -130,7 +138,8 @@ export function BookshelfPage() {
     }
   };
 
-  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => {    const isActive = sortKey === k;
+  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => {
+    const isActive = sortKey === k;
     const Icon = sortDir === "asc" ? ArrowUp : ArrowDown;
     return (
       <button
@@ -205,7 +214,9 @@ export function BookshelfPage() {
       )}
 
       {/* Book list */}
-      <div ref={listRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto">        {isLoading && (
+      <div ref={listRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
+        {" "}
+        {isLoading && (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
               加载中...
@@ -269,18 +280,22 @@ export function BookshelfPage() {
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                       style={{
                         background: "var(--color-accent-muted)",
-                        border: "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
+                        border:
+                          "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
                       }}
                     >
                       <FileText className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium" style={{ color: "var(--color-text)" }}>
+                      <p
+                        className="truncate text-sm font-medium"
+                        style={{ color: "var(--color-text)" }}
+                      >
                         {book.name}
                       </p>
                       <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        {filesize(book.size, { locale: false, standard: "iec" })} · {formatDate(book.modified)} ·{" "}
-                        {book.extension.toUpperCase()}
+                        {filesize(book.size, { locale: false, standard: "iec" })} ·{" "}
+                        {formatDate(book.modified)} · {book.extension.toUpperCase()}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
@@ -301,9 +316,10 @@ export function BookshelfPage() {
                         onClick={() => void handleCheckQuality(book)}
                         className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
                         style={{
-                          color: qualityReport?.book.path === book.path
-                            ? "var(--color-accent)"
-                            : "var(--color-text-muted)",
+                          color:
+                            qualityReport?.book.path === book.path
+                              ? "var(--color-accent)"
+                              : "var(--color-text-muted)",
                         }}
                         title="章节质量检查"
                       >
@@ -324,7 +340,10 @@ export function BookshelfPage() {
                           <button
                             onClick={() => setConfirmDelete(null)}
                             className="rounded border px-2 py-1 text-xs"
-                            style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
+                            style={{
+                              borderColor: "var(--color-border)",
+                              color: "var(--color-text-muted)",
+                            }}
                           >
                             取消
                           </button>

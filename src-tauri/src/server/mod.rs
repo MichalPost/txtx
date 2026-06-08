@@ -15,8 +15,9 @@ pub mod tools_routes;
 
 use std::sync::Arc;
 use axum::{routing::{get, post}, Router};
+use axum::http::{HeaderValue, Method, Request, StatusCode};
 use tokio::sync::{Mutex, Notify};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use state::{AppState, DownloadState};
 use bookshelf_routes::{delete_book_route, get_books, get_calibre_detect};
@@ -37,7 +38,32 @@ use task_routes::{
 };
 use crate::task_manager::{TaskManager, SharedTaskManager};
 
-pub async fn run_server() {
+const ALLOWED_ORIGINS: &[&str] = &[
+    "http://localhost:1420",
+    "http://127.0.0.1:1420",
+    "tauri://localhost",
+];
+
+fn is_allowed_origin(origin: &HeaderValue) -> bool {
+    origin
+        .to_str()
+        .map(|value| ALLOWED_ORIGINS.contains(&value))
+        .unwrap_or(false)
+}
+
+async fn reject_untrusted_origin(
+    req: Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, StatusCode> {
+    if let Some(origin) = req.headers().get(axum::http::header::ORIGIN) {
+        if !is_allowed_origin(origin) {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    Ok(next.run(req).await)
+}
+
+pub async fn run_server() -> anyhow::Result<()> {
     let port: u16 = std::env::var("TXTX_PORT")
         .ok().and_then(|p| p.parse().ok()).unwrap_or(3721);
 
@@ -61,9 +87,9 @@ pub async fn run_server() {
     let app_state = AppState { download: download_state, base_dir, task_manager };
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(AllowOrigin::predicate(|origin, _| is_allowed_origin(origin)))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([axum::http::header::CONTENT_TYPE]);
 
     let app = Router::new()
         .route("/api/config",              get(get_config).put(put_config))
@@ -100,10 +126,12 @@ pub async fn run_server() {
         .route("/api/books",               get(get_books).delete(delete_book_route))
         .route("/api/calibre/detect",      get(get_calibre_detect))
         .with_state(app_state)
+        .layer(axum::middleware::from_fn(reject_untrusted_origin))
         .layer(cors);
 
     let addr = format!("127.0.0.1:{port}");
     tracing::info!("txtx-server listening on http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }

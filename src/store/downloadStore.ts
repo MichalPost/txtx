@@ -215,7 +215,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     const { novelResults, scanItems } = get();
     // Use URL as the unique key to avoid name collisions across different sites
     const failedUrls = new Set(
-      novelResults.filter((r) => r.status === "error").map((r) => r.url).filter(Boolean),
+      novelResults
+        .filter((r) => r.status === "error")
+        .map((r) => r.url)
+        .filter(Boolean),
     );
     if (failedUrls.size === 0) return;
 

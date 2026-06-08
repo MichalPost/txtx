@@ -19,7 +19,9 @@ interface SiteCardExpandedPanelProps {
 export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardExpandedPanelProps) {
   const [draftDomain, setDraftDomain] = useState(site.domain_name);
   const [draftReleaseUrl, setDraftReleaseUrl] = useState(site.release_url);
-  const [activePanel, setActivePanel] = useState<"template" | "ai" | "source" | "ratelimit" | null>(null);
+  const [activePanel, setActivePanel] = useState<"template" | "ai" | "source" | "ratelimit" | null>(
+    null,
+  );
 
   const aiEnabled = useAiStore((s) => s.config.enabled);
 

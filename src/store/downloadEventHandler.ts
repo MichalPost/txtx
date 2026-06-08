@@ -133,7 +133,10 @@ export function handleEvent(get: GetFn, set: SetFn) {
             );
             // Estimate remaining chapters for novels not yet started:
             // use the average chapter count of in-progress novels as a rough proxy.
-            const pendingNovels = Math.max(0, s.overallTotal - s.overallCompleted - activeNovels.length);
+            const pendingNovels = Math.max(
+              0,
+              s.overallTotal - s.overallCompleted - activeNovels.length,
+            );
             const avgChapters =
               activeNovels.length > 0
                 ? activeNovels.reduce((acc, n) => acc + n.total, 0) / activeNovels.length
@@ -170,7 +173,9 @@ export function handleEvent(get: GetFn, set: SetFn) {
           // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
           const scanItem = payload.url
             ? s.scanItems.find((i) => i.url === payload.url)
-            : s.scanItems.find((i) => i.name === payload.novel && i.site === (payload.site ?? i.site));
+            : s.scanItems.find(
+                (i) => i.name === payload.novel && i.site === (payload.site ?? i.site),
+              );
           const results: NovelResult[] = payload.novel
             ? [
                 ...s.novelResults,
@@ -200,7 +205,9 @@ export function handleEvent(get: GetFn, set: SetFn) {
             // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
             const scanItem = payload.url
               ? s.scanItems.find((i) => i.url === payload.url)
-              : s.scanItems.find((i) => i.name === payload.novel && i.site === (payload.site ?? i.site));
+              : s.scanItems.find(
+                  (i) => i.name === payload.novel && i.site === (payload.site ?? i.site),
+                );
             const site = payload.site;
             const updated = { ...s.siteProgress };
             if (site && updated[site]) {

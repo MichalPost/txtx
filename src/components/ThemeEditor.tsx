@@ -89,8 +89,7 @@ export function ThemeEditor({ onClose }: Props) {
             className="relative h-6 w-6 cursor-pointer overflow-hidden rounded-full border transition-transform hover:scale-110"
             style={{
               borderColor: "var(--color-border)",
-              background:
-                "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+              background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
             }}
             title="自定义颜色"
           >
@@ -106,10 +105,7 @@ export function ThemeEditor({ onClose }: Props) {
 
       {/* Background color */}
       <div className="flex items-center gap-2">
-        <span
-          className="w-10 shrink-0 text-xs"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+        <span className="w-10 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
           背景
         </span>
         <label className="cursor-pointer">
@@ -127,17 +123,14 @@ export function ThemeEditor({ onClose }: Props) {
             className="sr-only"
           />
         </label>
-        <code className="text-xs font-mono" style={{ color: "var(--color-text-subtle)" }}>
+        <code className="font-mono text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {draft.bg}
         </code>
       </div>
 
       {/* Surface color */}
       <div className="flex items-center gap-2">
-        <span
-          className="w-10 shrink-0 text-xs"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+        <span className="w-10 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
           卡片
         </span>
         <label className="cursor-pointer">
@@ -155,17 +148,14 @@ export function ThemeEditor({ onClose }: Props) {
             className="sr-only"
           />
         </label>
-        <code className="text-xs font-mono" style={{ color: "var(--color-text-subtle)" }}>
+        <code className="font-mono text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {draft.surface}
         </code>
       </div>
 
       {/* Text color */}
       <div className="flex items-center gap-2">
-        <span
-          className="w-10 shrink-0 text-xs"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+        <span className="w-10 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
           文字
         </span>
         <label className="cursor-pointer">
@@ -183,7 +173,7 @@ export function ThemeEditor({ onClose }: Props) {
             className="sr-only"
           />
         </label>
-        <code className="text-xs font-mono" style={{ color: "var(--color-text-subtle)" }}>
+        <code className="font-mono text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {draft.text}
         </code>
       </div>

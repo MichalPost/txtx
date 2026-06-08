@@ -49,7 +49,6 @@ export function usePersistedState<T>(key: string, fallback: T): [T, (v: T) => vo
       setValue(v);
       loaded.current = true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   const set_ = (v: T) => {

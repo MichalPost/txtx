@@ -6,8 +6,8 @@ import { animateFadeIn } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
 import { useTaskStore } from "@/store/taskStore";
 
-import { DownloadingView } from "./detail/DownloadingView";
 import { DoneView } from "./detail/DoneView";
+import { DownloadingView } from "./detail/DownloadingView";
 import { EmptyState } from "./detail/EmptyState";
 import { FailedView } from "./detail/FailedView";
 import { ScanPreviewPanel } from "./detail/ScanPreviewPanel";

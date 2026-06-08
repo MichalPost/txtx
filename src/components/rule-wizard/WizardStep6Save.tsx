@@ -85,7 +85,9 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
     { label: "章节链接 XPath", value: listUrlXPath, required: true },
     ...(listDateXPath ? [{ label: "更新日期 XPath", value: listDateXPath }] : []),
     ...(chapterNameXPath ? [{ label: "详情页书名 XPath", value: chapterNameXPath }] : []),
-    ...(buildXPathFromRule(data.chap_intro) ? [{ label: "书籍简介 XPath", value: buildXPathFromRule(data.chap_intro) }] : []),
+    ...(buildXPathFromRule(data.chap_intro)
+      ? [{ label: "书籍简介 XPath", value: buildXPathFromRule(data.chap_intro) }]
+      : []),
     ...(data.chapter_next_page_xpath?.trim()
       ? [{ label: "章节内分页 XPath", value: data.chapter_next_page_xpath }]
       : []),

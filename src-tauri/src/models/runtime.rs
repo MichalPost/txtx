@@ -69,10 +69,12 @@ pub enum ProgressEvent {
     NovelDone {
         novel: String,
         site: String,
+        url: String,
     },
     NovelError {
         novel: String,
         site: String,
+        url: String,
         message: String,
     },
     OverallDone,

@@ -103,7 +103,10 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => { setBulkMode(false); setBulkText(""); }}
+                onClick={() => {
+                  setBulkMode(false);
+                  setBulkText("");
+                }}
                 className="flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs"
                 style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
               >

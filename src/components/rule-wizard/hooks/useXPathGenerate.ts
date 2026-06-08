@@ -21,7 +21,7 @@ export function useXPathGenerate(
       if (!activeKws.length || !html) return;
 
       // Increment sequence number for this field; stale callbacks will be ignored
-      const seq = ((genSeqRef.current[field] ?? 0) + 1);
+      const seq = (genSeqRef.current[field] ?? 0) + 1;
       genSeqRef.current[field] = seq;
 
       patchField(field, { generating: true, error: "" });

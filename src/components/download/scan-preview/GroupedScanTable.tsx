@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-
 import { ChevronDown, Globe } from "lucide-react";
 
 import type { ScanItem } from "@/types";

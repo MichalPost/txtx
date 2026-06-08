@@ -79,7 +79,12 @@ export function RootLayout() {
     if (!schedEnabled) return;
 
     const check = () => {
-      const { schedHour: hour, schedLastRun: lastRun, schedMarkRan: markRan, createBatchTask: createTask } = schedRef.current;
+      const {
+        schedHour: hour,
+        schedLastRun: lastRun,
+        schedMarkRan: markRan,
+        createBatchTask: createTask,
+      } = schedRef.current;
       const now = new Date();
       const today = now.toISOString().slice(0, 10);
       if (now.getHours() === hour && lastRun !== today) {

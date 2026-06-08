@@ -41,7 +41,8 @@ function StatCell({ label, value, color }: { label: string; value: number; color
 }
 
 export function DownloadProgress() {
-  const { siteProgress, novelProgress, novelResults, stats, phase, speed, queueStatus } = useDownloadStore();
+  const { siteProgress, novelProgress, novelResults, stats, phase, speed, queueStatus } =
+    useDownloadStore();
   const sites = Object.values(siteProgress);
   const novels = Object.values(novelProgress);
   // 如果下载开始时队列存在，认为是续传模式

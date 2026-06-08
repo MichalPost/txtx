@@ -57,9 +57,9 @@ export function PostScriptSection() {
             >
               <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                命令在 <code className="font-mono">cmd.exe /C</code> 中执行，可以是批处理命令或外部程序。
-                示例：
-                <code className="font-mono ml-1">
+                命令在 <code className="font-mono">cmd.exe /C</code>{" "}
+                中执行，可以是批处理命令或外部程序。 示例：
+                <code className="ml-1 font-mono">
                   robocopy &quot;%DIR%&quot; &quot;D:\备份&quot; *.txt /MIR
                 </code>
               </span>

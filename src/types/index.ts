@@ -209,6 +209,7 @@ export interface ProgressEvent {
     | "log";
   site?: string;
   novel?: string;
+  url?: string;
   total?: number;
   current?: number;
   completed?: number;

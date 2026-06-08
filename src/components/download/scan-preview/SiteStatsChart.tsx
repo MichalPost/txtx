@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-
 import { BarChart2 } from "lucide-react";
 
 import type { ScanItem } from "@/types";

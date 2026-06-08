@@ -107,8 +107,7 @@ export function SiteCardBadges({ status, site, highlighted, health }: SiteCardBa
               health.lastStatus === "success"
                 ? "var(--color-success-bg)"
                 : "var(--color-danger-bg)",
-            color:
-              health.lastStatus === "success" ? "var(--color-success)" : "var(--color-danger)",
+            color: health.lastStatus === "success" ? "var(--color-success)" : "var(--color-danger)",
             fontSize: "11px",
           }}
           title={`上次使用: ${new Date(health.lastUsed).toLocaleString("zh-CN")}\n成功 ${health.successCount} 次，失败 ${health.errorCount} 次${health.lastError ? `\n错误: ${health.lastError}` : ""}`}

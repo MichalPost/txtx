@@ -5,9 +5,9 @@ import { Button } from "@/components/Button";
 import { useTaskStore } from "@/store/taskStore";
 import type { ScanTaskOptions } from "@/types";
 
-import { TaskListItem } from "./TaskListItem";
 import { NewTaskMenu } from "./list/NewTaskMenu";
 import { TaskEmptyState } from "./list/TaskEmptyState";
+import { TaskListItem } from "./TaskListItem";
 
 interface Props {
   onNewScan: (opts: ScanTaskOptions) => void;

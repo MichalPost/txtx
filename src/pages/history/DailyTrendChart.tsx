@@ -46,7 +46,12 @@ export function DailyTrendChart({ data, onClose }: DailyTrendChartProps) {
             />
             <YAxis tick={{ fontSize: 10, fill: "var(--color-text-muted)" }} />
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={formatDailyTooltip} />
-            <Bar dataKey="success" fill="var(--color-success)" radius={[3, 3, 0, 0]} maxBarSize={20} />
+            <Bar
+              dataKey="success"
+              fill="var(--color-success)"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={20}
+            />
             <Bar dataKey="error" fill="var(--color-danger)" radius={[3, 3, 0, 0]} maxBarSize={20} />
           </BarChart>
         </ResponsiveContainer>

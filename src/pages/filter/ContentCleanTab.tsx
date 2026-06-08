@@ -41,7 +41,9 @@ export function ContentCleanTab() {
 
   const handleExport = () => {
     const data = { ad_patterns: cf.ad_patterns, nav_keywords: cf.nav_keywords };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -86,7 +88,13 @@ export function ContentCleanTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"

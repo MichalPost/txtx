@@ -48,14 +48,20 @@ export function ChapterQualityReport({ content, threshold = 300 }: Props) {
       <div className="flex items-center gap-2 text-xs">
         {suspiciousCount === 0 ? (
           <>
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+            <CheckCircle2
+              className="h-3.5 w-3.5 shrink-0"
+              style={{ color: "var(--color-success)" }}
+            />
             <span style={{ color: "var(--color-success)" }}>
               全部 {chapters.length} 章正常（每章 ≥ {threshold} 字）
             </span>
           </>
         ) : (
           <>
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+            <AlertTriangle
+              className="h-3.5 w-3.5 shrink-0"
+              style={{ color: "var(--color-warning)" }}
+            />
             <span style={{ color: "var(--color-warning)" }}>
               {suspiciousCount}/{chapters.length} 章可能是防盗章（字数 ＜ {threshold}）
             </span>
@@ -92,9 +98,7 @@ export function ChapterQualityReport({ content, threshold = 300 }: Props) {
                     className="h-3 w-3 shrink-0"
                     style={{ color: "var(--color-danger)" }}
                   />
-                  <span style={{ color: "var(--color-text-muted)" }}>
-                    第 {s.index} 章：
-                  </span>
+                  <span style={{ color: "var(--color-text-muted)" }}>第 {s.index} 章：</span>
                   <span className="font-mono" style={{ color: "var(--color-danger)" }}>
                     {s.charCount} 字
                   </span>

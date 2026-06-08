@@ -73,83 +73,88 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       set({ _initialized: true });
 
       // Load persisted + in-memory tasks
-    const [persisted, current] = await Promise.all([
-      apiLoadPersistedTasks().catch(() => [] as TaskRecord[]),
-      apiListTasks().catch(() => [] as TaskRecord[]),
-    ]);
-    const merged = [...current];
-    for (const p of persisted) {
-      if (!merged.find((t) => t.id === p.id)) merged.push(p);
-    }
-    set({ tasks: merged });
+      const [persisted, current] = await Promise.all([
+        apiLoadPersistedTasks().catch(() => [] as TaskRecord[]),
+        apiListTasks().catch(() => [] as TaskRecord[]),
+      ]);
+      const merged = [...current];
+      for (const p of persisted) {
+        if (!merged.find((t) => t.id === p.id)) merged.push(p);
+      }
+      set({ tasks: merged });
 
-    // Subscribe to task_event (Tauri)
-    try {
-      const { listen } = await import("@tauri-apps/api/event");
-      // Clean up any existing Tauri listener before registering a new one (HMR safety)
-      _tauriUnlisten?.();
-      _tauriUnlisten = null;
-      const unlisten = await listen<TaskEvent>("task_event", (e) => {
-        const event = e.payload;
-        set((s) => {
-          // Check if task exists; if not (race condition), skip
-          const exists = s.tasks.find((t) => t.id === event.task_id);
-          if (!exists) return s;
-
-          const tasks = s.tasks.map((t) => (t.id === event.task_id ? applyTaskEvent(t, event) : t));
-
-          let newLogs = s.logs;
-          if (event.type === "log" && event.message) {
-            const entry = makeLogEntry((event.level ?? "info") as LogEntry["level"], event.message);
-            const prev = s.logs[event.task_id] ?? [];
-            newLogs = {
-              ...s.logs,
-              [event.task_id]: [...prev.slice(-(MAX_LOGS - 1)), entry],
-            };
-          }
-
-          return { tasks, logs: newLogs };
-        });
-      });
-      _tauriUnlisten = unlisten;
-    } catch {
-      // Non-Tauri environment: poll /api/tasks every 2s
-      const pollTasks = async () => {
-        try {
-          const freshTasks = await apiListTasks();
+      // Subscribe to task_event (Tauri)
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        // Clean up any existing Tauri listener before registering a new one (HMR safety)
+        _tauriUnlisten?.();
+        _tauriUnlisten = null;
+        const unlisten = await listen<TaskEvent>("task_event", (e) => {
+          const event = e.payload;
           set((s) => {
-            const updated = s.tasks.map((existing) => {
-              const server = freshTasks.find((f) => f.id === existing.id);
-              if (!server) return existing;
-              if (
-                server.status !== existing.status ||
-                server.completed !== existing.completed ||
-                server.success_count !== existing.success_count ||
-                server.error_count !== existing.error_count ||
-                (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)
-              ) {
-                return server;
-              }
-              return existing;
-            });
-            // Also add any server-side tasks not yet in local store
-            const newTasks = freshTasks.filter((f) => !s.tasks.find((e) => e.id === f.id));
-            if (updated.some((u, i) => u !== s.tasks[i]) || newTasks.length > 0) {
-              return { tasks: [...updated, ...newTasks] };
-            }
-            return s;
-          });
-        } catch {
-          // Ignore poll errors
-        }
-      };
+            // Check if task exists; if not (race condition), skip
+            const exists = s.tasks.find((t) => t.id === event.task_id);
+            if (!exists) return s;
 
-      // Start polling every 2 seconds
-      if (_pollIntervalId !== null) clearInterval(_pollIntervalId);
-      _pollIntervalId = setInterval(() => {
-        void pollTasks();
-      }, 2000);
-    }
+            const tasks = s.tasks.map((t) =>
+              t.id === event.task_id ? applyTaskEvent(t, event) : t,
+            );
+
+            let newLogs = s.logs;
+            if (event.type === "log" && event.message) {
+              const entry = makeLogEntry(
+                (event.level ?? "info") as LogEntry["level"],
+                event.message,
+              );
+              const prev = s.logs[event.task_id] ?? [];
+              newLogs = {
+                ...s.logs,
+                [event.task_id]: [...prev.slice(-(MAX_LOGS - 1)), entry],
+              };
+            }
+
+            return { tasks, logs: newLogs };
+          });
+        });
+        _tauriUnlisten = unlisten;
+      } catch {
+        // Non-Tauri environment: poll /api/tasks every 2s
+        const pollTasks = async () => {
+          try {
+            const freshTasks = await apiListTasks();
+            set((s) => {
+              const updated = s.tasks.map((existing) => {
+                const server = freshTasks.find((f) => f.id === existing.id);
+                if (!server) return existing;
+                if (
+                  server.status !== existing.status ||
+                  server.completed !== existing.completed ||
+                  server.success_count !== existing.success_count ||
+                  server.error_count !== existing.error_count ||
+                  (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)
+                ) {
+                  return server;
+                }
+                return existing;
+              });
+              // Also add any server-side tasks not yet in local store
+              const newTasks = freshTasks.filter((f) => !s.tasks.find((e) => e.id === f.id));
+              if (updated.some((u, i) => u !== s.tasks[i]) || newTasks.length > 0) {
+                return { tasks: [...updated, ...newTasks] };
+              }
+              return s;
+            });
+          } catch {
+            // Ignore poll errors
+          }
+        };
+
+        // Start polling every 2 seconds
+        if (_pollIntervalId !== null) clearInterval(_pollIntervalId);
+        _pollIntervalId = setInterval(() => {
+          void pollTasks();
+        }, 2000);
+      }
     })().catch((err) => {
       // Reset promise on failure so init() can be retried
       _initPromise = null;
@@ -271,7 +276,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const remaining = s.tasks.filter((t) => t.id !== id);
       const nextActive = s.activeTaskId === id ? (remaining[0]?.id ?? null) : s.activeTaskId;
       // Also clean up logs to prevent unbounded memory growth
-      const { [id]: _removed, ...remainingLogs } = s.logs;
+      const remainingLogs = { ...s.logs };
+      delete remainingLogs[id];
       return { tasks: remaining, activeTaskId: nextActive, logs: remainingLogs };
     });
   },

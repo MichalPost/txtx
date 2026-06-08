@@ -460,9 +460,9 @@ export function WizardStepCatalog({ data, onChange }: Props) {
 
       {/* ── Book intro (optional) ───────────────────────────────────────── */}
       <WizardSection title="书籍简介 XPath（选填）" color="var(--color-text-subtle)">
-        <p className="text-xs mb-2" style={{ color: "var(--color-text-subtle)" }}>
+        <p className="mb-2 text-xs" style={{ color: "var(--color-text-subtle)" }}>
           从目录页提取书籍简介，下载完成后会写入文件头部。常见位置：
-          <code className="font-mono ml-1">{"//div[@class='intro']"}</code>
+          <code className="ml-1 font-mono">{"//div[@class='intro']"}</code>
         </p>
         <FieldRuleEditor
           label="简介 XPath"

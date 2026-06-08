@@ -35,9 +35,8 @@ import {
   type UpdateListBookItem,
   type WizardData,
 } from "./ruleUtils";
+import { detectPagination, type PaginationDetectResult } from "./utils/paginationDetect";
 import { evalXPathAll, mergeBooks } from "./utils/xpathEval";
-import { detectPagination } from "./utils/paginationDetect";
-import type { PaginationDetectResult } from "./utils/paginationDetect";
 
 // Re-export for consumers that import from here
 export type { UpdateListBookItem };

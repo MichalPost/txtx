@@ -44,9 +44,7 @@ export function BulkAddPanel({
         <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {bulkValidCount} 条有效
           {bulkInvalidCount > 0 && (
-            <span style={{ color: "var(--color-danger)" }}>
-              {" "}· {bulkInvalidCount} 条无效将跳过
-            </span>
+            <span style={{ color: "var(--color-danger)" }}> · {bulkInvalidCount} 条无效将跳过</span>
           )}
         </span>
         <div className="flex gap-2">

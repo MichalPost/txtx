@@ -15,5 +15,10 @@ fn main() {
         .enable_all()
         .build()
         .unwrap()
-        .block_on(txtx_app_lib::server::run_server());
+        .block_on(async {
+            if let Err(err) = txtx_app_lib::server::run_server().await {
+                tracing::error!("txtx-server exited: {err:#}");
+                std::process::exit(1);
+            }
+        });
 }

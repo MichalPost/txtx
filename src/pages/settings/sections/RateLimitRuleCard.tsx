@@ -38,7 +38,10 @@ export function RateLimitRuleCard({
         onClick={onToggle}
       >
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
-        <span className="flex-1 truncate text-xs font-medium" style={{ color: "var(--color-text)" }}>
+        <span
+          className="flex-1 truncate text-xs font-medium"
+          style={{ color: "var(--color-text)" }}
+        >
           {ruleName || `规则 ${index + 1}`}
         </span>
         <span className="max-w-48 truncate text-xs" style={{ color: "var(--color-text-subtle)" }}>
@@ -47,9 +50,15 @@ export function RateLimitRuleCard({
             : "（无域名）"}
         </span>
         {isOpen ? (
-          <ChevronUp className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+          <ChevronUp
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: "var(--color-text-muted)" }}
+          />
         ) : (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-text-muted)" }} />
+          <ChevronDown
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: "var(--color-text-muted)" }}
+          />
         )}
         <button
           type="button"

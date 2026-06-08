@@ -146,7 +146,9 @@ export function Sidebar() {
                   ? "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 18%, transparent)"
                   : "none",
               }}
-              onMouseEnter={() => { if (!isActive) setHoveredRoute(to); }}
+              onMouseEnter={() => {
+                if (!isActive) setHoveredRoute(to);
+              }}
               onMouseLeave={() => setHoveredRoute(null)}
             >
               <Icon className="h-4 w-4 shrink-0" />

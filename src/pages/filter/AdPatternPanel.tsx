@@ -7,9 +7,10 @@ import {
   inlineInputStyle,
   inputFocusHandlers,
 } from "@/pages/blacklist/blacklistUtils";
-import { isValidRegex, useAdPatterns } from "./useAdPatterns";
+
 import { BulkAddPanel } from "./BulkAddPanel";
 import { PatternListItem } from "./PatternListItem";
+import { isValidRegex, useAdPatterns } from "./useAdPatterns";
 
 interface AdPatternPanelProps {
   patterns: string[];
@@ -18,9 +19,12 @@ interface AdPatternPanelProps {
 
 export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
   const {
-    newPattern, setNewPattern,
-    bulkMode, setBulkMode,
-    bulkText, setBulkText,
+    newPattern,
+    setNewPattern,
+    bulkMode,
+    setBulkMode,
+    bulkText,
+    setBulkText,
     fileInputRef,
     isValid,
     bulkValidCount,
@@ -98,7 +102,10 @@ export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
           bulkInvalidCount={bulkInvalidCount}
           onTextChange={setBulkText}
           onAdd={handleBulkAdd}
-          onCancel={() => { setBulkMode(false); setBulkText(""); }}
+          onCancel={() => {
+            setBulkMode(false);
+            setBulkText("");
+          }}
         />
       )}
 
@@ -138,12 +145,7 @@ export function AdPatternPanel({ patterns, onUpdate }: AdPatternPanelProps) {
       {/* Pattern list */}
       <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
         {patterns.map((p) => (
-          <PatternListItem
-            key={p}
-            pattern={p}
-            isValid={isValidRegex(p)}
-            onRemove={removePattern}
-          />
+          <PatternListItem key={p} pattern={p} isValid={isValidRegex(p)} onRemove={removePattern} />
         ))}
         {patterns.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-8">

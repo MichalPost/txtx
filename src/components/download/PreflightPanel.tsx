@@ -93,7 +93,7 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
 
       {/* Results list */}
       {results.length > 0 && (
-        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
+        <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
           {results.map((r) => (
             <div key={r.domain} className="flex items-center gap-2 text-xs">
               {r.reachable ? (

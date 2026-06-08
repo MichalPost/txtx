@@ -141,12 +141,7 @@ export function SiteRuleCard({
           </div>
 
           {/* Status badges */}
-          <SiteCardBadges
-            status={status}
-            site={site}
-            highlighted={highlighted}
-            health={health}
-          />
+          <SiteCardBadges status={status} site={site} highlighted={highlighted} health={health} />
         </div>
 
         {/* Actions */}

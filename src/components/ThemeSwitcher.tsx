@@ -4,6 +4,7 @@ import { Palette, Sliders } from "lucide-react";
 
 import { animateDropdownOpen } from "@/lib/animations";
 import { THEMES, useThemeStore, type Theme } from "@/store/themeStore";
+
 import { ThemeEditor } from "./ThemeEditor";
 
 export function ThemeSwitcher() {
@@ -99,7 +100,7 @@ export function ThemeSwitcher() {
               }`}
             >
               <Sliders className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1 text-xs font-medium leading-none">自定义</span>
+              <span className="flex-1 text-xs leading-none font-medium">自定义</span>
               {theme === "custom" && (
                 <span className="ml-auto text-[var(--color-accent)]">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -117,7 +118,12 @@ export function ThemeSwitcher() {
 
             {showEditor && (
               <div className="mt-1">
-                <ThemeEditor onClose={() => { setShowEditor(false); setOpen(false); }} />
+                <ThemeEditor
+                  onClose={() => {
+                    setShowEditor(false);
+                    setOpen(false);
+                  }}
+                />
               </div>
             )}
           </div>,

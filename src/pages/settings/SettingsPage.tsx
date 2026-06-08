@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Download, Save, ShieldCheck, Upload } from "lucide-react";
-import { Link } from "react-router-dom";
 import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -168,10 +168,7 @@ export function SettingsPage() {
                 background: "var(--color-surface-1)",
               }}
             >
-              <ShieldCheck
-                className="h-4 w-4 shrink-0"
-                style={{ color: "var(--color-accent)" }}
-              />
+              <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
               <div className="flex flex-1 flex-col gap-0.5">
                 <span className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
                   请求限速规则

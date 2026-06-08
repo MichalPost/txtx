@@ -11,8 +11,10 @@ pub async fn get_config(State(state): State<AppState>) -> Result<Json<AppConfig>
 
 pub async fn put_config(
     State(state): State<AppState>,
-    Json(cfg): Json<AppConfig>,
+    Json(mut cfg): Json<AppConfig>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let existing = crate::config_db::load_config(&state.base_dir).unwrap_or_else(|_| cfg.clone());
+    cfg.post_process = existing.post_process;
     crate::config_db::save_config(&state.base_dir, &cfg)?;
     Ok(Json(json!({ "ok": true })))
 }

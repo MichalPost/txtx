@@ -33,7 +33,11 @@ export function BlacklistPage() {
         title="黑名单管理"
         subtitle={`共 ${bl.keywords.length} 个关键词，${bl.regex_patterns.length} 个正则，支持模糊搜索`}
         actions={
-          <Button size="sm" onClick={() => saveConfig(useConfigStore.getState().config!)} disabled={saving}>
+          <Button
+            size="sm"
+            onClick={() => saveConfig(useConfigStore.getState().config!)}
+            disabled={saving}
+          >
             <Save className="h-3.5 w-3.5" />
             {saving ? "保存中..." : "保存"}
           </Button>

@@ -16,7 +16,13 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { PageHeader } from "@/components/PageHeader";
-import { apiConvertFile, apiMergeFiles, apiPickFile, apiSplitFile, apiPickDirectory } from "@/lib/api";
+import {
+  apiConvertFile,
+  apiMergeFiles,
+  apiPickDirectory,
+  apiPickFile,
+  apiSplitFile,
+} from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,10 +51,7 @@ export function ConverterPage() {
       <PageHeader title="文本工具箱" subtitle="繁简转换、文件合并、章节分割" />
 
       {/* Tabs */}
-      <div
-        className="flex shrink-0 gap-0 border-b"
-        style={{ borderColor: "var(--color-border)" }}
-      >
+      <div className="flex shrink-0 gap-0 border-b" style={{ borderColor: "var(--color-border)" }}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -228,7 +231,10 @@ function MergeTab() {
           </Button>
         </div>
 
-        <div className="mt-3 flex flex-col gap-2 border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
+        <div
+          className="mt-3 flex flex-col gap-2 border-t pt-3"
+          style={{ borderColor: "var(--color-border)" }}
+        >
           <div className="flex items-center gap-2">
             <Input
               label="输出文件路径"
@@ -237,7 +243,12 @@ function MergeTab() {
               value={output}
               onChange={(e) => setOutput(e.target.value)}
             />
-            <Button variant="secondary" size="md" onClick={() => void pickOutput()} className="mt-5">
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => void pickOutput()}
+              className="mt-5"
+            >
               <FolderOpen className="h-4 w-4" />
             </Button>
           </div>
@@ -360,7 +371,10 @@ function SplitTab() {
             >
               {results.map((r, i) => (
                 <div key={i} className="flex items-center gap-1.5 text-xs">
-                  <ChevronRight className="h-3 w-3 shrink-0" style={{ color: "var(--color-text-subtle)" }} />
+                  <ChevronRight
+                    className="h-3 w-3 shrink-0"
+                    style={{ color: "var(--color-text-subtle)" }}
+                  />
                   <span className="truncate font-mono" style={{ color: "var(--color-text-muted)" }}>
                     {r.split(/[/\\]/).pop()}
                   </span>
@@ -388,8 +402,8 @@ function EncodingTab() {
             GBK / Big5 → UTF-8
           </p>
           <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-            编码转换已内置在下载流程中——下载时设置站点规则的"编码"字段（如 <code className="font-mono">gbk</code>），
-            下载器会自动将内容转换为 UTF-8 保存。
+            编码转换已内置在下载流程中——下载时设置站点规则的"编码"字段（如{" "}
+            <code className="font-mono">gbk</code>）， 下载器会自动将内容转换为 UTF-8 保存。
           </p>
           <p className="mt-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
             对于本地已有的 GBK 文件，可以使用"繁→简转换"Tab 中的批量处理功能，
@@ -401,10 +415,11 @@ function EncodingTab() {
           className="flex items-start gap-2 rounded-xl border px-4 py-3 text-xs"
           style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
         >
-          <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
-          <span>
-            独立的编码转换功能正在规划中，将支持批量将 GBK/Big5 文本文件转换为 UTF-8。
-          </span>
+          <RefreshCw
+            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+            style={{ color: "var(--color-accent)" }}
+          />
+          <span>独立的编码转换功能正在规划中，将支持批量将 GBK/Big5 文本文件转换为 UTF-8。</span>
         </div>
       </div>
     </Card>
@@ -431,9 +446,15 @@ function ResultsCard({ results, running }: { results: ConvertResult[]; running: 
         {results.map((r, i) => (
           <div key={i} className="flex items-start gap-2 text-xs">
             {r.ok ? (
-              <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-success)" }} />
+              <CheckCircle
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                style={{ color: "var(--color-success)" }}
+              />
             ) : (
-              <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-danger)" }} />
+              <XCircle
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                style={{ color: "var(--color-danger)" }}
+              />
             )}
             <div>
               <p
