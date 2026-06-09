@@ -1,17 +1,17 @@
 #[path = "novel_pass.rs"]
 mod novel_pass;
-use novel_pass::{run_first_pass, run_repair_pass, convert_ebook};
+use novel_pass::{convert_ebook, run_first_pass, run_repair_pass};
 
+use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
-use anyhow::Result;
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{mpsc, Semaphore};
 
-use crate::models::{
-    BookCandidate, EbookConversionConfig, NetworkConfig, ProgressEvent,
-    TextConversionConfig, WebsiteConfig,
-};
 use crate::crawler::{get_chapter_urls, sanitize_filename};
+use crate::models::{
+    BookCandidate, EbookConversionConfig, NetworkConfig, ProgressEvent, TextConversionConfig,
+    WebsiteConfig,
+};
 
 // ─── Single novel download ────────────────────────────────────────────────────
 
@@ -30,17 +30,39 @@ pub async fn download_novel(
     cfg_rate_limit: crate::models::RateLimitConfig,
 ) -> Result<()> {
     let chapter_urls = get_chapter_urls(
-        client, &candidate.url, &site_cfg.chapter_url_x,
-        &site_cfg.domain_name, &net_cfg.encoding_map,
-        net_cfg.retry_count, net_cfg.retry_delay,
-    ).await?;
+        client,
+        &candidate.url,
+        &site_cfg.chapter_url_x,
+        &site_cfg.domain_name,
+        &net_cfg.encoding_map,
+        net_cfg.retry_count,
+        net_cfg.retry_delay,
+    )
+    .await?;
 
     if chapter_urls.is_empty() {
         return Err(anyhow::anyhow!("没有找到章节链接"));
     }
 
     let total_chapters = chapter_urls.len();
-    let content_filter = cfg_content_filter.clone();
+    let mut content_filter = cfg_content_filter.clone();
+    if site_cfg.site_ad_rules.enabled {
+        content_filter
+            .ad_patterns
+            .extend(site_cfg.site_ad_rules.regex_rules.iter().cloned());
+        content_filter
+            .nav_keywords
+            .extend(site_cfg.site_ad_rules.nav_keywords.iter().cloned());
+        content_filter
+            .site_xpath_rules
+            .extend(site_cfg.site_ad_rules.xpath_rules.iter().cloned());
+        if site_cfg.site_ad_rules.trim_head > 0 {
+            content_filter.site_trim_head = site_cfg.site_ad_rules.trim_head;
+        }
+        if site_cfg.site_ad_rules.trim_tail > 0 {
+            content_filter.site_trim_tail = site_cfg.site_ad_rules.trim_tail;
+        }
+    }
     let rate_limit_cfg = cfg_rate_limit.clone();
     let xpath_fallbacks = site_cfg.novel_content_fallbacks.clone();
     let safe_name = sanitize_filename(&candidate.name);
@@ -51,24 +73,46 @@ pub async fn download_novel(
 
     // ── First pass ────────────────────────────────────────────────────────────
     let first_results = run_first_pass(
-        client, &chapter_urls, site_cfg, net_cfg,
-        &temp_dir, &chapter_sem, &cancel, &tx,
-        &safe_name, &counter, total_chapters,
-        &text_conv, &rate_limit_cfg, &content_filter, &xpath_fallbacks,
-    ).await;
+        client,
+        &chapter_urls,
+        site_cfg,
+        net_cfg,
+        &temp_dir,
+        &chapter_sem,
+        &cancel,
+        &tx,
+        &safe_name,
+        &counter,
+        total_chapters,
+        &text_conv,
+        &rate_limit_cfg,
+        &content_filter,
+        &xpath_fallbacks,
+    )
+    .await;
 
-    let failed_indices: Vec<usize> = first_results.iter().enumerate()
+    let failed_indices: Vec<usize> = first_results
+        .iter()
+        .enumerate()
         .filter(|(_, r)| r.as_ref().map(|i| i.is_err()).unwrap_or(true))
         .map(|(i, _)| i)
         .collect();
 
     // ── Repair pass ───────────────────────────────────────────────────────────
     let still_failed = run_repair_pass(
-        client, &chapter_urls, site_cfg, net_cfg,
-        &temp_dir, &tx, &safe_name,
-        total_chapters, failed_indices,
-        &content_filter, &xpath_fallbacks,
-    ).await?;
+        client,
+        &chapter_urls,
+        site_cfg,
+        net_cfg,
+        &temp_dir,
+        &tx,
+        &safe_name,
+        total_chapters,
+        failed_indices,
+        &content_filter,
+        &xpath_fallbacks,
+    )
+    .await?;
 
     // ── Merge ─────────────────────────────────────────────────────────────────
     let final_path = base_dir.join(format!("{}.txt", safe_name));
@@ -113,15 +157,13 @@ pub async fn merge_chapters(temp_dir: &Path, final_path: &Path, total: usize) ->
                 file.write_all(b"\n").await?;
             } else {
                 // File exists but is empty — write a placeholder so the gap is visible
-                file.write_all(
-                    format!("\n【第 {} 章内容下载失败，已跳过】\n\n", i + 1).as_bytes()
-                ).await?;
+                file.write_all(format!("\n【第 {} 章内容下载失败，已跳过】\n\n", i + 1).as_bytes())
+                    .await?;
             }
         } else {
             // File missing entirely — write a placeholder so the gap is visible
-            file.write_all(
-                format!("\n【第 {} 章内容缺失，已跳过】\n\n", i + 1).as_bytes()
-            ).await?;
+            file.write_all(format!("\n【第 {} 章内容缺失，已跳过】\n\n", i + 1).as_bytes())
+                .await?;
         }
     }
     file.flush().await?;

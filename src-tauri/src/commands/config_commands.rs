@@ -39,9 +39,6 @@ pub async fn complete_setup(app: AppHandle, base_dir: String) -> Result<(), Stri
     let dir = app_data_dir(&app);
     let base_dir_clone = base_dir.clone();
     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        // Migrate legacy config.yml if present
-        crate::config_db::maybe_migrate_from_yaml(&dir);
-
         // Load existing config (or default) and inject the chosen base_dir
         let mut cfg = crate::config_db::load_config(&dir)?;
         if cfg.paths.base_dir.is_empty() {
@@ -60,8 +57,7 @@ pub async fn complete_setup(app: AppHandle, base_dir: String) -> Result<(), Stri
     .map_err(|e| e.to_string())
 }
 
-/// Select a directory via native dialog (alias for tauri_plugin_dialog,
-/// kept for compatibility if called via invoke from legacy code).
+/// Select a directory via native dialog.
 #[tauri::command]
 pub async fn pick_directory(app: AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;

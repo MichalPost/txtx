@@ -1,25 +1,25 @@
-/// All-in-one config persistence — stored in {appDataDir}/txtx/app.db.
-/// Replaces config/config.yml for runtime reads/writes.
-/// On first launch, if a legacy config.yml is present it is migrated automatically.
-use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 use anyhow::{Context, Result};
 use rusqlite::params;
+use std::collections::HashMap;
+/// All-in-one config persistence stored in {appDataDir}/txtx/app.db.
+use std::path::{Path, PathBuf};
 
 use crate::models::{
-    AppConfig, PathsConfig, NetworkConfig, ConcurrencyConfig, FilteringConfig,
-    BlacklistConfig, GradingRules, PostProcessConfig,
-    conversion::{TextConversionConfig, EbookConversionConfig},
-    filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig},
+    conversion::{EbookConversionConfig, TextConversionConfig},
+    filters::{AdvancedNetworkConfig, ContentFilterConfig, RateLimitConfig},
+    AppConfig, BlacklistConfig, ConcurrencyConfig, FilteringConfig, GradingRules, NetworkConfig,
+    PathsConfig, PostProcessConfig,
 };
 
 mod migrate;
 mod websites;
 
-pub use migrate::{is_first_run, mark_setup_complete, maybe_migrate_from_yaml};
+pub use migrate::{is_first_run, mark_setup_complete};
 
-use migrate::open_db;
-use websites::{load_websites_inner, save_all_websites_inner, save_rate_limit_rules, load_rate_limit_rules};
+use migrate::{default_content_filter_seed, open_db};
+use websites::{
+    load_rate_limit_rules, load_websites_inner, save_all_websites_inner, save_rate_limit_rules,
+};
 
 // ─── DB path ──────────────────────────────────────────────────────────────────
 
@@ -64,9 +64,12 @@ pub fn load_config(app_data_dir: &Path) -> Result<AppConfig> {
             Ok(cfg)
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => {
-            // No config yet; return default with empty websites
+            // No config yet; seed SQLite so default filtering rules become persisted config,
+            // not process-only hardcoded state.
             let mut cfg = default_app_config();
             cfg.websites = websites;
+            cfg.content_filter = default_content_filter_seed();
+            save_config(app_data_dir, &cfg)?;
             Ok(cfg)
         }
         Err(e) => Err(anyhow::anyhow!(e)).context("读取配置失败"),
@@ -119,7 +122,6 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
     let cf_safety_threshold: f64 = row.get(35)?;
     let cf_fallback_trim_lines: usize = row.get::<_, i64>(36)? as usize;
 
-
     let an_pool_idle_timeout_secs: u64 = row.get::<_, i64>(37)? as u64;
     let an_tcp_keepalive_secs: u64 = row.get::<_, i64>(38)? as u64;
     let an_min_chapter_bytes: u64 = row.get::<_, i64>(39)? as u64;
@@ -137,29 +139,41 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
         serde_json::from_str(&site_priority_json).unwrap_or_default();
     let bl_filtered_tags: Vec<String> =
         serde_json::from_str(&bl_filtered_tags_json).unwrap_or_default();
-    let bl_keywords: Vec<String> =
-        serde_json::from_str(&bl_keywords_json).unwrap_or_default();
+    let bl_keywords: Vec<String> = serde_json::from_str(&bl_keywords_json).unwrap_or_default();
     let bl_regex_patterns: Vec<String> =
         serde_json::from_str(&bl_regex_patterns_json).unwrap_or_default();
-    let bl_grading_rules: Option<GradingRules> =
-        serde_json::from_str(&bl_grading_rules_json).ok();
-    let eb_formats: Vec<String> =
-        serde_json::from_str(&eb_formats_json).unwrap_or_default();
+    let bl_grading_rules: Option<GradingRules> = serde_json::from_str(&bl_grading_rules_json).ok();
+    let eb_formats: Vec<String> = serde_json::from_str(&eb_formats_json).unwrap_or_default();
     let cf_ad_patterns: Vec<String> =
         serde_json::from_str(&cf_ad_patterns_json).unwrap_or_default();
     let cf_nav_keywords: Vec<String> =
         serde_json::from_str(&cf_nav_keywords_json).unwrap_or_default();
 
     Ok(AppConfig {
-        paths: PathsConfig { base_dir, temp_dir, log_dir },
+        paths: PathsConfig {
+            base_dir,
+            temp_dir,
+            log_dir,
+        },
         network: NetworkConfig {
-            user_agent, proxy, retry_count, retry_delay, timeout, encoding_map,
+            user_agent,
+            proxy,
+            retry_count,
+            retry_delay,
+            timeout,
+            encoding_map,
         },
         concurrency: ConcurrencyConfig {
-            novel_threads, chapter_threads, max_connections_per_host, connection_pool_size,
+            novel_threads,
+            chapter_threads,
+            max_connections_per_host,
+            connection_pool_size,
         },
         filtering: FilteringConfig {
-            days_limit, last_download_date, min_days_limit, site_priority,
+            days_limit,
+            last_download_date,
+            min_days_limit,
+            site_priority,
         },
         blacklist: BlacklistConfig {
             enabled: bl_enabled,
@@ -189,6 +203,9 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<AppConfig> {
             nav_keywords: cf_nav_keywords,
             safety_threshold: cf_safety_threshold,
             fallback_trim_lines: cf_fallback_trim_lines,
+            site_xpath_rules: vec![],
+            site_trim_head: 0,
+            site_trim_tail: 0,
         },
         rate_limit: RateLimitConfig::default(), // 规则由 load_config 的调用层填充
         advanced_network: AdvancedNetworkConfig {
@@ -384,5 +401,132 @@ fn default_app_config() -> AppConfig {
         rate_limit: RateLimitConfig::default(),
         advanced_network: AdvancedNetworkConfig::default(),
         post_process: PostProcessConfig::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::filters::SiteAdRulesConfig;
+
+    fn temp_app_data_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "txtx-config-db-test-{}-{}",
+            name,
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp app data dir");
+        dir
+    }
+
+    #[test]
+    fn save_and_load_persists_site_ad_cleanup_trim_rules() {
+        let dir = temp_app_data_dir("site-ad-trim");
+        let mut cfg = default_app_config();
+        cfg.websites.insert(
+            "example".to_string(),
+            crate::models::WebsiteConfig {
+                enabled: true,
+                domain_name: "https://example.com/".to_string(),
+                release_date: String::new(),
+                release_url: String::new(),
+                list_novel_name: String::new(),
+                novel_content: "//div[@id=\"content\"]/text()".to_string(),
+                novel_name_x: String::new(),
+                chapter_url_x: String::new(),
+                page_list: vec!["/list".to_string()],
+                special_mode: "normal".to_string(),
+                novel_content_fallbacks: vec![],
+                encoding: String::new(),
+                chapter_next_page_xpath: String::new(),
+                book_intro_x: String::new(),
+                site_ad_rules: SiteAdRulesConfig {
+                    enabled: true,
+                    xpath_rules: vec!["//div[@class=\"ad\"]/text()".to_string()],
+                    regex_rules: vec!["关注.*公众号".to_string()],
+                    nav_keywords: vec!["下一章".to_string()],
+                    trim_head: 2,
+                    trim_tail: 3,
+                },
+            },
+        );
+
+        save_config(&dir, &cfg).expect("save config");
+        let loaded = load_config(&dir).expect("load config");
+
+        let site = loaded.websites.get("example").expect("site exists");
+        assert_eq!(site.site_ad_rules.trim_head, 2);
+        assert_eq!(site.site_ad_rules.trim_tail, 3);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn first_load_seeds_global_content_filter_rules_into_sqlite() {
+        let dir = temp_app_data_dir("seed-content-filter");
+
+        let loaded = load_config(&dir).expect("load config");
+
+        assert!(!loaded.content_filter.ad_patterns.is_empty());
+        assert!(!loaded.content_filter.nav_keywords.is_empty());
+
+        let conn = open_db(&dir).expect("open db");
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM app_config WHERE id = 1", [], |r| {
+                r.get(0)
+            })
+            .expect("query app_config row");
+        let ad_patterns: String = conn
+            .query_row(
+                "SELECT cf_ad_patterns FROM app_config WHERE id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .expect("query seeded ad patterns");
+
+        assert_eq!(count, 1);
+        assert_ne!(ad_patterns, "[]");
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn existing_empty_content_filter_defaults_are_seeded_once() {
+        let dir = temp_app_data_dir("seed-existing-empty-content-filter");
+        let conn = open_db(&dir).expect("open db");
+        conn.execute(
+            "INSERT INTO app_config (id, base_dir, temp_dir, log_dir, cf_ad_patterns, cf_nav_keywords)
+             VALUES (1, '', '', '', '[]', '[]')",
+            [],
+        )
+        .expect("insert empty config");
+        drop(conn);
+
+        let loaded = load_config(&dir).expect("load config");
+
+        assert!(!loaded.content_filter.ad_patterns.is_empty());
+        assert!(!loaded.content_filter.nav_keywords.is_empty());
+
+        let conn = open_db(&dir).expect("reopen db");
+        conn.execute(
+            "UPDATE app_config SET cf_ad_patterns = '[]', cf_nav_keywords = '[]' WHERE id = 1",
+            [],
+        )
+        .expect("user clears content filter");
+        drop(conn);
+
+        let loaded_after_clear = load_config(&dir).expect("reload after user clear");
+        assert!(loaded_after_clear.content_filter.ad_patterns.is_empty());
+        assert!(loaded_after_clear.content_filter.nav_keywords.is_empty());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn content_filter_model_default_does_not_hold_seed_rules() {
+        let defaults = ContentFilterConfig::default();
+
+        assert!(defaults.ad_patterns.is_empty());
+        assert!(defaults.nav_keywords.is_empty());
     }
 }

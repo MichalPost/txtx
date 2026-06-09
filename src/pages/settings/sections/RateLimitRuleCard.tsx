@@ -92,7 +92,7 @@ export function RateLimitRuleCard({
                 borderColor: "var(--color-border)",
                 color: "var(--color-text)",
               }}
-              placeholder="如：TTKS 系站点"
+              placeholder="如：慢速站点"
             />
             <FieldError msg={errs?.name?.message} />
           </div>
@@ -110,7 +110,7 @@ export function RateLimitRuleCard({
                 borderColor: "var(--color-border)",
                 color: "var(--color-text)",
               }}
-              placeholder={"ttks.tw\nttks.cc\nttks.me"}
+              placeholder={"example.com\nnovel.example.net\nreader.example.org"}
             />
             <FieldError msg={errs?.domains?.message} />
           </div>

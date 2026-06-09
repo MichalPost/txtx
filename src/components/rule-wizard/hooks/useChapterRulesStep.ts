@@ -9,15 +9,19 @@ import type { FieldRule, WizardData } from "../ruleUtils";
 type FetchStatus = "idle" | "loading" | "ok" | "error";
 
 const AI_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专家。
-分析章节页HTML，为以下字段生成XPath，严格输出JSON，不含其他内容：
+分析【小说章节页】HTML，为以下字段生成XPath，严格输出JSON，不含其他内容：
 {
   "chap_novel_name":  {"xpath":"...","explanation":"..."},
   "chap_chapter_url": {"xpath":"...","explanation":"..."},
   "chap_content":     {"xpath":"...","explanation":"..."},
   "chap_next_page":   {"xpath":"...","explanation":"..."}
 }
-规则：正文内容优先用 id="content" 或 class 含 content/txt/text 的 div，文本加 /text()。
-章节内分页(chap_next_page)：找"下一页"链接，用/@href，没有分页则留空字符串。`;
+字段说明：
+- chap_novel_name：章节页顶部显示的【书名】（不是章节标题）
+- chap_chapter_url：章节页中指向【其他章节的链接】（通常在目录按钮或章节导航中）
+- chap_content：【正文内容】，优先找 id 含 content/txt/text 或 class 含 content/txt/text 的 div，文本加 /text()
+- chap_next_page：【章节内分页"下一页"链接】，找"下一页"按钮的 href，没有分页则留空字符串
+规则：优先用 id/class 属性，文本加 /text()，链接加 /@href。`;
 
 export function applyAiResult(existing: FieldRule, result?: { xpath?: string }): FieldRule {
   const xpath = result?.xpath ?? "";
@@ -147,7 +151,9 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
     try {
       const html = await ensureChapHtml();
       const aiConfig = useAiStore.getState().activeConfig();
-      const system = `你是专门分析中文小说网站HTML结构的专家。为字段"${fieldLabel}"生成最合适的XPath，严格输出JSON：{"xpath":"...","explanation":"..."}文本加/text()，链接加/@href。`;
+      const system = `你是专门分析中文小说网站HTML结构的专家。这是一个【章节正文页面】。
+为字段"${fieldLabel}"生成最合适的XPath，严格输出JSON：{"xpath":"...","explanation":"..."}
+文本加/text()，链接加/@href。正文内容优先找 id/class 含 content/txt/text 的容器。`;
       const reply = await aiComplete(
         `网站：${data.catalog_url}\n\n分析以下章节页HTML，为"${fieldLabel}"字段生成XPath：\n${preprocessHtml(html)}`,
         system,

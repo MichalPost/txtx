@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentFilterConfig {
     /// 正则广告过滤模式（逐行匹配，命中即删除该行）
-    #[serde(default = "default_ad_patterns")]
+    #[serde(default)]
     pub ad_patterns: Vec<String>,
     /// 末尾导航行关键词（从末尾向前循环剥离）
-    #[serde(default = "default_nav_keywords")]
+    #[serde(default)]
     pub nav_keywords: Vec<String>,
     /// 安全回退阈值：过滤后内容 < 原始的此比例则回退（0.0~1.0）
     #[serde(default = "default_safety_threshold")]
@@ -17,45 +17,67 @@ pub struct ContentFilterConfig {
     /// 安全回退时末尾删除行数
     #[serde(default = "default_fallback_trim")]
     pub fallback_trim_lines: usize,
+    /// Runtime-only XPath text rules merged from the current site's ad cleanup settings.
+    #[serde(default)]
+    pub site_xpath_rules: Vec<String>,
+    /// Runtime-only: delete first N lines of extracted content (from site_ad_rules).
+    #[serde(default)]
+    pub site_trim_head: usize,
+    /// Runtime-only: delete last N lines of extracted content (from site_ad_rules).
+    #[serde(default)]
+    pub site_trim_tail: usize,
 }
 
-fn default_ad_patterns() -> Vec<String> {
-    vec![
-        r"www\.[a-zA-Z0-9.-]+\.(com|cn|net|org|tw)".into(),
-        r"QQ[：:]?\s*\d{5,}".into(),
-        r"微信[：:]?\s*[a-zA-Z0-9_-]+".into(),
-        r"关注.*公众号".into(),
-        r"加群.*\d+".into(),
-        r"更新.*最快".into(),
-        r"手机.*阅读".into(),
-        r"上一[篇章][：:]".into(),
-        r"下一[篇章][：:]".into(),
-        r"返回目录".into(),
-        r"章节目录".into(),
-        r"书签.*收藏".into(),
-        r"加入书架".into(),
-        r"本章完".into(),
-    ]
+fn default_safety_threshold() -> f64 {
+    0.3
 }
-
-fn default_nav_keywords() -> Vec<String> {
-    vec![
-        "上一篇".into(), "下一篇".into(), "上一章".into(), "下一章".into(),
-        "返回目录".into(), "章节目录".into(), "下一节".into(), "上一节".into(),
-        "章节列表".into(),
-    ]
+fn default_fallback_trim() -> usize {
+    2
 }
-
-fn default_safety_threshold() -> f64 { 0.3 }
-fn default_fallback_trim() -> usize { 2 }
 
 impl Default for ContentFilterConfig {
     fn default() -> Self {
         Self {
-            ad_patterns: default_ad_patterns(),
-            nav_keywords: default_nav_keywords(),
+            ad_patterns: vec![],
+            nav_keywords: vec![],
             safety_threshold: default_safety_threshold(),
             fallback_trim_lines: default_fallback_trim(),
+            site_xpath_rules: vec![],
+            site_trim_head: 0,
+            site_trim_tail: 0,
+        }
+    }
+}
+
+// ─── Per-site ad cleanup rules ───────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SiteAdRulesConfig {
+    #[serde(default = "default_true_bool")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub xpath_rules: Vec<String>,
+    #[serde(default)]
+    pub regex_rules: Vec<String>,
+    #[serde(default)]
+    pub nav_keywords: Vec<String>,
+    /// 删除正文头部 N 行（非空行计数）
+    #[serde(default)]
+    pub trim_head: usize,
+    /// 删除正文尾部 N 行（非空行计数）
+    #[serde(default)]
+    pub trim_tail: usize,
+}
+
+impl Default for SiteAdRulesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            xpath_rules: vec![],
+            regex_rules: vec![],
+            nav_keywords: vec![],
+            trim_head: 0,
+            trim_tail: 0,
         }
     }
 }
@@ -88,9 +110,15 @@ pub struct RateLimitRule {
     pub stealth: bool,
 }
 
-fn default_rl_delay_min() -> u64 { 1_000 }
-fn default_rl_delay_max() -> u64 { 3_000 }
-fn default_true_bool() -> bool { true }
+fn default_rl_delay_min() -> u64 {
+    1_000
+}
+fn default_rl_delay_max() -> u64 {
+    3_000
+}
+fn default_true_bool() -> bool {
+    true
+}
 
 impl Default for RateLimitRule {
     fn default() -> Self {
@@ -106,36 +134,12 @@ impl Default for RateLimitRule {
     }
 }
 
-/// 全部站点限速规则（替代原 TtksConfig）
+/// 全部站点限速规则
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RateLimitConfig {
     /// 规则列表，按顺序匹配，命中第一条即停
     #[serde(default)]
     pub rules: Vec<RateLimitRule>,
-}
-
-/// 向后兼容：从旧 ttks yaml/json 迁移
-pub fn ttks_to_rate_limit(
-    domains: Vec<String>,
-    delay_min: u64,
-    delay_max: u64,
-    rps: u32,
-    ua_pool: Vec<String>,
-) -> RateLimitConfig {
-    if domains.is_empty() && ua_pool.is_empty() {
-        return RateLimitConfig::default();
-    }
-    RateLimitConfig {
-        rules: vec![RateLimitRule {
-            name: "TTKS（迁移）".into(),
-            domains,
-            delay_min_ms: delay_min,
-            delay_max_ms: delay_max,
-            requests_per_second: rps,
-            ua_pool,
-            stealth: true,
-        }],
-    }
 }
 
 // ─── AdvancedNetworkConfig ────────────────────────────────────────────────────
@@ -157,10 +161,18 @@ pub struct AdvancedNetworkConfig {
     pub chapter_fail_threshold: f64,
 }
 
-fn default_pool_idle_timeout() -> u64 { 90 }
-fn default_tcp_keepalive() -> u64 { 60 }
-fn default_min_chapter_bytes() -> u64 { 1024 }
-fn default_chapter_fail_threshold() -> f64 { 0.05 }
+fn default_pool_idle_timeout() -> u64 {
+    90
+}
+fn default_tcp_keepalive() -> u64 {
+    60
+}
+fn default_min_chapter_bytes() -> u64 {
+    1024
+}
+fn default_chapter_fail_threshold() -> f64 {
+    0.05
+}
 
 impl Default for AdvancedNetworkConfig {
     fn default() -> Self {

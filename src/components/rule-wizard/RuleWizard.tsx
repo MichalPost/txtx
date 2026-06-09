@@ -1,6 +1,6 @@
 /**
  * RuleWizard — 规则配置向导主容器
- * 7步 Tab 式向导（目录链接+规则合并为一步）
+ * 8步 Tab 式向导（目录链接+规则合并为一步）
  *
  * 步骤：
  * 1. 更新列表页  — 输入 URL，拉取 HTML，配置书名/链接/日期规则 + 分页，实时预览书籍列表
@@ -9,7 +9,8 @@
  * 4. 目录测试    — 命中预览
  * 5. 章节规则    — 配置章节页规则（带 XPath 工具）
  * 6. 章节测试    — 命中预览
- * 7. 保存确认    — 汇总并应用到 WebsiteConfig
+ * 7. 合并清理    — 基于章节正文预览合并站点独有广告/导航清理规则
+ * 8. 保存确认    — 汇总并应用到 WebsiteConfig
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -31,6 +32,7 @@ import type { WebsiteConfig } from "@/types";
 
 import {
   buildXPathFromRule,
+  emptyFieldRule,
   emptyWizardData,
   wizardDataFromSite,
   type WizardData,
@@ -39,8 +41,8 @@ import { WizardStep1UpdateList } from "./WizardStep1UpdateList";
 import { WizardStep2SelectBook } from "./WizardStep2SelectBook";
 import { WizardStep3ListTest } from "./WizardStep3ListTest";
 import { WizardStep4ChapRules } from "./WizardStep4ChapRules";
-import { WizardStep5ChapTest } from "./WizardStep5ChapTest";
 import { WizardStep6Save } from "./WizardStep6Save";
+import { WizardStepChapTestAndCleanup } from "./WizardStepChapTestAndCleanup";
 import { WizardStepCatalog } from "./WizardStepCatalog";
 import type { TargetField } from "./xpathTool";
 import { XPathToolPanel } from "./XPathToolPanel";
@@ -53,7 +55,7 @@ const STEPS = [
   { id: 3, label: "目录规则", icon: ListTree },
   { id: 4, label: "目录测试", icon: FlaskConical },
   { id: 5, label: "章节规则", icon: BookOpen },
-  { id: 6, label: "章节测试", icon: TestTube2 },
+  { id: 6, label: "测试与清理", icon: TestTube2 },
   { id: 7, label: "保存规则", icon: Save },
 ] as const;
 
@@ -117,6 +119,16 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   const goTo = (n: number) => {
     if (!canEnterStep(n) && n > step) return;
     setShowXPathTool(false);
+    // 进入 Step3（目录规则）时，如果目录页尚未抓取（新建或切换书籍），
+    // 清空列表规则字段，避免保留 Step1 更新列表规则的旧值
+    if (n === 3 && !data.catalog_html) {
+      setData((d) => ({
+        ...d,
+        list_novel_name: emptyFieldRule("xpath"),
+        list_release_url: emptyFieldRule("link_keyword"),
+        list_release_date: emptyFieldRule("xpath"),
+      }));
+    }
     setStep(n);
   };
   const goNext = () => goTo(Math.min(step + 1, STEPS.length));
@@ -141,7 +153,7 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
     step === 1 ? data.update_list_html : step <= 4 ? data.catalog_html : data.chapter_html;
 
   const xpathPage: "catalog" | "chapter" | "update_list" =
-    step === 1 ? "update_list" : step === 5 || step === 6 ? "chapter" : "catalog";
+    step === 1 ? "update_list" : step === 5 ? "chapter" : "catalog";
 
   const handleXPathToolApply = (res: Partial<Record<TargetField, string>>) => {
     const patch: Partial<WizardData> = {};
@@ -290,7 +302,7 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         {step === 3 && <WizardStepCatalog data={data} onChange={setData} />}
         {step === 4 && <WizardStep3ListTest data={data} onChange={setData} />}
         {step === 5 && <WizardStep4ChapRules data={data} onChange={setData} />}
-        {step === 6 && <WizardStep5ChapTest data={data} onChange={setData} />}
+        {step === 6 && <WizardStepChapTestAndCleanup data={data} onChange={setData} />}
         {step === 7 && (
           <WizardStep6Save
             data={data}

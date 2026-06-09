@@ -1,4 +1,4 @@
-import type { BookCandidate, ProgressEvent, ScanOptions } from "@/types";
+import type { BookCandidate, ProgressEvent, ScanOptions, TaskEvent } from "@/types";
 
 import { API_BASE, IS_TAURI, WS_BASE } from "./constants";
 
@@ -43,7 +43,10 @@ function makeTauriDownload(
   (async () => {
     const { invoke } = await import("@tauri-apps/api/core");
     const { listen } = await import("@tauri-apps/api/event");
-    unlisten = await listen<ProgressEvent>("download_progress", (e) => onEvent(e.payload));
+    unlisten = await listen<TaskEvent>("task_event", (e) => {
+      const { task_id: _taskId, ...event } = e.payload;
+      onEvent(event as ProgressEvent);
+    });
     if (!cancelled) {
       await invoke(invokeCmd, invokeArgs).catch((e: unknown) => {
         onEvent({ type: "log", level: "error", message: String(e) });
@@ -64,7 +67,7 @@ export function apiStartScan(
   options?: ScanOptions,
 ): UnsubscribeFn {
   if (IS_TAURI) {
-    return makeTauriDownload("start_scan", { options: options ?? null }, onEvent);
+    return makeTauriDownload("create_scan_task", { options: options ?? null }, onEvent);
   }
   const ws = new WebSocket(`${WS_BASE}/api/scan`);
   ws.onopen = () => {
@@ -100,7 +103,7 @@ export function apiStartSelectedDownload(
   onEvent: (ev: ProgressEvent) => void,
 ): UnsubscribeFn {
   if (IS_TAURI) {
-    return makeTauriDownload("download_selected", { selected }, onEvent);
+    return makeTauriDownload("create_selected_download_task", { selected }, onEvent);
   }
   const ws = new WebSocket(`${WS_BASE}/api/download/selected`);
   ws.onopen = () => {
@@ -132,7 +135,7 @@ export function apiStartSelectedDownload(
 
 export function apiStartDownload(onEvent: (ev: ProgressEvent) => void): UnsubscribeFn {
   if (IS_TAURI) {
-    return makeTauriDownload("start_download", {}, onEvent);
+    return makeTauriDownload("create_batch_download_task", { options: null }, onEvent);
   }
   return makeWsDownload(`${WS_BASE}/api/download`, onEvent);
 }
@@ -142,7 +145,7 @@ export function apiStartSingleDownload(
   onEvent: (ev: ProgressEvent) => void,
 ): UnsubscribeFn {
   if (IS_TAURI) {
-    return makeTauriDownload("download_single", { url }, onEvent);
+    return makeTauriDownload("create_single_download_task", { url }, onEvent);
   }
   return makeWsDownload(`${WS_BASE}/api/download/single?url=${encodeURIComponent(url)}`, onEvent);
 }
@@ -150,7 +153,7 @@ export function apiStartSingleDownload(
 export async function apiStopDownload(): Promise<void> {
   if (IS_TAURI) {
     const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("stop_download");
+    return invoke("cancel_active_tasks");
   }
   await fetch(`${API_BASE}/api/stop`, { method: "POST" });
 }

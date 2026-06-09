@@ -13,7 +13,7 @@ pub mod ebook_converter;
 pub mod history;
 pub mod task_manager;
 pub mod single_downloader;
-pub mod ttks_downloader;
+pub mod rate_limited_downloader;
 
 #[cfg(debug_assertions)]
 pub mod dev_tools;
@@ -73,6 +73,7 @@ mod tauri_app {
                 create_scan_task,
                 create_batch_download_task,
                 create_single_download_task,
+                create_selected_download_task,
                 confirm_task_download,
                 list_tasks,
                 get_task,
@@ -80,12 +81,7 @@ mod tauri_app {
                 pause_task,
                 delete_task,
                 load_persisted_tasks,
-                // Legacy shim commands
-                start_scan,
-                download_selected,
-                start_download,
-                stop_download,
-                download_single,
+                cancel_active_tasks,
                 // Other
                 get_history,
                 clear_history,

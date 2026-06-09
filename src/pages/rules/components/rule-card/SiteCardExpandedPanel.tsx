@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Code2, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
+import { Code2, ShieldAlert, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
 
 import { AiXPathAnalyzer } from "@/components/AiXPathAnalyzer";
 import { RuleTemplateSelector } from "@/components/RuleTemplateSelector";
@@ -7,6 +7,7 @@ import { SourceViewer } from "@/components/SourceViewer";
 import { useAiStore } from "@/store/aiStore";
 import type { WebsiteConfig } from "@/types";
 
+import { SiteAdCleanupPreview } from "./SiteAdCleanupPreview";
 import { SiteRateLimitEditor } from "./SiteRateLimitEditor";
 import { ToolBtn } from "./ToolBtn";
 
@@ -19,7 +20,7 @@ interface SiteCardExpandedPanelProps {
 export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardExpandedPanelProps) {
   const [draftDomain, setDraftDomain] = useState(site.domain_name);
   const [draftReleaseUrl, setDraftReleaseUrl] = useState(site.release_url);
-  const [activePanel, setActivePanel] = useState<"template" | "ai" | "source" | "ratelimit" | null>(
+  const [activePanel, setActivePanel] = useState<"template" | "ai" | "source" | "ratelimit" | "adcleanup" | null>(
     null,
   );
 
@@ -130,6 +131,12 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
           icon={<Code2 className="h-3 w-3" />}
           label="源码查看器"
         />
+        <ToolBtn
+          active={activePanel === "adcleanup"}
+          onClick={() => setActivePanel((p) => (p === "adcleanup" ? null : "adcleanup"))}
+          icon={<ShieldAlert className="h-3 w-3" />}
+          label="清理预览"
+        />
       </div>
 
       {/* Panel content */}
@@ -176,6 +183,11 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
             }
             onClose={() => setActivePanel(null)}
           />
+        </div>
+      )}
+      {activePanel === "adcleanup" && (
+        <div className="mt-2">
+          <SiteAdCleanupPreview site={site} onClose={() => setActivePanel(null)} />
         </div>
       )}
     </div>

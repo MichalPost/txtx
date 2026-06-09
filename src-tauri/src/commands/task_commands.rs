@@ -165,6 +165,41 @@ pub async fn confirm_task_download(
 }
 
 #[tauri::command]
+pub async fn create_selected_download_task(
+    app: AppHandle,
+    tm: State<'_, SharedTaskManager>,
+    selected: Vec<BookCandidate>,
+) -> Result<TaskId, String> {
+    let cfg = {
+        let dir = app_data_dir(&app);
+        tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
+    };
+    let task_id = TaskManager::new_task_id();
+    let cancel = Arc::new(Notify::new());
+    let n = selected.len();
+    let label = TaskManager::make_label(&TaskKind::SelectedDownload, "");
+    let record = TaskRecord {
+        id: task_id.clone(), kind: TaskKind::SelectedDownload,
+        status: TaskStatus::Downloading, label,
+        source_url: None,
+        created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        finished_at: None, total: n, completed: 0,
+        success_count: 0, error_count: 0,
+        scan_items: vec![], scan_stats: None, stats: None, error_message: None,
+    };
+    {
+        let mut mgr = tm.lock().await;
+        mgr.upsert(record, cancel.clone());
+    }
+    let cancel_clone = cancel.clone();
+    spawn_task_worker(app, tm.inner().clone(), task_id.clone(), move |tx| async move {
+        crate::downloader::run_download_selected(cfg, selected, tx, cancel_clone).await
+    }).await;
+    Ok(task_id)
+}
+
+#[tauri::command]
 pub async fn list_tasks(tm: State<'_, SharedTaskManager>) -> Result<Vec<TaskRecord>, String> {
     Ok(tm.lock().await.list_records())
 }
@@ -235,76 +270,22 @@ pub async fn load_persisted_tasks(
     Ok(tasks)
 }
 
-// ── Legacy shim commands (keep old frontend working) ──────────────────────────
-
 #[tauri::command]
-pub async fn start_scan(
-    app: AppHandle,
-    tm: State<'_, SharedTaskManager>,
-    options: Option<crate::downloader::ScanOptions>,
-) -> Result<(), String> {
-    create_scan_task(app, tm, options).await.map(|_| ())
-}
-
-#[tauri::command]
-pub async fn download_selected(
-    app: AppHandle,
-    tm: State<'_, SharedTaskManager>,
-    selected: Vec<BookCandidate>,
-) -> Result<(), String> {
-    let cfg = {
-        let dir = app_data_dir(&app);
-        tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
-            .await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?
-    };
-    let task_id = TaskManager::new_task_id();
-    let cancel = Arc::new(Notify::new());
-    let n = selected.len();
-    let label = TaskManager::make_label(&TaskKind::SelectedDownload, "");
-    let record = TaskRecord {
-        id: task_id.clone(), kind: TaskKind::SelectedDownload,
-        status: TaskStatus::Downloading, label,
-        source_url: None,
-        created_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        finished_at: None, total: n, completed: 0,
-        success_count: 0, error_count: 0,
-        scan_items: vec![], scan_stats: None, stats: None, error_message: None,
-    };
-    {
-        let mut mgr = tm.lock().await;
-        mgr.upsert(record, cancel.clone());
-    }
-    let cancel_clone = cancel.clone();
-    spawn_task_worker(app, tm.inner().clone(), task_id, move |tx| async move {
-        crate::downloader::run_download_selected(cfg, selected, tx, cancel_clone).await
-    }).await;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn start_download(
-    app: AppHandle,
-    tm: State<'_, SharedTaskManager>,
-) -> Result<(), String> {
-    create_batch_download_task(app, tm, None).await.map(|_| ())
-}
-
-#[tauri::command]
-pub async fn stop_download(tm: State<'_, SharedTaskManager>) -> Result<(), String> {
-    let mgr = tm.lock().await;
-    for h in mgr.handles.values() {
-        if matches!(h.record.status, TaskStatus::Scanning | TaskStatus::Downloading) {
+pub async fn cancel_active_tasks(tm: State<'_, SharedTaskManager>) -> Result<(), String> {
+    let mut mgr = tm.lock().await;
+    let active_ids: Vec<_> = mgr.handles.iter()
+        .filter_map(|(id, h)| {
+            matches!(h.record.status, TaskStatus::Scanning | TaskStatus::Downloading)
+                .then(|| id.clone())
+        })
+        .collect();
+    for id in active_ids {
+        if let Some(h) = mgr.handles.get(&id) {
             h.cancel.notify_waiters();
         }
+        mgr.update_record(&id, |r| {
+            r.status = TaskStatus::Cancelled;
+        });
     }
     Ok(())
-}
-
-#[tauri::command]
-pub async fn download_single(
-    app: AppHandle,
-    tm: State<'_, SharedTaskManager>,
-    url: String,
-) -> Result<(), String> {
-    create_single_download_task(app, tm, url).await.map(|_| ())
 }

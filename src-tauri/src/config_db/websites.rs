@@ -1,27 +1,28 @@
-use std::collections::HashMap;
 use anyhow::Result;
 use rusqlite::{params, Connection};
+use std::collections::HashMap;
 
-use crate::models::WebsiteConfig;
+use crate::models::{SiteAdRulesConfig, WebsiteConfig};
 
 // ─── Websites ─────────────────────────────────────────────────────────────────
 
 pub(super) fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, WebsiteConfig>> {
     // Soft migrations: add columns if they don't exist yet (safe for existing DBs)
     let _ = conn.execute_batch(
-        "ALTER TABLE websites ADD COLUMN chapter_next_page_xpath TEXT NOT NULL DEFAULT '';"
+        "ALTER TABLE websites ADD COLUMN chapter_next_page_xpath TEXT NOT NULL DEFAULT '';",
     );
-    let _ = conn.execute_batch(
-        "ALTER TABLE websites ADD COLUMN encoding TEXT NOT NULL DEFAULT '';"
-    );
-    let _ = conn.execute_batch(
-        "ALTER TABLE websites ADD COLUMN book_intro_x TEXT NOT NULL DEFAULT '';"
-    );
+    let _ =
+        conn.execute_batch("ALTER TABLE websites ADD COLUMN encoding TEXT NOT NULL DEFAULT '';");
+    let _ = conn
+        .execute_batch("ALTER TABLE websites ADD COLUMN book_intro_x TEXT NOT NULL DEFAULT '';");
+    let _ = conn
+        .execute_batch("ALTER TABLE websites ADD COLUMN site_ad_rules TEXT NOT NULL DEFAULT '{}';");
 
     let mut stmt = conn.prepare(
         "SELECT key, enabled, domain_name, release_date, release_url, list_novel_name,
                 novel_content, novel_name_x, chapter_url_x, page_list, special_mode,
-                novel_content_fallbacks, chapter_next_page_xpath, encoding, book_intro_x
+                novel_content_fallbacks, chapter_next_page_xpath, encoding, book_intro_x,
+                site_ad_rules
          FROM websites",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -40,27 +41,34 @@ pub(super) fn load_websites_inner(conn: &Connection) -> Result<HashMap<String, W
         let chapter_next_page_xpath: String = row.get(12).unwrap_or_default();
         let encoding: String = row.get(13).unwrap_or_default();
         let book_intro_x: String = row.get(14).unwrap_or_default();
+        let site_ad_rules_json: String = row.get(15).unwrap_or_else(|_| "{}".to_string());
 
         let page_list: Vec<String> = serde_json::from_str(&page_list_json).unwrap_or_default();
         let novel_content_fallbacks: Vec<String> =
             serde_json::from_str(&fallbacks_json).unwrap_or_default();
+        let site_ad_rules: SiteAdRulesConfig =
+            serde_json::from_str(&site_ad_rules_json).unwrap_or_default();
 
-        Ok((key, WebsiteConfig {
-            enabled,
-            domain_name,
-            release_date,
-            release_url,
-            list_novel_name,
-            novel_content,
-            novel_name_x,
-            chapter_url_x,
-            page_list,
-            special_mode,
-            novel_content_fallbacks,
-            encoding,
-            chapter_next_page_xpath,
-            book_intro_x,
-        }))
+        Ok((
+            key,
+            WebsiteConfig {
+                enabled,
+                domain_name,
+                release_date,
+                release_url,
+                list_novel_name,
+                novel_content,
+                novel_name_x,
+                chapter_url_x,
+                page_list,
+                special_mode,
+                novel_content_fallbacks,
+                encoding,
+                chapter_next_page_xpath,
+                book_intro_x,
+                site_ad_rules,
+            },
+        ))
     })?;
 
     let mut map = HashMap::new();
@@ -84,20 +92,30 @@ pub(super) fn save_all_websites_inner(
     for (key, site) in websites {
         let page_list = serde_json::to_string(&site.page_list)?;
         let fallbacks = serde_json::to_string(&site.novel_content_fallbacks)?;
+        let site_ad_rules = serde_json::to_string(&site.site_ad_rules)?;
         conn.execute(
             "INSERT INTO websites (key, enabled, domain_name, release_date, release_url,
                 list_novel_name, novel_content, novel_name_x, chapter_url_x,
                 page_list, special_mode, novel_content_fallbacks, chapter_next_page_xpath,
-                encoding, book_intro_x)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                encoding, book_intro_x, site_ad_rules)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
-                key, site.enabled as i64,
-                site.domain_name, site.release_date, site.release_url,
-                site.list_novel_name, site.novel_content, site.novel_name_x,
-                site.chapter_url_x, page_list, site.special_mode, fallbacks,
+                key,
+                site.enabled as i64,
+                site.domain_name,
+                site.release_date,
+                site.release_url,
+                site.list_novel_name,
+                site.novel_content,
+                site.novel_name_x,
+                site.chapter_url_x,
+                page_list,
+                site.special_mode,
+                fallbacks,
                 site.chapter_next_page_xpath,
                 site.encoding,
                 site.book_intro_x,
+                site_ad_rules,
             ],
         )?;
     }
@@ -105,7 +123,10 @@ pub(super) fn save_all_websites_inner(
     Ok(())
 }
 
-pub(super) fn save_rate_limit_rules(conn: &Connection, rules: &[crate::models::filters::RateLimitRule]) -> Result<()> {
+pub(super) fn save_rate_limit_rules(
+    conn: &Connection,
+    rules: &[crate::models::filters::RateLimitRule],
+) -> Result<()> {
     conn.execute("DELETE FROM rate_limit_rules", [])?;
     for (i, rule) in rules.iter().enumerate() {
         let domains_json = serde_json::to_string(&rule.domains)?;
@@ -128,11 +149,15 @@ pub(super) fn save_rate_limit_rules(conn: &Connection, rules: &[crate::models::f
     Ok(())
 }
 
-pub(super) fn load_rate_limit_rules(conn: &Connection) -> Vec<crate::models::filters::RateLimitRule> {
+pub(super) fn load_rate_limit_rules(
+    conn: &Connection,
+) -> Vec<crate::models::filters::RateLimitRule> {
     let Ok(mut stmt) = conn.prepare(
         "SELECT name, domains, delay_min, delay_max, rps, ua_pool, stealth
-         FROM rate_limit_rules ORDER BY sort_order ASC"
-    ) else { return vec![]; };
+         FROM rate_limit_rules ORDER BY sort_order ASC",
+    ) else {
+        return vec![];
+    };
 
     let rows = stmt.query_map([], |row| {
         let name: String = row.get(0)?;
@@ -145,9 +170,13 @@ pub(super) fn load_rate_limit_rules(conn: &Connection) -> Vec<crate::models::fil
         let domains = serde_json::from_str(&domains_json).unwrap_or_default();
         let ua_pool = serde_json::from_str(&ua_pool_json).unwrap_or_default();
         Ok(crate::models::filters::RateLimitRule {
-            name, domains,
-            delay_min_ms: delay_min, delay_max_ms: delay_max,
-            requests_per_second: rps, ua_pool, stealth,
+            name,
+            domains,
+            delay_min_ms: delay_min,
+            delay_max_ms: delay_max,
+            requests_per_second: rps,
+            ua_pool,
+            stealth,
         })
     });
     rows.ok()

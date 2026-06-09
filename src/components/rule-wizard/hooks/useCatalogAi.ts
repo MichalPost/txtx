@@ -12,7 +12,7 @@ import {
   type FieldRule,
   type WizardData,
 } from "../ruleUtils";
-import { AI_SYSTEM_LIST_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
+import { AI_SYSTEM_CATALOG_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 import { evalXPathAll, resolveUrl } from "../utils/xpathEval";
 
 function reparseChapters(data: WizardData): ChapterListItem[] {
@@ -52,8 +52,8 @@ export function useCatalogAi(
       const aiConfig = useAiStore.getState().activeConfig();
       const processed = preprocessHtml(html);
       const reply = await aiComplete(
-        `网站：${data.catalog_url}\n\n分析以下目录页 HTML，为3个字段生成 XPath：\n${processed}`,
-        AI_SYSTEM_LIST_FIELDS,
+        `网站：${data.catalog_url}\n\n分析以下目录页 HTML，提取章节列表的章节名称、章节链接、更新日期的 XPath：\n${processed}`,
+        AI_SYSTEM_CATALOG_FIELDS,
         aiConfig,
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,10 +90,11 @@ export function useCatalogAi(
       const aiConfig = useAiStore.getState().activeConfig();
       const processed = preprocessHtml(html);
       const system = `你是专门分析中文小说网站HTML结构的专家。
+这是一个【小说目录页】，页面列出的是章节列表（不是书籍列表）。
 为字段"${label}"生成最合适的XPath，严格输出JSON：{"xpath":"...","explanation":"..."}
-文本加/text()，链接加/@href。`;
+文本加/text()，链接加/@href。注意：章节名称字段要匹配章节标题而非书名，章节链接字段要匹配章节页面链接而非书籍链接。`;
       const reply = await aiComplete(
-        `网站：${data.catalog_url}\n\n分析HTML，为"${label}"字段生成XPath：\n${processed}`,
+        `网站：${data.catalog_url}\n\n这是小说目录页，分析HTML，为"${label}"字段生成XPath：\n${processed}`,
         system,
         aiConfig,
       );

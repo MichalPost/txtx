@@ -51,6 +51,10 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
     }
   })();
   const fallbackCount = data.chap_content_fallbacks.filter(Boolean).length;
+  const siteAdRuleCount =
+    data.site_ad_rules.xpath_rules.length +
+    data.site_ad_rules.regex_rules.length +
+    data.site_ad_rules.nav_keywords.length;
   const invalidDomain = !isLikelyHttpUrl(domainRoot);
   const invalidCatalogUrl = !isLikelyHttpUrl(data.catalog_url);
 
@@ -97,6 +101,18 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
           {
             label: `备用规则（${data.chap_content_fallbacks.filter(Boolean).length} 条）`,
             value: data.chap_content_fallbacks.filter(Boolean).join("\n"),
+          },
+        ]
+      : []),
+    ...(siteAdRuleCount > 0
+      ? [
+          {
+            label: `站点广告清理（${siteAdRuleCount} 条）`,
+            value: [
+              ...data.site_ad_rules.xpath_rules.map((v) => `XPath: ${v}`),
+              ...data.site_ad_rules.regex_rules.map((v) => `正则: ${v}`),
+              ...data.site_ad_rules.nav_keywords.map((v) => `导航: ${v}`),
+            ].join("\n"),
           },
         ]
       : []),
@@ -182,6 +198,14 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
       encoding: encoding.trim() || undefined,
       chapter_next_page_xpath: data.chapter_next_page_xpath?.trim() || "",
       book_intro_x: buildXPathFromRule(data.chap_intro) || "",
+      site_ad_rules: {
+        enabled: data.site_ad_rules.enabled,
+        xpath_rules: data.site_ad_rules.xpath_rules.filter(Boolean),
+        regex_rules: data.site_ad_rules.regex_rules.filter(Boolean),
+        nav_keywords: data.site_ad_rules.nav_keywords.filter(Boolean),
+        trim_head: data.site_ad_rules.trim_head,
+        trim_tail: data.site_ad_rules.trim_tail,
+      },
     };
     onApply(patch);
   };
@@ -212,7 +236,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
             className="text-xs font-medium"
             style={{ color: missingRequired ? "var(--color-warning)" : "var(--color-success)" }}
           >
-            {missingRequired ? "缺少必填字段，请检查" : "第六步：确认并保存"}
+            {missingRequired ? "缺少必填字段，请检查" : "第七步：确认并保存"}
           </p>
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             {missingRequired

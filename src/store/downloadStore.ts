@@ -247,7 +247,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     set({ _unsub: unsub });
   },
 
-  // ── Legacy: one-shot batch ─────────────────────────────────────────────────
+  // ── One-shot batch download ────────────────────────────────────────────────
   startDownload: () => {
     get()._unsub?.();
     set({

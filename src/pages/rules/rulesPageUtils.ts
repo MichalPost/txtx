@@ -15,6 +15,14 @@ export const DEFAULT_SITE: WebsiteConfig = {
   special_mode: "normal",
   novel_content_fallbacks: [],
   encoding: "",
+  site_ad_rules: {
+    enabled: true,
+    xpath_rules: [],
+    regex_rules: [],
+    nav_keywords: [],
+    trim_head: 0,
+    trim_tail: 0,
+  },
 };
 
 export function generateSiteKey(existingKeys: string[]): string {

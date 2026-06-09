@@ -9,7 +9,3 @@ pub fn extract_domain(url: &str) -> String {
         .to_string()
 }
 
-/// Public alias kept for call-site compatibility.
-pub fn extract_domain_pub(url: &str) -> String {
-    extract_domain(url)
-}

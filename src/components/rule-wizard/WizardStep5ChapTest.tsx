@@ -6,9 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
+import { Input, Textarea } from "@/components/Input";
 import { apiFetchSource } from "@/lib/api/files";
 
+import { buildChapterContentPreview } from "./adCleanupUtils";
 import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 import { TestPanel } from "./TestPanel";
 
@@ -30,6 +31,15 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       { label: "正文内容", xpath: buildXPathFromRule(data.chap_content) },
     ],
     [data.chap_novel_name, data.chap_chapter_url, data.chap_content],
+  );
+  const contentPreview = useMemo(
+    () =>
+      buildChapterContentPreview(
+        data.chapter_html,
+        buildXPathFromRule(data.chap_content),
+        data.chap_content_fallbacks,
+      ),
+    [data.chapter_html, data.chap_content, data.chap_content_fallbacks],
   );
 
   const runTest = async (forceRefetch = false) => {
@@ -151,7 +161,55 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       )}
 
       {/* Test results */}
-      {!loading && data.chapter_html && <TestPanel html={data.chapter_html} fields={fields} />}
+      {!loading && data.chapter_html && (
+        <>
+          <div
+            className="flex flex-col gap-3 rounded-xl border p-3"
+            style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+                章节内容预览
+              </span>
+              {contentPreview.usedRule ? (
+                <>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-xs"
+                    style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
+                  >
+                    {contentPreview.lineCount} 行
+                  </span>
+                  <code
+                    className="min-w-0 flex-1 truncate rounded px-2 py-1 text-xs"
+                    style={{ background: "var(--color-surface-2)", color: "var(--color-text-subtle)" }}
+                    title={contentPreview.usedRule}
+                  >
+                    {contentPreview.usedRule}
+                  </code>
+                </>
+              ) : (
+                <span
+                  className="rounded-full px-2 py-0.5 text-xs"
+                  style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
+                >
+                  未抽取到正文
+                </span>
+              )}
+            </div>
+            <Textarea
+              readOnly
+              value={contentPreview.text}
+              className="h-72 font-mono text-xs leading-relaxed"
+              placeholder="正文 XPath 暂无命中，请回到章节规则步骤调整正文内容规则"
+            />
+            <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+              第七步会基于这里抽取出的章节正文进行站点广告清理规则合并和预览。
+            </p>
+          </div>
+
+          <TestPanel html={data.chapter_html} fields={fields} />
+        </>
+      )}
     </div>
   );
 }

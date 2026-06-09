@@ -74,14 +74,13 @@ pub(super) async fn run_first_pass(
                 }
             }
 
-            // 限速规则匹配下载器 vs 通用下载器
-            let text = if let Some(rule) = crate::ttks_downloader::find_rate_limit_rule(&url, &rate_limit_cfg) {
+            let text = if let Some(rule) = crate::rate_limited_downloader::find_rate_limit_rule(&url, &rate_limit_cfg) {
                 let rule = rule.clone();
                 let proxy_opt = proxy.as_deref().filter(|p| !p.is_empty());
-                match crate::ttks_downloader::build_ttks_client(proxy_opt, timeout, &rule) {
+                match crate::rate_limited_downloader::build_rate_limited_client(proxy_opt, timeout, &rule) {
                     Ok(rl_client) => {
                         let domain = url.split('/').take(3).collect::<Vec<_>>().join("/");
-                        crate::ttks_downloader::fetch_ttks_chapter(
+                        crate::rate_limited_downloader::fetch_rate_limited_chapter(
                             &rl_client, &url, &domain,
                             &xpath, &xpath_fallbacks, &enc, rc, rd, &rule, &content_filter,
                         ).await?

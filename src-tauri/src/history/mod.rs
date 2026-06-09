@@ -1,5 +1,4 @@
-/// Download history — persisted in SQLite (download_history.db)
-/// Backward-compatible: on first use, migrates existing download_history.json.
+/// Download history persisted in SQLite (download_history.db).
 
 mod db;
 
@@ -9,7 +8,7 @@ use chrono::Local;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
-use db::{open_db, maybe_migrate_json};
+use db::open_db;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
@@ -55,7 +54,6 @@ pub struct SiteStat {
 }
 
 pub async fn load_history(base_dir: &Path) -> Result<Vec<HistoryEntry>> {
-    maybe_migrate_json(base_dir).await.ok();
     let base_dir = base_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let conn = open_db(&base_dir)?;
@@ -76,7 +74,6 @@ pub async fn load_history(base_dir: &Path) -> Result<Vec<HistoryEntry>> {
 }
 
 pub async fn query_history(base_dir: &Path, query: HistoryQuery) -> Result<HistoryPage> {
-    maybe_migrate_json(base_dir).await.ok();
     let base_dir = base_dir.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let conn = open_db(&base_dir)?;

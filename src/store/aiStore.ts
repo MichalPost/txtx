@@ -7,8 +7,7 @@
  * - active_provider: 当前活跃供应商名称
  * - enabled: 是否启用 AI 功能
  *
- * ai.ts 通过 useAiStore.getState().activeConfig() 获取当前活跃的 AiConfig，
- * 接口形状保持不变，向后兼容。
+ * ai.ts 通过 useAiStore.getState().activeConfig() 获取当前活跃的 AiConfig。
  */
 import { toast } from "sonner";
 import { create } from "zustand";
@@ -35,10 +34,7 @@ export interface AiMultiConfig {
   providers: AiProviderEntry[];
 }
 
-/**
- * 向后兼容的单供应商视图（供 ai.ts 直接使用）
- * 等价于旧的 AiConfig
- */
+/** 当前活跃供应商的运行时视图，供 ai.ts 直接使用。 */
 export interface AiConfig {
   enabled: boolean;
   provider: string;
@@ -151,7 +147,7 @@ interface AiStore {
 
   /** 快捷读：当前活跃的供应商 entry */
   activeProvider: () => AiProviderEntry | undefined;
-  /** 向后兼容：返回当前活跃供应商的 AiConfig 视图（供 ai.ts 使用） */
+  /** 返回当前活跃供应商的 AiConfig 视图（供 ai.ts 使用） */
   activeConfig: () => AiConfig;
 
   /** 全局开关 */

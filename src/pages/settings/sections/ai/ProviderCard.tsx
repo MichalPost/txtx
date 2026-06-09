@@ -168,7 +168,7 @@ export function ProviderCard({
 
             {/* API Key */}
             <div className="col-span-2">
-              <Field label="API Key" hint="仅存本地，不写入配置文件">
+              <Field label="API Key" hint="仅存本地，写入 SQLite 数据库">
                 <ApiKeyInput
                   value={form.api_key}
                   onChange={set("api_key")}

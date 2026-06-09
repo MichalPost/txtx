@@ -1,5 +1,5 @@
-//! HTTP client infrastructure for TTKS downloader.
-//! Provides `TtksClient` enum (stealth vs standard), the `build` helper,
+//! HTTP client infrastructure for rate-limited downloads.
+//! Provides `RateLimitedClient` enum (stealth vs standard), the `build` helper,
 //! `pick_emulation`, `get_rate_limiter`, and the `DirectRl` type alias.
 
 use anyhow::Result;
@@ -11,7 +11,7 @@ use tokio::time::sleep;
 
 // ─── TLS 指纹客户端抽象 ────────────────────────────────────────────────────────
 // stealth feature 启用时用 wreq（BoringSSL + Chrome TLS 指纹）；
-// 否则 fallback 到标准 reqwest。对调用方完全透明。
+// 否则使用标准 reqwest。对调用方完全透明。
 
 #[cfg(feature = "stealth")]
 pub(super) mod stealth_client {
@@ -57,13 +57,13 @@ pub(super) mod stealth_client {
 
 /// 统一客户端类型：stealth 时为 wreq::Client，否则为 reqwest::Client。
 /// 内部通过 enum dispatch 隐藏差异，外部调用 `.get(url).send().await` 统一使用。
-pub enum TtksClient {
+pub enum RateLimitedClient {
     #[cfg(feature = "stealth")]
     Stealth(wreq::Client),
     Standard(reqwest::Client),
 }
 
-impl TtksClient {
+impl RateLimitedClient {
     /// 发起 GET 请求，返回响应 bytes（内部统一处理）
     pub async fn get_bytes(
         &self,
@@ -76,7 +76,7 @@ impl TtksClient {
         loop {
             let result: Result<bytes::Bytes, anyhow::Error> = match self {
                 #[cfg(feature = "stealth")]
-                TtksClient::Stealth(client) => {
+                RateLimitedClient::Stealth(client) => {
                     client
                         .get(url)
                         .header("Referer", referer)
@@ -90,7 +90,7 @@ impl TtksClient {
                         .await
                         .map_err(|e| anyhow::anyhow!("{}", e))
                 }
-                TtksClient::Standard(client) => {
+                RateLimitedClient::Standard(client) => {
                     client
                         .get(url)
                         .header("Referer", referer)
@@ -126,7 +126,7 @@ pub type DirectRl = RateLimiter<
 >;
 
 /// 返回 per-rps 共享限速器（懒初始化，线程安全）。
-/// rps = 0 时返回 None，调用方回退到随机延迟。
+/// rps = 0 时返回 None，调用方使用随机延迟。
 pub fn get_rate_limiter(rps: u32) -> Option<std::sync::Arc<DirectRl>> {
     static LIMITERS: OnceLock<std::sync::RwLock<std::collections::HashMap<u32, std::sync::Arc<DirectRl>>>> = OnceLock::new();
     if rps == 0 { return None; }

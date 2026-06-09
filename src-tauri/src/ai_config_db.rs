@@ -4,8 +4,6 @@
 ///   ai_meta      (key TEXT PK, value TEXT)   — stores enabled flag + active_provider
 ///   ai_providers (name TEXT PK, ...)          — one row per provider
 ///
-/// Migration: if the legacy single-row `ai_config` table exists its data is
-/// migrated into the new tables and the old table is dropped.
 use std::path::Path;
 use anyhow::Result;
 use rusqlite::{params, Connection};
@@ -90,70 +88,6 @@ fn migrate(conn: &Connection) -> Result<()> {
         );
         ",
     )?;
-
-    // ── migrate legacy single-row ai_config table if it exists ────────────────
-    let legacy_exists: bool = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ai_config'",
-            [],
-            |r| r.get::<_, i64>(0),
-        )
-        .unwrap_or(0)
-        != 0;
-
-    if legacy_exists {
-        // Only migrate if ai_providers is still empty
-        let providers_empty: bool = conn
-            .query_row("SELECT COUNT(*) FROM ai_providers", [], |r| r.get::<_, i64>(0))
-            .unwrap_or(0)
-            == 0;
-
-        if providers_empty {
-            // Pull the legacy row (id=1)
-            let legacy = conn.query_row(
-                "SELECT enabled, provider, base_url, api_key, model, max_tokens, temperature
-                 FROM ai_config WHERE id = 1",
-                [],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)? != 0, // enabled
-                        row.get::<_, String>(1)?,    // provider
-                        row.get::<_, String>(2)?,    // base_url
-                        row.get::<_, String>(3)?,    // api_key
-                        row.get::<_, String>(4)?,    // model
-                        row.get::<_, i64>(5)?,       // max_tokens
-                        row.get::<_, f64>(6)?,       // temperature
-                    ))
-                },
-            );
-
-            if let Ok((enabled, provider, base_url, api_key, model, max_tokens, temperature)) =
-                legacy
-            {
-                // Write into new tables
-                conn.execute(
-                    "INSERT OR IGNORE INTO ai_meta (key, value) VALUES ('enabled', ?1)",
-                    params![if enabled { "1" } else { "0" }],
-                )?;
-                conn.execute(
-                    "INSERT OR IGNORE INTO ai_meta (key, value) VALUES ('active_provider', ?1)",
-                    params![provider],
-                )?;
-                conn.execute(
-                    "INSERT OR IGNORE INTO ai_providers
-                        (name, base_url, api_key, model, available_models, max_tokens, temperature, sort_order)
-                     VALUES (?1, ?2, ?3, ?4, '[]', ?5, ?6, 0)",
-                    params![provider, base_url, api_key, model, max_tokens, temperature],
-                )?;
-
-                tracing::info!("ai_config 表已迁移到多供应商结构");
-            }
-        }
-
-        // Drop legacy table now that data is migrated (or was already empty)
-        // Use a separate execute so a failure here doesn't abort the whole migration.
-        let _ = conn.execute_batch("DROP TABLE IF EXISTS ai_config;");
-    }
 
     Ok(())
 }

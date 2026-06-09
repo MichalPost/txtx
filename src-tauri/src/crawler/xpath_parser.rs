@@ -23,11 +23,6 @@ pub fn xpath_texts(html: &Html, xpath: &str) -> Vec<String> {
     vec![]
 }
 
-/// Public alias kept for call-site compatibility.
-pub fn xpath_texts_pub(html: &Html, xpath: &str) -> Vec<String> {
-    xpath_texts(html, xpath)
-}
-
 /// Native XPath 1.0 evaluation via sxd-xpath (full expression support).
 /// Falls back to CSS-based xpath_texts if the XPath engine fails.
 pub fn xpath_texts_native(html_str: &str, xpath_expr: &str) -> Vec<String> {

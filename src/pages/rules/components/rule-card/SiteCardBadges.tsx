@@ -17,6 +17,10 @@ interface SiteCardBadgesProps {
 
 export function SiteCardBadges({ status, site, highlighted, health }: SiteCardBadgesProps) {
   const isEnabled = site.enabled;
+  const siteAdRuleCount =
+    (site.site_ad_rules?.xpath_rules.length ?? 0) +
+    (site.site_ad_rules?.regex_rules.length ?? 0) +
+    (site.site_ad_rules?.nav_keywords.length ?? 0);
 
   return (
     <div className="flex items-center gap-1.5">
@@ -42,19 +46,6 @@ export function SiteCardBadges({ status, site, highlighted, health }: SiteCardBa
           }}
         >
           {status.filled}/{status.total} 项已填
-        </span>
-      )}
-
-      {site.special_mode === "ttks" && (
-        <span
-          className="rounded-full px-2 py-0.5 text-xs"
-          style={{
-            background: "var(--color-accent-muted)",
-            color: "var(--color-accent)",
-            fontSize: "11px",
-          }}
-        >
-          TTKS
         </span>
       )}
 
@@ -96,6 +87,19 @@ export function SiteCardBadges({ status, site, highlighted, health }: SiteCardBa
           }}
         >
           {site.encoding}
+        </span>
+      )}
+
+      {site.site_ad_rules?.enabled && siteAdRuleCount > 0 && (
+        <span
+          className="rounded-full px-2 py-0.5 text-xs"
+          style={{
+            background: "var(--color-accent-muted)",
+            color: "var(--color-accent)",
+            fontSize: "11px",
+          }}
+        >
+          清理 {siteAdRuleCount}
         </span>
       )}
 

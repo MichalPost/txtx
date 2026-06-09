@@ -143,7 +143,7 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
             />
           </div>
           <div className="col-span-2">
-            <Field label="API Key" hint="仅存本地">
+            <Field label="API Key" hint="仅存本地，写入 SQLite 数据库">
               <ApiKeyInput value={form.api_key} onChange={set("api_key")} />
             </Field>
           </div>

@@ -1,9 +1,13 @@
+use crate::models::conversion::{EbookConversionConfig, TextConversionConfig};
+use crate::models::filters::{
+    AdvancedNetworkConfig, ContentFilterConfig, RateLimitConfig, SiteAdRulesConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::models::conversion::{TextConversionConfig, EbookConversionConfig};
-use crate::models::filters::{ContentFilterConfig, RateLimitConfig, AdvancedNetworkConfig};
 
-pub(crate) fn default_true() -> bool { true }
+pub(crate) fn default_true() -> bool {
+    true
+}
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
@@ -16,8 +20,12 @@ pub struct PathsConfig {
     pub log_dir: String,
 }
 
-fn default_temp_dir() -> String { "E:/Downloads/xs/temp".into() }
-fn default_log_dir() -> String { "E:/Downloads/xs/logs".into() }
+fn default_temp_dir() -> String {
+    "E:/Downloads/xs/temp".into()
+}
+fn default_log_dir() -> String {
+    "E:/Downloads/xs/logs".into()
+}
 
 // ─── Network ──────────────────────────────────────────────────────────────────
 
@@ -40,9 +48,15 @@ pub struct NetworkConfig {
 fn default_ua() -> String {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36".into()
 }
-fn default_retry_count() -> u32 { 5 }
-fn default_retry_delay() -> u64 { 8 }
-fn default_timeout() -> u64 { 45 }
+fn default_retry_count() -> u32 {
+    5
+}
+fn default_retry_delay() -> u64 {
+    8
+}
+fn default_timeout() -> u64 {
+    45
+}
 
 impl Default for NetworkConfig {
     fn default() -> Self {
@@ -71,10 +85,18 @@ pub struct ConcurrencyConfig {
     pub connection_pool_size: usize,
 }
 
-fn default_novel_threads() -> usize { 2 }
-fn default_chapter_threads() -> usize { 2 }
-fn default_max_conn() -> usize { 10 }
-fn default_pool_size() -> usize { 50 }
+fn default_novel_threads() -> usize {
+    2
+}
+fn default_chapter_threads() -> usize {
+    2
+}
+fn default_max_conn() -> usize {
+    10
+}
+fn default_pool_size() -> usize {
+    50
+}
 
 impl Default for ConcurrencyConfig {
     fn default() -> Self {
@@ -101,8 +123,12 @@ pub struct FilteringConfig {
     pub site_priority: HashMap<String, u32>,
 }
 
-fn default_days_limit() -> i64 { 60 }
-fn default_min_days() -> i64 { 1 }
+fn default_days_limit() -> i64 {
+    60
+}
+fn default_min_days() -> i64 {
+    1
+}
 
 impl Default for FilteringConfig {
     fn default() -> Self {
@@ -151,7 +177,9 @@ pub struct BlacklistConfig {
     pub grading_rules: Option<GradingRules>,
 }
 
-fn default_filter_level() -> String { "moderate".into() }
+fn default_filter_level() -> String {
+    "moderate".into()
+}
 
 // ─── Website ──────────────────────────────────────────────────────────────────
 
@@ -182,9 +210,14 @@ pub struct WebsiteConfig {
     /// XPath to extract book introduction from the catalog page. Empty = skip.
     #[serde(default)]
     pub book_intro_x: String,
+    /// Per-site ad cleanup rules merged into the global content filter.
+    #[serde(default)]
+    pub site_ad_rules: SiteAdRulesConfig,
 }
 
-fn default_special_mode() -> String { "normal".into() }
+fn default_special_mode() -> String {
+    "normal".into()
+}
 
 // ─── Post-process ─────────────────────────────────────────────────────────────
 
@@ -203,7 +236,11 @@ pub struct PostProcessConfig {
 
 impl Default for PostProcessConfig {
     fn default() -> Self {
-        Self { enabled: false, script: String::new(), run_on_batch_done: true }
+        Self {
+            enabled: false,
+            script: String::new(),
+            run_on_batch_done: true,
+        }
     }
 }
 
@@ -226,7 +263,7 @@ pub struct AppConfig {
     pub ebook_conversion: EbookConversionConfig,
     #[serde(default)]
     pub content_filter: ContentFilterConfig,
-    #[serde(default, alias = "ttks")]
+    #[serde(default)]
     pub rate_limit: RateLimitConfig,
     #[serde(default)]
     pub advanced_network: AdvancedNetworkConfig,

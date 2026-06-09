@@ -1,3 +1,9 @@
+import {
+  emptyAdCleanupRules,
+  normalizeAdCleanupRules,
+  type AdCleanupRules,
+} from "./adCleanupUtils";
+
 // ─── Rule mode types ───────────────────────────────────────────────────────────
 
 export type RuleMode =
@@ -197,6 +203,8 @@ export interface WizardData {
   chap_content_fallbacks: string[];
   /** XPath for "next page" link inside a chapter page. Empty = single-page. */
   chapter_next_page_xpath: string;
+  /** Per-site ad cleanup rules applied after content extraction. */
+  site_ad_rules: AdCleanupRules;
 
   // ── 编码 ──────────────────────────────────────────────────────────────────
   /** Per-site response encoding, e.g. "gbk". Empty = auto. */
@@ -271,6 +279,7 @@ export function emptyWizardData(domain_name = "", encoding = ""): WizardData {
     chap_content: emptyFieldRule("xpath"),
     chap_content_fallbacks: [],
     chapter_next_page_xpath: "",
+    site_ad_rules: emptyAdCleanupRules(),
     chap_intro: emptyFieldRule("xpath"),
 
     encoding,
@@ -295,6 +304,7 @@ export function wizardDataFromSite(site: {
   novel_content_fallbacks?: string[];
   chapter_next_page_xpath?: string;
   book_intro_x?: string;
+  site_ad_rules?: Partial<AdCleanupRules>;
 }): WizardData {
   const baseUrl = site.domain_name || "https://";
   return {
@@ -309,6 +319,7 @@ export function wizardDataFromSite(site: {
     chap_content: fieldRuleFromXPath(site.novel_content),
     chap_content_fallbacks: [...(site.novel_content_fallbacks ?? [])],
     chapter_next_page_xpath: site.chapter_next_page_xpath ?? "",
+    site_ad_rules: normalizeAdCleanupRules(site.site_ad_rules),
     chap_intro: fieldRuleFromXPath(site.book_intro_x ?? ""),
   };
 }

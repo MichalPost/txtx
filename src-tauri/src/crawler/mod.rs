@@ -1,18 +1,16 @@
+pub(crate) mod content_optimizer;
 pub mod domain_utils;
 pub mod filename_utils;
 pub mod http_client;
 pub mod xpath_parser;
-pub(crate) mod content_optimizer;
 
-// Re-export public API so call sites need no changes
-pub use domain_utils::extract_domain_pub;
 pub use filename_utils::sanitize_filename;
 pub use http_client::{build_client, build_client_with_pool, fetch_page};
-pub use xpath_parser::{xpath_texts_pub, xpath_texts_native};
+pub use xpath_parser::xpath_texts_native;
 
-use std::collections::HashMap;
 use anyhow::Result;
 use reqwest::Client;
+use std::collections::HashMap;
 
 use crate::models::{
     AppConfig, BookCandidate, ContentFilterConfig, NetworkConfig, SiteHealth, WebsiteConfig,
@@ -42,9 +40,7 @@ pub async fn scan_site(
             let encoding_map = net_cfg.encoding_map.clone();
             let retry_count = net_cfg.retry_count;
             let retry_delay = net_cfg.retry_delay;
-            async move {
-                fp(&client, &url, &encoding_map, retry_count, retry_delay).await
-            }
+            async move { fp(&client, &url, &encoding_map, retry_count, retry_delay).await }
         })
         .collect();
 
@@ -57,7 +53,7 @@ pub async fn scan_site(
         };
 
         let dates = xtn(&html_str, &site_cfg.release_date);
-        let urls  = xtn(&html_str, &site_cfg.release_url);
+        let urls = xtn(&html_str, &site_cfg.release_url);
         let names = if !site_cfg.list_novel_name.is_empty() {
             xtn(&html_str, &site_cfg.list_novel_name)
         } else {
@@ -104,7 +100,9 @@ pub async fn fetch_novel_name(
     retry_count: u32,
     retry_delay: u64,
 ) -> Option<String> {
-    let html_str = fp(client, url, encoding_map, retry_count, retry_delay).await.ok()?;
+    let html_str = fp(client, url, encoding_map, retry_count, retry_delay)
+        .await
+        .ok()?;
     let names = xtn(&html_str, novel_name_xpath);
     names.into_iter().next().map(|n| san(&n))
 }
@@ -127,7 +125,11 @@ pub async fn get_chapter_urls(
     let urls = raw_urls
         .into_iter()
         .map(|u| {
-            if u.starts_with("http") { u } else { format!("{}{}", domain, u) }
+            if u.starts_with("http") {
+                u
+            } else {
+                format!("{}{}", domain, u)
+            }
         })
         .collect();
 
@@ -150,9 +152,18 @@ pub async fn download_chapter(
     filter: &ContentFilterConfig,
 ) -> Result<String> {
     download_chapter_with_pagination(
-        client, url, content_xpath, xpath_fallbacks,
-        encoding_map, retry_count, retry_delay, filter, "", 0,
-    ).await
+        client,
+        url,
+        content_xpath,
+        xpath_fallbacks,
+        encoding_map,
+        retry_count,
+        retry_delay,
+        filter,
+        "",
+        0,
+    )
+    .await
 }
 
 /// Internal recursive helper that also handles chapter-level pagination.
@@ -168,9 +179,18 @@ pub async fn download_chapter_paged(
     next_page_xpath: &str,
 ) -> Result<String> {
     download_chapter_with_pagination(
-        client, url, content_xpath, xpath_fallbacks,
-        encoding_map, retry_count, retry_delay, filter, next_page_xpath, 0,
-    ).await
+        client,
+        url,
+        content_xpath,
+        xpath_fallbacks,
+        encoding_map,
+        retry_count,
+        retry_delay,
+        filter,
+        next_page_xpath,
+        0,
+    )
+    .await
 }
 
 async fn download_chapter_with_pagination(
@@ -186,9 +206,14 @@ async fn download_chapter_with_pagination(
     depth: usize,
 ) -> Result<String> {
     const MAX_PAGES: usize = 20;
-    if depth >= MAX_PAGES { return Ok(String::new()); }
+    if depth >= MAX_PAGES {
+        return Ok(String::new());
+    }
 
-    let html_str = fp(client, url, encoding_map, retry_count, retry_delay).await?;
+    let mut html_str = fp(client, url, encoding_map, retry_count, retry_delay).await?;
+    if !filter.site_xpath_rules.is_empty() {
+        html_str = strip_site_ad_xpath_texts(&html_str, &filter.site_xpath_rules);
+    }
 
     // Extract content using primary xpath or fallbacks
     let content = {
@@ -198,9 +223,14 @@ async fn download_chapter_with_pagination(
         } else {
             let mut found = vec![];
             for fallback_xpath in xpath_fallbacks {
-                if fallback_xpath.trim().is_empty() { continue; }
+                if fallback_xpath.trim().is_empty() {
+                    continue;
+                }
                 let parts = xtn(&html_str, fallback_xpath.trim());
-                if !parts.is_empty() { found = parts; break; }
+                if !parts.is_empty() {
+                    found = parts;
+                    break;
+                }
             }
             found
         }
@@ -235,9 +265,18 @@ async fn download_chapter_with_pagination(
     };
 
     let next_content = Box::pin(download_chapter_with_pagination(
-        client, &next_abs, content_xpath, xpath_fallbacks,
-        encoding_map, retry_count, retry_delay, filter, next_page_xpath, depth + 1,
-    )).await?;
+        client,
+        &next_abs,
+        content_xpath,
+        xpath_fallbacks,
+        encoding_map,
+        retry_count,
+        retry_delay,
+        filter,
+        next_page_xpath,
+        depth + 1,
+    ))
+    .await?;
 
     if next_content.is_empty() {
         Ok(this_page)
@@ -246,37 +285,60 @@ async fn download_chapter_with_pagination(
     }
 }
 
+fn strip_site_ad_xpath_texts(html: &str, xpath_rules: &[String]) -> String {
+    let mut cleaned = html.to_string();
+    for xpath in xpath_rules {
+        let xpath = xpath.trim();
+        if xpath.is_empty() {
+            continue;
+        }
+        for sample in xtn(html, xpath) {
+            let sample = sample.trim();
+            if sample.len() < 2 {
+                continue;
+            }
+            cleaned = cleaned.replace(sample, "");
+        }
+    }
+    cleaned
+}
+
 // ─── check_site_health ────────────────────────────────────────────────────────
 
 /// Ping all enabled sites and return reachability + latency.
 pub async fn check_site_health(config: &AppConfig) -> anyhow::Result<Vec<SiteHealth>> {
     let client = build_client(&config.network)?;
-    let sites: Vec<_> = config.websites.values()
+    let sites: Vec<_> = config
+        .websites
+        .values()
         .filter(|s| s.enabled)
         .cloned()
         .collect();
 
-    let tasks: Vec<_> = sites.into_iter().map(|site| {
-        let client = client.clone();
-        tokio::spawn(async move {
-            let url = format!("{}/", site.domain_name.trim_end_matches('/'));
-            let start = std::time::Instant::now();
-            match client.head(&url).send().await {
-                Ok(_) => SiteHealth {
-                    domain: site.domain_name,
-                    reachable: true,
-                    latency_ms: Some(start.elapsed().as_millis() as u64),
-                    error: None,
-                },
-                Err(e) => SiteHealth {
-                    domain: site.domain_name,
-                    reachable: false,
-                    latency_ms: None,
-                    error: Some(e.to_string()),
-                },
-            }
+    let tasks: Vec<_> = sites
+        .into_iter()
+        .map(|site| {
+            let client = client.clone();
+            tokio::spawn(async move {
+                let url = format!("{}/", site.domain_name.trim_end_matches('/'));
+                let start = std::time::Instant::now();
+                match client.head(&url).send().await {
+                    Ok(_) => SiteHealth {
+                        domain: site.domain_name,
+                        reachable: true,
+                        latency_ms: Some(start.elapsed().as_millis() as u64),
+                        error: None,
+                    },
+                    Err(e) => SiteHealth {
+                        domain: site.domain_name,
+                        reachable: false,
+                        latency_ms: None,
+                        error: Some(e.to_string()),
+                    },
+                }
+            })
         })
-    }).collect();
+        .collect();
 
     let results = futures::future::join_all(tasks).await;
     Ok(results.into_iter().filter_map(|r| r.ok()).collect())

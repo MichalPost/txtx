@@ -58,7 +58,7 @@ export interface WebsiteConfig {
   novel_name_x: string;
   chapter_url_x: string;
   page_list: string[];
-  /** Special download mode: "normal" | "ttks" */
+  /** Special download mode, reserved for future per-site download strategies. */
   special_mode: string;
   /** Fallback XPath rules for content extraction */
   novel_content_fallbacks: string[];
@@ -68,6 +68,19 @@ export interface WebsiteConfig {
   chapter_next_page_xpath?: string;
   /** XPath to extract the book introduction/summary from the catalog page. Optional. */
   book_intro_x?: string;
+  /** Per-site ad cleanup rules merged with the global content filter. */
+  site_ad_rules?: SiteAdRulesConfig;
+}
+
+export interface SiteAdRulesConfig {
+  enabled: boolean;
+  xpath_rules: string[];
+  regex_rules: string[];
+  nav_keywords: string[];
+  /** 删除正文头部 N 行（非空行计数） */
+  trim_head: number;
+  /** 删除正文尾部 N 行（非空行计数） */
+  trim_tail: number;
 }
 
 export interface TextConversionConfig {

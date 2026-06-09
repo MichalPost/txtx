@@ -1,17 +1,10 @@
-//! TTKS 专用下载处理模块
-//! ttks.tw 及同系列站点具有较强的反爬机制：
-//!   - 随机延迟防高频请求
-//!   - 多 User-Agent 轮换
-//!   - 额外 HTTP headers（Referer / Sec-Fetch / Accept-Language）
-//!   - 专用广告过滤规则（繁体 + 简体双版本）
-//!
-//! stealth 模式（默认启用）：使用 wreq + BoringSSL 模拟 Chrome TLS 指纹，
-//! 绕过基于 JA3/JA4 的反爬检测（如 Cloudflare）。
-//! 若编译时不带 stealth feature，自动退化为标准 reqwest 客户端。
+//! 通用限速下载处理模块。
+//! 匹配 `rate_limit_rules` 的站点会使用随机延迟 / token-bucket 限速、
+//! User-Agent 轮换、额外浏览器请求头，以及可选 stealth TLS 指纹客户端。
 
 pub mod client;
 
-pub use client::TtksClient;
+pub use client::RateLimitedClient;
 
 use anyhow::Result;
 use rand::Rng;
@@ -37,11 +30,11 @@ pub fn find_rate_limit_rule<'a>(
 ///
 /// 启用 stealth feature 时返回 wreq::Client（BoringSSL + Chrome TLS 指纹），
 /// 可绕过基于 JA3/JA4 的反爬检测。否则退化为标准 reqwest::Client。
-pub fn build_ttks_client(
+pub fn build_rate_limited_client(
     proxy: Option<&str>,
     timeout: u64,
     rule: &crate::models::filters::RateLimitRule,
-) -> Result<TtksClient> {
+) -> Result<RateLimitedClient> {
     let idx = rand::thread_rng().gen_range(0..rule.ua_pool.len().max(1));
     let ua = rule.ua_pool.get(idx).map(|s| s.as_str()).unwrap_or(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
@@ -52,15 +45,15 @@ pub fn build_ttks_client(
         match client::stealth_client::build(ua, proxy, timeout) {
             Ok(c) => {
                 tracing::debug!("RateLimit: stealth client (UA: {})", &ua[..ua.len().min(40)]);
-                return Ok(TtksClient::Stealth(c));
+                return Ok(RateLimitedClient::Stealth(c));
             }
             Err(e) => {
-                tracing::warn!("RateLimit: wreq failed ({}), falling back to reqwest", e);
+                tracing::warn!("RateLimit: wreq failed ({}), using reqwest", e);
             }
         }
     }
 
-    // fallback: 标准 reqwest
+    // 标准 reqwest 客户端
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert("Accept-Language", "zh-TW,zh;q=0.9,en;q=0.8".parse().unwrap());
     headers.insert("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".parse().unwrap());
@@ -77,12 +70,12 @@ pub fn build_ttks_client(
             builder = builder.proxy(reqwest::Proxy::all(p)?);
         }
     }
-    Ok(TtksClient::Standard(builder.build()?))
+    Ok(RateLimitedClient::Standard(builder.build()?))
 }
 
 /// 下载限速章节，含精确限速（governor token-bucket）或随机延迟防封
-pub async fn fetch_ttks_chapter(
-    client: &TtksClient,
+pub async fn fetch_rate_limited_chapter(
+    client: &RateLimitedClient,
     url: &str,
     domain: &str,
     content_xpath: &str,
@@ -109,7 +102,7 @@ pub async fn fetch_ttks_chapter(
     let bytes = client.get_bytes(url, &referer, retry_count, retry_delay).await?;
 
     let enc_name = encoding_map
-        .get(&crate::crawler::extract_domain_pub(url))
+        .get(&crate::crawler::domain_utils::extract_domain(url))
         .map(|s| s.as_str())
         .unwrap_or("utf-8");
     let encoding = encoding_rs::Encoding::for_label(enc_name.as_bytes())
@@ -119,28 +112,26 @@ pub async fn fetch_ttks_chapter(
 
     let html = Html::parse_document(&html_str);
     // Try primary xpath first, then fallbacks
-    let parts = crate::crawler::xpath_texts_pub(&html, content_xpath);
+    let parts = crate::crawler::xpath_parser::xpath_texts(&html, content_xpath);
     if !parts.is_empty() {
-        return Ok(filter_ttks_content_with_config(parts, filter));
+        return Ok(filter_rate_limited_content(parts, filter));
     }
     for fb_xpath in xpath_fallbacks {
         if fb_xpath.trim().is_empty() { continue; }
-        let fb_parts = crate::crawler::xpath_texts_pub(&html, fb_xpath.trim());
+        let fb_parts = crate::crawler::xpath_parser::xpath_texts(&html, fb_xpath.trim());
         if !fb_parts.is_empty() {
-            return Ok(filter_ttks_content_with_config(fb_parts, filter));
+            return Ok(filter_rate_limited_content(fb_parts, filter));
         }
     }
     Ok(String::new())
 }
 
 
-/// TTKS 专用广告过滤，结合通用 ContentFilterConfig 使用配置规则
-fn filter_ttks_content_with_config(parts: Vec<String>, filter: &crate::models::ContentFilterConfig) -> String {
+/// 限速路径使用的正文清理，结合通用 ContentFilterConfig 和繁简导航噪声规则。
+fn filter_rate_limited_content(parts: Vec<String>, filter: &crate::models::ContentFilterConfig) -> String {
     if parts.is_empty() { return String::new(); }
 
-    // TTKS 额外的繁体规则 + config 规则合并
-    let ttks_extra = [
-        r"ttks\.(tw|cc|me)",
+    let extra_patterns = [
         r"https?://[a-zA-Z0-9.-]+",
         r"关注.*公众号|關注.*公眾號",
         r"手[机機].*[阅閱][读讀]",
@@ -160,9 +151,9 @@ fn filter_ttks_content_with_config(parts: Vec<String>, filter: &crate::models::C
         r"未[經经]授[權权]",
     ];
 
-    // Compile config patterns + TTKS extra
+    // Compile config patterns + extra built-in navigation patterns.
     let compiled: Vec<Regex> = filter.ad_patterns.iter().map(|s| s.as_str())
-        .chain(ttks_extra.iter().copied())
+        .chain(extra_patterns.iter().copied())
         .filter_map(|p| Regex::new(p).ok())
         .collect();
 
