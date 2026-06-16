@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use crate::models::{ProgressEvent, TaskId, TaskEvent, TaskStatus};
 use crate::task_manager::SharedTaskManager;
 
@@ -128,4 +128,6 @@ pub(super) async fn spawn_task_worker<F, Fut>(
             }
         }
     });
+}
+
 }
