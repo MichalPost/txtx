@@ -7,6 +7,7 @@ import { aiComplete, extractJson, preprocessHtml } from "@/lib/ai";
 import { useAiStore } from "@/store/aiStore";
 
 import type { FieldRule, WizardData } from "../ruleUtils";
+import { readAiFieldMap, readAiXPathReply } from "../utils/aiSafeParse";
 import { AI_SYSTEM_CATALOG_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 
 export function useWizardListRulesAi(
@@ -31,14 +32,13 @@ export function useWizardListRulesAi(
         AI_SYSTEM_CATALOG_FIELDS,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
+      const parsed = readAiFieldMap(extractJson(reply));
       onChange({
         ...data,
         catalog_html: html,
-        list_novel_name: applyAiResult(data.list_novel_name, parsed?.list_novel_name),
-        list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url: applyAiResult(data.list_release_url, parsed?.list_release_url),
+        list_novel_name: applyAiResult(data.list_novel_name, parsed.list_novel_name),
+        list_release_date: applyAiResult(data.list_release_date, parsed.list_release_date),
+        list_release_url: applyAiResult(data.list_release_url, parsed.list_release_url),
       });
     } catch (e) {
       setError(String(e));
@@ -67,9 +67,8 @@ export function useWizardListRulesAi(
         system,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      const xpath: string = parsed?.xpath ?? "";
+      const parsed = readAiXPathReply(extractJson(reply));
+      const xpath = parsed.xpath;
       onChange({
         ...data,
         catalog_html: html,

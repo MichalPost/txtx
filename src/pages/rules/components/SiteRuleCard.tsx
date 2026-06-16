@@ -46,7 +46,7 @@ export function SiteRuleCard({
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
-  onQuickSave: (patch: Partial<WebsiteConfig>) => void;
+  onQuickSave: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onDuplicate: () => void;
   dragHandle?: React.ReactNode;
 }) {

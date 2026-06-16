@@ -14,6 +14,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { useAiStore } from "@/store/aiStore";
 
 import { detectCharset, type FieldRule, type WizardData } from "./ruleUtils";
+import { readAiFieldMap } from "./utils/aiSafeParse";
 
 interface Props {
   data: WizardData;
@@ -90,14 +91,13 @@ export function WizardStep1Url({ data, onChange }: Props) {
         AI_SYSTEM,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
+      const parsed = readAiFieldMap(extractJson(reply));
       onChange({
         ...data,
         catalog_html: html,
-        list_novel_name: applyAiResult(data.list_novel_name, parsed?.list_novel_name),
-        list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url: applyAiResult(data.list_release_url, parsed?.list_release_url),
+        list_novel_name: applyAiResult(data.list_novel_name, parsed.list_novel_name),
+        list_release_date: applyAiResult(data.list_release_date, parsed.list_release_date),
+        list_release_url: applyAiResult(data.list_release_url, parsed.list_release_url),
       });
     } catch (e) {
       setAiError(String(e));

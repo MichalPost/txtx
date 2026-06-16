@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { AlertCircle, Download, FileUp, Link2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Textarea } from "@/components/Input";
@@ -16,7 +17,7 @@ function extractUrls(text: string): string[] {
 // ─── ImportUrlPanel ───────────────────────────────────────────────────────────
 
 interface ImportUrlPanelProps {
-  onImport: (urls: string[]) => void;
+  onImport: (urls: string[]) => void | Promise<void>;
   onClose: () => void;
   /** If true, show "创建任务" label; otherwise show "开始下载" */
   taskMode?: boolean;
@@ -25,6 +26,7 @@ interface ImportUrlPanelProps {
 export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUrlPanelProps) {
   const [text, setText] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const urls = extractUrls(text);
@@ -46,10 +48,17 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
     if (file) handleFile(file);
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (urls.length === 0) return;
-    onImport(urls);
-    onClose();
+    setSubmitting(true);
+    try {
+      await onImport(urls);
+      onClose();
+    } catch (error) {
+      toast.error(taskMode ? `创建任务失败：${String(error)}` : `开始下载失败：${String(error)}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -192,12 +201,18 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
 
       {/* Actions */}
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={submitting}>
           取消
         </Button>
-        <Button size="sm" onClick={handleImport} disabled={urls.length === 0}>
+        <Button size="sm" onClick={() => void handleImport()} disabled={urls.length === 0 || submitting}>
           <Download className="h-3.5 w-3.5" />
-          {taskMode ? `创建 ${urls.length} 个任务` : `开始下载 ${urls.length} 个`}
+          {submitting
+            ? taskMode
+              ? "创建中..."
+              : "处理中..."
+            : taskMode
+              ? `创建 ${urls.length} 个任务`
+              : `开始下载 ${urls.length} 个`}
         </Button>
       </div>
     </div>

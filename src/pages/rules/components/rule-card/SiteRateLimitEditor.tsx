@@ -55,7 +55,7 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
     [],
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!config) return;
     const updated = [...allRules];
     if (hasRule) {
@@ -63,14 +63,14 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
     } else {
       updated.push(draft);
     }
-    saveConfig({ ...config, rate_limit: { rules: updated } });
+    await saveConfig({ ...config, rate_limit: { rules: updated } });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!config || !hasRule) return;
     if (!confirm(`确认删除「${draft.name}」限速规则？`)) return;
     const updated = allRules.filter((_, i) => i !== matchIndex);
-    saveConfig({ ...config, rate_limit: { rules: updated } });
+    await saveConfig({ ...config, rate_limit: { rules: updated } });
     setDraft(EMPTY_RULE(displayDomain));
   };
 
@@ -88,7 +88,7 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
         {hasRule && (
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => void handleDelete()}
             className="rounded-md p-1 text-xs hover:opacity-70"
             style={{ color: "var(--color-danger)" }}
             title="删除此限速规则"
@@ -230,7 +230,7 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={saving}
           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
           style={{ background: "var(--color-accent)", color: "#fff" }}

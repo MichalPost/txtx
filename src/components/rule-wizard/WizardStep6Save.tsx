@@ -13,7 +13,7 @@ import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 
 interface Props {
   data: WizardData;
-  onApply: (patch: Partial<WebsiteConfig>) => void;
+  onApply: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -123,7 +123,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
     !data.catalog_url || !listNameXPath || !listUrlXPath || !chapterContentXPath;
   const hasBlockingValidation = missingRequired || invalidDomain || invalidCatalogUrl;
 
-  const handleApply = () => {
+  const handleApply = async () => {
     // ── Build page_list from pagination settings ───────────────────────────────
     // page_list entries are paths that get appended to domain_name by the crawler.
     // We derive them from update_list_url: extract the path relative to domain_name,
@@ -207,7 +207,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
         trim_tail: data.site_ad_rules.trim_tail,
       },
     };
-    onApply(patch);
+    await onApply(patch);
   };
 
   return (
@@ -367,7 +367,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={handleApply} disabled={hasBlockingValidation}>
+        <Button size="sm" onClick={() => void handleApply()} disabled={hasBlockingValidation}>
           <Save className="h-3.5 w-3.5" />
           应用到网站配置
         </Button>

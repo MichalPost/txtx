@@ -1,8 +1,16 @@
 import type { BookCandidate, ProgressEvent, ScanOptions, TaskEvent } from "@/types";
+import { startDesktopTaskSession } from "@/platform/desktopTaskSession";
+import { invokeDesktopCommand, listenDesktopEvent } from "@/platform";
 
 import { API_BASE, IS_TAURI, WS_BASE } from "./constants";
 
 export type UnsubscribeFn = () => void;
+
+async function ensureOkResponse(response: Response, fallbackMessage: string): Promise<void> {
+  if (response.ok) return;
+  const message = (await response.text().catch(() => "")).trim();
+  throw new Error(message || fallbackMessage);
+}
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -38,25 +46,25 @@ function makeTauriDownload(
   invokeArgs: Record<string, unknown>,
   onEvent: (ev: ProgressEvent) => void,
 ): UnsubscribeFn {
-  let unlisten: (() => void) | null = null;
-  let cancelled = false;
-  (async () => {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const { listen } = await import("@tauri-apps/api/event");
-    unlisten = await listen<TaskEvent>("task_event", (e) => {
-      const { task_id: _taskId, ...event } = e.payload;
-      onEvent(event as ProgressEvent);
-    });
-    if (!cancelled) {
-      await invoke(invokeCmd, invokeArgs).catch((e: unknown) => {
-        onEvent({ type: "log", level: "error", message: String(e) });
-      });
-    }
-  })();
-  return () => {
-    cancelled = true;
-    unlisten?.();
-  };
+  return startDesktopTaskSession<TaskEvent, ProgressEvent>(
+    {
+      invokeDesktopCommand,
+      listenDesktopEvent,
+    },
+    {
+      command: invokeCmd,
+      args: invokeArgs,
+      eventName: "task_event",
+      mapEvent: ({ task_id, ...event }) => {
+        void task_id;
+        return event as ProgressEvent;
+      },
+      onEvent,
+      onError: (error) => {
+        onEvent({ type: "log", level: "error", message: String(error) });
+      },
+    },
+  );
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -152,16 +160,15 @@ export function apiStartSingleDownload(
 
 export async function apiStopDownload(): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("cancel_active_tasks");
+    return invokeDesktopCommand("cancel_active_tasks");
   }
-  await fetch(`${API_BASE}/api/stop`, { method: "POST" });
+  const res = await fetch(`${API_BASE}/api/stop`, { method: "POST" });
+  await ensureOkResponse(res, "停止下载失败");
 }
 
 export async function apiGetQueue(): Promise<import("@/types").QueueStatus> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<import("@/types").QueueStatus>("get_queue");
+    return invokeDesktopCommand<import("@/types").QueueStatus>("get_queue");
   }
   const res = await fetch(`${API_BASE}/api/queue`);
   if (!res.ok) throw new Error(await res.text());
@@ -170,16 +177,17 @@ export async function apiGetQueue(): Promise<import("@/types").QueueStatus> {
 
 export async function apiClearQueue(): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("clear_queue");
+    return invokeDesktopCommand("clear_queue");
   }
-  await fetch(`${API_BASE}/api/queue`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/api/queue`, { method: "DELETE" });
+  await ensureOkResponse(res, "清除下载队列失败");
 }
 
 export async function apiPreviewNovelName(url: string): Promise<string | null> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const result = await invoke<{ name: string | null }>("preview_novel_name", { url });
+    const result = await invokeDesktopCommand<{ name: string | null }>("preview_novel_name", {
+      url,
+    });
     return result.name;
   }
   const res = await fetch(`${API_BASE}/api/novel-name?url=${encodeURIComponent(url)}`);
@@ -190,8 +198,7 @@ export async function apiPreviewNovelName(url: string): Promise<string | null> {
 
 export async function apiOpenOutputDir(): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("open_output_dir");
+    return invokeDesktopCommand("open_output_dir");
   }
   // In web/dev mode, not supported
 }

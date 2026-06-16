@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { CheckCircle, ChevronRight, FolderOpen, Scissors } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { apiPickFile, apiSplitFile } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 export function SplitTab() {
   const [path, setPath] = useState("");
@@ -14,8 +16,12 @@ export function SplitTab() {
   const [running, setRunning] = useState(false);
 
   const pickFile = async () => {
-    const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
-    if (f) setPath(f);
+    try {
+      const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
+      if (f) setPath(f);
+    } catch (error) {
+      toast.error(formatToolActionError("选择源文件", error));
+    }
   };
 
   const handleSplit = async () => {

@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react
 
 import { apiCheckSites } from "@/lib/api";
 import type { SiteHealth } from "@/types";
+import { canContinueWithPreflight } from "./preflightDecision";
 
 interface Props {
   onDismiss: () => void;
@@ -36,6 +37,7 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
 
   const failCount = results.filter((r) => !r.reachable).length;
   const successCount = results.filter((r) => r.reachable).length;
+  const canContinue = canContinueWithPreflight({ done, error });
 
   return (
     <div
@@ -142,8 +144,12 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
           )}
           <button
             onClick={onConfirm}
+            disabled={!canContinue}
             className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium"
-            style={{ background: "var(--color-accent)", color: "#fff" }}
+            style={{
+              background: canContinue ? "var(--color-accent)" : "var(--color-surface-2)",
+              color: canContinue ? "#fff" : "var(--color-text-subtle)",
+            }}
           >
             继续下载
           </button>

@@ -1,11 +1,11 @@
 import type { AppConfig } from "@/types";
+import { invokeDesktopCommand } from "@/platform";
 
 import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiLoadConfig(): Promise<AppConfig> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<AppConfig>("load_config");
+    return invokeDesktopCommand<AppConfig>("load_config");
   }
   const res = await fetch(`${API_BASE}/api/config`);
   if (!res.ok) throw new Error(await res.text());
@@ -14,8 +14,7 @@ export async function apiLoadConfig(): Promise<AppConfig> {
 
 export async function apiSaveConfig(config: AppConfig): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("save_config", { config });
+    return invokeDesktopCommand("save_config", { config });
   }
   const res = await fetch(`${API_BASE}/api/config`, {
     method: "PUT",
@@ -28,8 +27,7 @@ export async function apiSaveConfig(config: AppConfig): Promise<void> {
 /** Returns true if this is the first time the app has been launched (setup not complete). */
 export async function apiCheckFirstRun(): Promise<boolean> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<boolean>("check_first_run");
+    return invokeDesktopCommand<boolean>("check_first_run");
   }
   // In server/dev mode, never show the wizard.
   return false;
@@ -38,8 +36,7 @@ export async function apiCheckFirstRun(): Promise<boolean> {
 /** Called by the setup wizard to write base_dir and mark setup complete. */
 export async function apiCompleteSetup(baseDir: string): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("complete_setup", { baseDir });
+    return invokeDesktopCommand("complete_setup", { baseDir });
   }
   // No-op in server mode.
 }

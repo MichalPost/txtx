@@ -5,6 +5,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { useAiStore } from "@/store/aiStore";
 
 import type { FieldRule, WizardData } from "../ruleUtils";
+import { getAiFieldResult, getAiObject, getAiString } from "../utils/aiResponse";
 
 type FetchStatus = "idle" | "loading" | "ok" | "error";
 
@@ -122,15 +123,17 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
         AI_SYSTEM,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      const nextPageXPath: string = parsed?.chap_next_page?.xpath ?? "";
+      const parsed = getAiObject(extractJson(reply));
+      const nextPageXPath = getAiFieldResult(parsed.chap_next_page)?.xpath ?? "";
       onChange({
         ...data,
         chapter_html: html,
-        chap_novel_name: applyAiResult(data.chap_novel_name, parsed?.chap_novel_name),
-        chap_chapter_url: applyAiResult(data.chap_chapter_url, parsed?.chap_chapter_url),
-        chap_content: applyAiResult(data.chap_content, parsed?.chap_content),
+        chap_novel_name: applyAiResult(data.chap_novel_name, getAiFieldResult(parsed.chap_novel_name)),
+        chap_chapter_url: applyAiResult(
+          data.chap_chapter_url,
+          getAiFieldResult(parsed.chap_chapter_url),
+        ),
+        chap_content: applyAiResult(data.chap_content, getAiFieldResult(parsed.chap_content)),
         chapter_next_page_xpath: nextPageXPath || data.chapter_next_page_xpath,
       });
       if (nextPageXPath) setShowAdvanced(true);
@@ -159,12 +162,15 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
         system,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
+      const parsed = getAiObject(extractJson(reply));
       onChange({
         ...data,
         chapter_html: html,
-        [fieldKey]: { ...data[fieldKey], mode: "ai", xpath: parsed?.xpath ?? "" } as FieldRule,
+        [fieldKey]: {
+          ...data[fieldKey],
+          mode: "ai",
+          xpath: getAiString(parsed.xpath),
+        } as FieldRule,
       });
     } catch (e) {
       setErrorMsg(String(e));

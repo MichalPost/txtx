@@ -2,6 +2,8 @@ import { useState } from "react";
 import { AlertCircle, Check, ChevronRight, Code2, Loader2, Sparkles, Wand2, X } from "lucide-react";
 
 import { Button } from "@/components/Button";
+import { parseAiXPathAnalysis } from "@/components/aiXPathAnalysis";
+import { applyAndClose } from "@/lib/applyAndClose";
 import { aiComplete, aiExtract, extractJson, preprocessHtml, validateXPath } from "@/lib/ai";
 import { apiFetchSource } from "@/lib/api/files";
 import { useAiStore } from "@/store/aiStore";
@@ -81,7 +83,7 @@ interface FieldResult {
 
 interface AiXPathAnalyzerProps {
   site: WebsiteConfig;
-  onApply: (patch: Partial<WebsiteConfig>) => void;
+  onApply: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -125,13 +127,12 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
     const processed = preprocessHtml(rawHtml);
     const userPrompt = `网站：${site.domain_name}\n\n分析以下 HTML，为 6 个字段生成 XPath：\n${processed}`;
     const reply = await aiComplete(userPrompt, AI_BATCH_SYSTEM, aiConfig);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parsed = extractJson(reply) as any;
+    const analysis = parseAiXPathAnalysis(extractJson(reply), null);
 
     return XPATH_FIELD_LABELS.map(({ key, label }) => {
-      const item = parsed?.[key] ?? {};
-      const xpath: string = item.xpath ?? "";
-      const explanation: string = item.explanation ?? "";
+      const item = analysis.find((entry) => entry.key === key);
+      const xpath = item?.suggested ?? "";
+      const explanation = item?.explanation ?? "";
       const validation = xpath && rawHtml ? validateXPath(rawHtml, xpath) : null;
       return {
         key,
@@ -148,11 +149,12 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
   // ── Extract mode analysis ──────────────────────────────────────────────────
 
   const runExtractAnalysis = async (rawHtml: string) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const extracted = await aiExtract<Record<string, any>>(rawHtml, EXTRACT_SCHEMA, aiConfig);
+    const extracted = await aiExtract<Record<string, unknown>>(rawHtml, EXTRACT_SCHEMA, aiConfig);
+    const analysis = parseAiXPathAnalysis(null, extracted);
 
     return XPATH_FIELD_LABELS.map(({ key, label }) => {
-      const value: string = extracted?.[key] ?? "";
+      const item = analysis.find((entry) => entry.key === key);
+      const value = item?.suggested ?? "";
       // In extract mode the "suggested" value is the extracted text/xpath — still validate if it looks like xpath
       const looksLikeXpath = value.startsWith("//") || value.startsWith("(//");
       const validation = looksLikeXpath && rawHtml ? validateXPath(rawHtml, value) : null;
@@ -161,7 +163,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
         label,
         currentValue: (site[key] as string) ?? "",
         suggested: value,
-        explanation: value ? "直接从页面提取的内容" : "",
+        explanation: item?.explanation ?? "",
         validation,
         adopted: !!value,
       };
@@ -191,15 +193,14 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
     setResults((prev) => prev.map((r) => (r.key === key ? { ...r, adopted: !r.adopted } : r)));
   };
 
-  const applySelected = () => {
+  const applySelected = async () => {
     const patch: Partial<WebsiteConfig> = {};
     for (const r of results) {
       if (r.adopted && r.suggested) {
         (patch as Record<string, string>)[r.key] = r.suggested;
       }
     }
-    onApply(patch);
-    onClose();
+    await applyAndClose(() => onApply(patch), onClose);
   };
 
   const adoptedCount = results.filter((r) => r.adopted && r.suggested).length;
@@ -419,7 +420,7 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
 
           {/* Apply button */}
           <div className="flex items-center gap-2 pt-1">
-            <Button size="sm" onClick={applySelected} disabled={adoptedCount === 0}>
+            <Button size="sm" onClick={() => void applySelected()} disabled={adoptedCount === 0}>
               <ChevronRight className="h-3.5 w-3.5" />
               应用已选字段（{adoptedCount} 个）
             </Button>

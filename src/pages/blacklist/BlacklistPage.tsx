@@ -27,6 +27,10 @@ export function BlacklistPage() {
     updateConfig((c) => ({ ...c, blacklist: { ...c.blacklist, ...patch } }));
   };
 
+  const handleSave = async () => {
+    await saveConfig(useConfigStore.getState().config!);
+  };
+
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden p-5">
       <PageHeader
@@ -35,7 +39,7 @@ export function BlacklistPage() {
         actions={
           <Button
             size="sm"
-            onClick={() => saveConfig(useConfigStore.getState().config!)}
+            onClick={() => void handleSave()}
             disabled={saving}
           >
             <Save className="h-3.5 w-3.5" />

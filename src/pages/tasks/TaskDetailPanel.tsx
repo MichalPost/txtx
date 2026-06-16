@@ -4,6 +4,8 @@ import { toast } from "sonner";
 
 import { animateFadeIn } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
+import { formatTaskActionError } from "@/lib/taskActionError";
+import { formatTaskRetryError } from "@/lib/taskRetryError";
 import { useTaskStore } from "@/store/taskStore";
 
 import { DoneView } from "./detail/DoneView";
@@ -32,11 +34,15 @@ export function TaskDetailPanel() {
     const candidates = task.scan_items
       .filter((i) => selectedUrls.includes(i.url))
       .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
-    confirmDownload(task.id, candidates);
+    void confirmDownload(task.id, candidates).catch((error) => {
+      toast.error(formatTaskActionError("确认下载任务", error));
+    });
   };
 
   const handleRetry = () => {
-    void retryTask(task.id);
+    void retryTask(task.id).catch((error) => {
+      toast.error(formatTaskRetryError(error));
+    });
   };
 
   const failedMessages = logs.filter((l) => l.level === "error").map((l) => l.message);

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { formatLocalDateKey } from "./schedulerLogic";
 
 interface SchedulerState {
   enabled: boolean;
@@ -43,7 +44,7 @@ export const useSchedulerStore = create<SchedulerState>((set, get) => ({
     save({ enabled: get().enabled, hour, lastRun: get().lastRun });
   },
   markRan: () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = formatLocalDateKey(new Date());
     set({ lastRun: today });
     save({ enabled: get().enabled, hour: get().hour, lastRun: today });
   },

@@ -6,6 +6,8 @@ import { useRef, useState } from "react";
 import { aiComplete, extractJson, preprocessHtml, validateXPath } from "@/lib/ai";
 import { useAiStore } from "@/store/aiStore";
 
+import { readAiXPathReply } from "../rule-wizard/utils/aiSafeParse";
+
 export interface AiXPathResult {
   xpath: string;
   explanation: string;
@@ -59,13 +61,10 @@ export function useAiXPathAnalysis(html: string) {
         aiConfig,
         aiAbortRef.current.signal,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(raw) as any;
-      const xpath: string = parsed?.xpath ?? "";
-      const explanation: string = parsed?.explanation ?? "";
-      const alternatives: string[] = Array.isArray(parsed?.alternatives)
-        ? parsed.alternatives.filter((x: unknown) => typeof x === "string")
-        : [];
+      const parsed = readAiXPathReply(extractJson(raw));
+      const xpath = parsed.xpath;
+      const explanation = parsed.explanation;
+      const alternatives = parsed.alternatives;
       const validation = xpath ? validateXPath(html, xpath) : null;
       setAiResult({ xpath, explanation, alternatives, validation });
     } catch (e) {

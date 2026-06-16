@@ -1,12 +1,18 @@
 import type { SiteHealth } from "@/types";
+import {
+  invokeDesktopCommand,
+  openNativeDialog,
+  PLATFORM_CAPABILITIES,
+  saveNativeDialog,
+  writeLocalTextFile,
+} from "@/platform";
+import { resolveSaveTextFilePlan } from "@/lib/saveTextFileStrategy";
 
 import { API_BASE, IS_TAURI } from "./constants";
 
 export async function apiPickDirectory(): Promise<string | null> {
   if (IS_TAURI) {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const result = await open({ directory: true, multiple: false });
-    return result as string | null;
+    return openNativeDialog({ directory: true, multiple: false });
   }
   // Dev mode: fall back to a prompt so the field is still editable
   const input = window.prompt("请输入目录路径：");
@@ -17,9 +23,7 @@ export async function apiPickFile(
   filters?: { name: string; extensions: string[] }[],
 ): Promise<string | null> {
   if (IS_TAURI) {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const result = await open({ multiple: false, filters });
-    return result as string | null;
+    return openNativeDialog({ multiple: false, filters });
   }
   // Dev mode: fall back to a prompt
   const ext = filters?.flatMap((f) => f.extensions).join(", ") ?? "";
@@ -29,8 +33,7 @@ export async function apiPickFile(
 
 export async function apiCheckSites(): Promise<SiteHealth[]> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<SiteHealth[]>("check_sites");
+    return invokeDesktopCommand<SiteHealth[]>("check_sites");
   }
   const res = await fetch(`${API_BASE}/api/health`);
   if (!res.ok) throw new Error(await res.text());
@@ -39,8 +42,7 @@ export async function apiCheckSites(): Promise<SiteHealth[]> {
 
 export async function apiConvertFile(path: string): Promise<string> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<string>("convert_file", { path });
+    return invokeDesktopCommand<string>("convert_file", { path });
   }
   const res = await fetch(`${API_BASE}/api/convert/text`, {
     method: "POST",
@@ -55,25 +57,28 @@ export async function apiConvertFile(path: string): Promise<string> {
 /** Save text content as a file download. In dev mode uses browser download; in Tauri uses save dialog. */
 export async function apiSaveTextFile(filename: string, content: string): Promise<void> {
   if (IS_TAURI) {
-    try {
-      const { save } = await import("@tauri-apps/plugin-dialog");
-      // Use Function constructor to avoid TypeScript static module resolution
-      // plugin-fs is available at Tauri runtime but not installed as a dev dependency
-      const fs = await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(
-        () => null,
-      );
-      const path = await save({
-        defaultPath: filename,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-      if (path && fs) await fs.writeTextFile(path, content);
-    } catch {
-      // fallback to browser download if Tauri APIs unavailable
-      _browserDownload(filename, content);
+    const path = await saveNativeDialog({
+      defaultPath: filename,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    const plan = resolveSaveTextFilePlan({
+      isTauri: true,
+      canReadLocalFiles: PLATFORM_CAPABILITIES.canReadLocalFiles,
+      selectedPath: path,
+    });
+    if (plan.action === "write-local") {
+      await writeLocalTextFile(plan.path, content);
     }
     return;
   }
-  _browserDownload(filename, content);
+  const plan = resolveSaveTextFilePlan({
+    isTauri: false,
+    canReadLocalFiles: PLATFORM_CAPABILITIES.canReadLocalFiles,
+    selectedPath: null,
+  });
+  if (plan.action === "browser-download") {
+    _browserDownload(filename, content);
+  }
 }
 
 function _browserDownload(filename: string, content: string): void {
@@ -89,8 +94,7 @@ function _browserDownload(filename: string, content: string): void {
 /** Fetch raw HTML source of a URL via backend proxy (avoids CORS in browser). */
 export async function apiFetchSource(url: string): Promise<string> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<string>("fetch_source", { url });
+    return invokeDesktopCommand<string>("fetch_source", { url });
   }
   const res = await fetch(`${API_BASE}/api/source?url=${encodeURIComponent(url)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
@@ -104,8 +108,7 @@ export async function apiFetchSource(url: string): Promise<string> {
  */
 export async function apiDetectCalibre(): Promise<string | null> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<string | null>("detect_calibre");
+    return invokeDesktopCommand<string | null>("detect_calibre");
   }
   // In dev/web mode, try via REST
   const res = await fetch(`${API_BASE}/api/calibre/detect`).catch(() => null);
@@ -117,8 +120,7 @@ export async function apiDetectCalibre(): Promise<string | null> {
 /** Merge multiple txt files into one output file. Returns a status message. */
 export async function apiMergeFiles(paths: string[], output: string): Promise<string> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<string>("merge_files", { paths, output });
+    return invokeDesktopCommand<string>("merge_files", { paths, output });
   }
   const res = await fetch(`${API_BASE}/api/tools/merge`, {
     method: "POST",
@@ -133,8 +135,7 @@ export async function apiMergeFiles(paths: string[], output: string): Promise<st
 /** Split a txt file into multiple files by chapter headings. Returns list of output paths. */
 export async function apiSplitFile(path: string, pattern?: string): Promise<string[]> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<string[]>("split_file", { path, pattern: pattern ?? null });
+    return invokeDesktopCommand<string[]>("split_file", { path, pattern: pattern ?? null });
   }
   const res = await fetch(`${API_BASE}/api/tools/split`, {
     method: "POST",

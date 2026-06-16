@@ -11,6 +11,7 @@ import {
   apiLoadPersistedTasks,
   apiPauseTask,
 } from "@/lib/api";
+import { listenDesktopEvent } from "@/platform";
 import type {
   BookCandidate,
   LogEntry,
@@ -21,6 +22,7 @@ import type {
 } from "@/types";
 
 import { applyTaskEvent, makeLogEntry } from "./taskEventHandler";
+import { hasTaskChanged } from "./taskSync";
 
 const MAX_LOGS = 500;
 
@@ -85,11 +87,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
       // Subscribe to task_event (Tauri)
       try {
-        const { listen } = await import("@tauri-apps/api/event");
         // Clean up any existing Tauri listener before registering a new one (HMR safety)
         _tauriUnlisten?.();
         _tauriUnlisten = null;
-        const unlisten = await listen<TaskEvent>("task_event", (e) => {
+        const unlisten = await listenDesktopEvent<TaskEvent>("task_event", (e) => {
           const event = e.payload;
           set((s) => {
             // Check if task exists; if not (race condition), skip
@@ -126,13 +127,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
               const updated = s.tasks.map((existing) => {
                 const server = freshTasks.find((f) => f.id === existing.id);
                 if (!server) return existing;
-                if (
-                  server.status !== existing.status ||
-                  server.completed !== existing.completed ||
-                  server.success_count !== existing.success_count ||
-                  server.error_count !== existing.error_count ||
-                  (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)
-                ) {
+                if (hasTaskChanged(existing, server)) {
                   return server;
                 }
                 return existing;

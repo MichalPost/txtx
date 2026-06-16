@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { PageHeader } from "@/components/PageHeader";
 import { apiSaveTextFile } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 import { useAiStore } from "@/store/aiStore";
 import { useConfigStore } from "@/store/configStore";
 import type { AppConfig } from "@/types";
@@ -54,7 +55,12 @@ export function SettingsPage() {
     if (!config) return;
     const content = JSON.stringify(config, null, 2);
     const date = new Date().toISOString().slice(0, 10);
-    await apiSaveTextFile(`txtx-config-${date}.json`, content);
+    try {
+      await apiSaveTextFile(`txtx-config-${date}.json`, content);
+      toast.success("配置已导出");
+    } catch (error) {
+      toast.error(`导出失败：${String(error)}`);
+    }
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,8 +93,8 @@ export function SettingsPage() {
     try {
       await Promise.all([saveConfig(formToConfig(form, config)), flushAiSave()]);
       reset(form); // Mark form as clean after successful save
-    } catch {
-      toast.error("部分设置保存失败，请检查上方提示后重试");
+    } catch (error) {
+      toast.error(formatToolActionError("保存设置", error));
     }
   };
 

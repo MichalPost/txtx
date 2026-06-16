@@ -39,6 +39,10 @@ export function ContentCleanTab() {
     });
   };
 
+  const handleSave = async () => {
+    await saveConfig(useConfigStore.getState().config!);
+  };
+
   const handleExport = () => {
     const data = { ad_patterns: cf.ad_patterns, nav_keywords: cf.nav_keywords };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -117,7 +121,7 @@ export function ContentCleanTab() {
           >
             <Download className="h-3 w-3" /> 导出
           </button>
-          <Button size="sm" onClick={() => saveConfig(config)} disabled={saving}>
+          <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
             <Save className="h-3.5 w-3.5" />
             {saving ? "保存中..." : "保存"}
           </Button>

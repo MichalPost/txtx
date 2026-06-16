@@ -4,6 +4,7 @@ import { ChevronRight, Link, Loader2 } from "lucide-react";
 import { Button } from "@/components/Button";
 import { animateDropdownOpen } from "@/lib/animations";
 import { apiPreviewNovelName } from "@/lib/api";
+import { submitSingleDownloadUrl } from "./singleDownloadState";
 
 const URL_HISTORY_KEY = "txtx_url_history";
 
@@ -67,12 +68,21 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
   const handleSubmit = () => {
     const u = url.trim();
     if (!u) return;
-    pushUrlHistory(u);
-    setHistory(loadUrlHistory());
-    void onSubmit?.(u);
-    setUrl("");
-    setShowHistory(false);
-    setPreviewName(null);
+    void submitSingleDownloadUrl({
+      url: u,
+      submit: async (nextUrl) => {
+        await onSubmit?.(nextUrl);
+      },
+      saveHistory: (savedUrl) => {
+        pushUrlHistory(savedUrl);
+        setHistory(loadUrlHistory());
+      },
+      clearInput: () => {
+        setUrl("");
+        setShowHistory(false);
+        setPreviewName(null);
+      },
+    });
   };
 
   const pickHistory = (u: string) => {

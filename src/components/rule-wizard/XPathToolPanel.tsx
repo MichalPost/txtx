@@ -12,7 +12,7 @@ import { XPATH_TARGETS, type TargetField } from "./xpathTool";
 interface XPathToolPanelProps {
   html: string;
   page: "catalog" | "chapter" | "update_list";
-  onApply: (results: Partial<Record<TargetField, string>>) => void;
+  onApply: (results: Partial<Record<TargetField, string>>) => void | Promise<void>;
   onClose: () => void;
 }
 

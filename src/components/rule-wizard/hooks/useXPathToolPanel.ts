@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 
+import { applyXPathResultsAndClose } from "../xpathApplyFlow";
 import { useXPathFields } from "./useXPathFields";
 import { useXPathGenerate } from "./useXPathGenerate";
 import type { FieldState } from "./useXPathFields";
@@ -8,7 +9,7 @@ import type { TargetField, XPathTarget } from "../xpathTool";
 interface UseXPathToolPanelOptions {
   availableTargets: XPathTarget[];
   html: string;
-  onApply: (results: Partial<Record<TargetField, string>>) => void;
+  onApply: (results: Partial<Record<TargetField, string>>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -51,14 +52,13 @@ export function useXPathToolPanel({
     [fs.keywords, patchActive],
   );
 
-  const handleApply = useCallback(() => {
+  const handleApply = useCallback(async () => {
     const patch: Partial<Record<TargetField, string>> = {};
     for (const t of availableTargets) {
       const f = fields[t.field];
       if (f.adopted && f.generatedXPath) patch[t.field] = f.generatedXPath;
     }
-    onApply(patch);
-    onClose();
+    await applyXPathResultsAndClose(() => Promise.resolve(onApply(patch)), onClose);
   }, [availableTargets, fields, onApply, onClose]);
 
   const adoptedCount = availableTargets.filter(

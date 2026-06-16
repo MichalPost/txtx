@@ -4,6 +4,7 @@ import { Code2, ShieldAlert, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
 import { AiXPathAnalyzer } from "@/components/AiXPathAnalyzer";
 import { RuleTemplateSelector } from "@/components/RuleTemplateSelector";
 import { SourceViewer } from "@/components/SourceViewer";
+import { applyAndClose } from "@/lib/applyAndClose";
 import { useAiStore } from "@/store/aiStore";
 import type { WebsiteConfig } from "@/types";
 
@@ -14,7 +15,7 @@ import { ToolBtn } from "./ToolBtn";
 interface SiteCardExpandedPanelProps {
   site: WebsiteConfig;
   onClose: () => void;
-  onQuickSave: (patch: Partial<WebsiteConfig>) => void;
+  onQuickSave: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
 }
 
 export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardExpandedPanelProps) {
@@ -29,6 +30,13 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
   // Clean domain display: strip protocol, trailing slash
   const displayDomain =
     site.domain_name.replace(/^https?:\/\//, "").replace(/\/$/, "") || site.domain_name;
+
+  const handleQuickSave = async (patch: Partial<WebsiteConfig>) => {
+    await applyAndClose(() => onQuickSave(patch), () => {
+      onClose();
+      setActivePanel(null);
+    });
+  };
 
   return (
     <div
@@ -85,14 +93,12 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
           取消
         </button>
         <button
-          onClick={() => {
-            onQuickSave({
+          onClick={() =>
+            void handleQuickSave({
               domain_name: draftDomain.trim() || site.domain_name,
               release_url: draftReleaseUrl.trim(),
-            });
-            onClose();
-            setActivePanel(null);
-          }}
+            })
+          }
           className="rounded-lg px-3 py-1 text-xs"
           style={{ background: "var(--color-accent)", color: "#fff" }}
         >
@@ -154,10 +160,7 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
       {activePanel === "template" && (
         <div className="mt-2">
           <RuleTemplateSelector
-            onApply={(patch) => {
-              onQuickSave(patch);
-              setActivePanel(null);
-            }}
+            onApply={(patch) => onQuickSave(patch)}
             onClose={() => setActivePanel(null)}
           />
         </div>
@@ -166,10 +169,7 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
         <div className="mt-2">
           <AiXPathAnalyzer
             site={site}
-            onApply={(patch) => {
-              onQuickSave(patch);
-              setActivePanel(null);
-            }}
+            onApply={(patch) => onQuickSave(patch)}
             onClose={() => setActivePanel(null)}
           />
         </div>

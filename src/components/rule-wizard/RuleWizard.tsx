@@ -61,7 +61,7 @@ const STEPS = [
 
 interface RuleWizardProps {
   site: WebsiteConfig;
-  onApply: (patch: Partial<WebsiteConfig>) => void;
+  onApply: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -306,9 +306,9 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         {step === 7 && (
           <WizardStep6Save
             data={data}
-            onApply={(patch) => {
+            onApply={async (patch) => {
+              await onApply(patch);
               hasSavedRef.current = true;
-              onApply(patch);
             }}
             onClose={handleCloseAttempt}
           />

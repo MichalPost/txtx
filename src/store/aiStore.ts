@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { create } from "zustand";
 
 import { API_BASE, IS_TAURI } from "@/lib/api/constants";
+import { invokeDesktopCommand } from "@/platform";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -114,8 +115,7 @@ const DEFAULT_MULTI_CONFIG: AiMultiConfig = {
 
 async function apiLoadAiConfig(): Promise<AiMultiConfig> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<AiMultiConfig>("load_ai_config");
+    return invokeDesktopCommand<AiMultiConfig>("load_ai_config");
   }
   const res = await fetch(`${API_BASE}/api/ai/config`);
   if (!res.ok) throw new Error(await res.text());
@@ -124,8 +124,7 @@ async function apiLoadAiConfig(): Promise<AiMultiConfig> {
 
 async function apiSaveAiConfig(config: AiMultiConfig): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("save_ai_config", { config });
+    return invokeDesktopCommand("save_ai_config", { config });
   }
   const res = await fetch(`${API_BASE}/api/ai/config`, {
     method: "PUT",

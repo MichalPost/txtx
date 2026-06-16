@@ -9,6 +9,7 @@
  * 和 medrecai 的 前端 → FastAPI → Python openai SDK → LLM 完全对应。
  */
 import { API_BASE, IS_TAURI } from "@/lib/api/constants";
+import { invokeDesktopCommand, listenDesktopEvent } from "@/platform";
 import type { AiConfig } from "@/store/aiStore";
 
 // ─── Request / response types（镜像 Rust 结构体）─────────────────────────────
@@ -60,11 +61,10 @@ export async function aiComplete(
   const request = buildRequest(userPrompt, systemPrompt, config);
 
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
     // Tauri invoke doesn't natively support AbortSignal, but we can check
     // before invoking and throw if already aborted
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const res = await invoke<{ text: string }>("ai_complete", { request });
+    const res = await invokeDesktopCommand<{ text: string }>("ai_complete", { request });
     return res.text;
   }
 
@@ -117,9 +117,6 @@ async function _tauriStream(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const { listen } = await import("@tauri-apps/api/event");
-
   const streamId = crypto.randomUUID();
 
   return new Promise((resolve, reject) => {
@@ -134,7 +131,7 @@ async function _tauriStream(
       else resolve();
     };
 
-    listen<{ stream_id: string; token: string | null; done: boolean; error: string | null }>(
+    listenDesktopEvent<{ stream_id: string; token: string | null; done: boolean; error: string | null }>(
       "ai_token",
       (event) => {
         const p = event.payload;
@@ -157,7 +154,7 @@ async function _tauriStream(
           finish(new Error("Aborted"));
           return;
         }
-        invoke("ai_stream_complete", { request, streamId }).catch((e: unknown) => {
+        invokeDesktopCommand("ai_stream_complete", { request, streamId }).catch((e: unknown) => {
           finish(new Error(String(e)));
         });
       })
@@ -233,8 +230,7 @@ export async function aiExtract<T = Record<string, unknown>>(
   };
 
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    const res = await invoke<{ data: T }>("ai_extract", {
+    const res = await invokeDesktopCommand<{ data: T }>("ai_extract", {
       request: { config: configPayload, schema, html },
     });
     return res.data;

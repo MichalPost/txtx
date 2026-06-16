@@ -1,4 +1,5 @@
 import type { HistoryEntry } from "@/types";
+import { invokeDesktopCommand } from "@/platform";
 
 import { API_BASE, IS_TAURI } from "./constants";
 
@@ -33,8 +34,7 @@ export interface HistoryStats {
 
 export async function apiGetHistory(): Promise<HistoryEntry[]> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<HistoryEntry[]>("get_history");
+    return invokeDesktopCommand<HistoryEntry[]>("get_history");
   }
   const res = await fetch(`${API_BASE}/api/history`);
   if (!res.ok) throw new Error(await res.text());
@@ -105,8 +105,7 @@ export async function apiGetHistoryStats(days = 30): Promise<HistoryStats> {
 
 export async function apiClearHistory(): Promise<void> {
   if (IS_TAURI) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke("clear_history");
+    return invokeDesktopCommand("clear_history");
   }
   await fetch(`${API_BASE}/api/history`, { method: "DELETE" });
 }

@@ -22,6 +22,11 @@ import type {
 } from "@/types";
 
 import { handleEvent, makeAddLog } from "./downloadEventHandler";
+import {
+  getDownloadRunState,
+  pauseDownloadAndUpdateState,
+  stopDownloadAndUpdateState,
+} from "./downloadControlLogic";
 import { initialSpeed, type SpeedState } from "./speedTracker";
 
 export interface NovelProgress {
@@ -250,9 +255,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   // ── One-shot batch download ────────────────────────────────────────────────
   startDownload: () => {
     get()._unsub?.();
+    const runState = getDownloadRunState();
     set({
-      phase: "downloading",
-      status: "scanning",
+      ...runState,
       siteProgress: {},
       novelProgress: {},
       stats: null,
@@ -267,9 +272,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   startSingleDownload: (url: string) => {
     get()._unsub?.();
+    const runState = getDownloadRunState();
     set({
-      phase: "downloading",
-      status: "scanning",
+      ...runState,
       siteProgress: {},
       novelProgress: {},
       stats: null,
@@ -286,9 +291,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     try {
       get()._unsub?.();
       set({ _unsub: null });
-      await apiStopDownload().catch(() => {});
-      set({ phase: "stopped", status: "stopped" });
-      get().addLog("warn", "已停止");
+      await stopDownloadAndUpdateState(apiStopDownload, async () => {
+        set({ phase: "stopped", status: "stopped" });
+        get().addLog("warn", "已停止");
+      });
     } catch (e) {
       get().addLog("error", `停止失败: ${String(e)}`);
     }
@@ -298,10 +304,11 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     try {
       get()._unsub?.();
       set({ _unsub: null });
-      await apiStopDownload().catch(() => {});
-      set({ phase: "stopped", status: "stopped" });
-      get().addLog("warn", "已暂停，下载队列已保存，可稍后恢复");
-      await get().loadQueueStatus();
+      await pauseDownloadAndUpdateState(apiStopDownload, async () => {
+        set({ phase: "stopped", status: "stopped" });
+        get().addLog("warn", "已暂停，下载队列已保存，可稍后恢复");
+        await get().loadQueueStatus();
+      });
     } catch (e) {
       get().addLog("error", `暂停失败: ${String(e)}`);
     }

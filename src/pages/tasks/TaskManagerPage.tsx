@@ -1,5 +1,7 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 
+import { formatTaskCreateError } from "@/lib/taskCreateFeedback";
 import { useTaskStore } from "@/store/taskStore";
 import type { ScanTaskOptions } from "@/types";
 
@@ -17,7 +19,8 @@ export function TaskManagerPage() {
     try {
       await createScanTask(opts);
     } catch (e) {
-      console.error("创建扫描任务失败:", e);
+      toast.error(formatTaskCreateError("scan", e));
+      throw e;
     }
   };
 
@@ -25,7 +28,8 @@ export function TaskManagerPage() {
     try {
       await createBatchTask(opts);
     } catch (e) {
-      console.error("创建批量下载任务失败:", e);
+      toast.error(formatTaskCreateError("batch", e));
+      throw e;
     }
   };
 
@@ -33,7 +37,8 @@ export function TaskManagerPage() {
     try {
       await createSingleTask(url);
     } catch (e) {
-      console.error("创建单本下载任务失败:", e);
+      toast.error(formatTaskCreateError("single", e));
+      throw e;
     }
   };
 

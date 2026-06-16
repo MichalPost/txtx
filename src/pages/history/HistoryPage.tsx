@@ -10,6 +10,7 @@ import { Input } from "@/components/Input";
 import { PageHeader } from "@/components/PageHeader";
 import { apiClearHistory, apiQueryHistory, type HistoryQuery } from "@/lib/api";
 import { usePersistedState } from "@/lib/persist";
+import { formatTaskRetryError } from "@/lib/taskRetryError";
 import { useAppNavigate } from "@/router";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useTaskStore } from "@/store/taskStore";
@@ -71,9 +72,14 @@ export function HistoryPage() {
       toast.error("当前有任务正在运行");
       return;
     }
-    await createSingleTask(url);
-    toast.success(`已创建重新下载任务：${name}`);
-    navigate("/tasks");
+    try {
+      await createSingleTask(url);
+      toast.success(`已创建重新下载任务：${name}`);
+      navigate("/tasks");
+    } catch (error) {
+      toast.error(formatTaskRetryError(error));
+      throw error;
+    }
   };
 
   const entries = data?.entries ?? [];

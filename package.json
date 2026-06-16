@@ -9,6 +9,7 @@
     "dev:backend": "cross-env HTTP_PROXY= HTTPS_PROXY= http_proxy= https_proxy= cargo run --bin txtx-server --manifest-path src-tauri/Cargo.toml",
     "dev:tauri": "cross-env VITE_TAURI_MODE=true tauri dev -- --features tauri-build",
     "build": "tsc && vite build",
+    "test": "node --test src/components/**/*.test.ts src/lib/*.test.ts src/pages/**/*.test.ts src/platform/*.test.ts src/store/*.test.ts",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src",

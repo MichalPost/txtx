@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { apiDetectCalibre } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 import type { SettingsForm } from "../settingsSchema";
 
@@ -25,8 +26,8 @@ export function EbookSection() {
       } else {
         toast.error("未找到 Calibre 安装路径，请手动填写");
       }
-    } catch {
-      toast.error("检测失败");
+    } catch (error) {
+      toast.error(formatToolActionError("检测 Calibre", error));
     } finally {
       setDetecting(false);
     }

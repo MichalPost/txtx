@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { FileText, FolderOpen, Play } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { apiConvertFile, apiPickFile } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 import { ResultsCard } from "./ResultsCard";
 import type { ConvertResult } from "./types";
@@ -16,8 +18,12 @@ export function T2STab() {
   const [running, setRunning] = useState(false);
 
   const pickFile = async (i: number) => {
-    const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
-    if (f) updatePath(i, f);
+    try {
+      const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
+      if (f) updatePath(i, f);
+    } catch (error) {
+      toast.error(formatToolActionError("选择转换文件", error));
+    }
   };
 
   const handleConvert = async () => {

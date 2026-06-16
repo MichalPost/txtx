@@ -33,7 +33,7 @@ interface SiteListProps {
   onEdit: (key: string) => void;
   onToggle: (key: string) => void;
   onDelete: (key: string) => void;
-  onQuickSave: (key: string, patch: Partial<WebsiteConfig>) => void;
+  onQuickSave: (key: string, patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onReorder: (orderedKeys: string[]) => void;
   onDuplicate: (key: string) => void;
 }
@@ -60,7 +60,7 @@ function SortableSiteRow({
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
-  onQuickSave: (patch: Partial<WebsiteConfig>) => void;
+  onQuickSave: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onDuplicate: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({

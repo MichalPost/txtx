@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/Button";
+import { applyAndClose } from "@/lib/applyAndClose";
 import type { WebsiteConfig } from "@/types";
 
 // ─── Template Definitions ─────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ function PreviewRow({ label, value }: { label: string; value: string | string[] 
 // ─── RuleTemplateSelector ─────────────────────────────────────────────────────
 
 interface RuleTemplateSelectorProps {
-  onApply: (patch: Partial<WebsiteConfig>) => void;
+  onApply: (patch: Partial<WebsiteConfig>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -101,18 +102,21 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
     setShowPreview(true);
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!selected) return;
-    onApply({
-      list_novel_name: selected.list_novel_name,
-      release_date: selected.release_date,
-      release_url: selected.release_url,
-      novel_name_x: selected.novel_name_x,
-      chapter_url_x: selected.chapter_url_x,
-      novel_content: selected.novel_content,
-      novel_content_fallbacks: selected.novel_content_fallbacks,
-    });
-    onClose();
+    await applyAndClose(
+      () =>
+        onApply({
+          list_novel_name: selected.list_novel_name,
+          release_date: selected.release_date,
+          release_url: selected.release_url,
+          novel_name_x: selected.novel_name_x,
+          chapter_url_x: selected.chapter_url_x,
+          novel_content: selected.novel_content,
+          novel_content_fallbacks: selected.novel_content_fallbacks,
+        }),
+      onClose,
+    );
   };
 
   return (
@@ -202,7 +206,7 @@ export function RuleTemplateSelector({ onApply, onClose }: RuleTemplateSelectorP
         <Button variant="secondary" size="sm" onClick={onClose}>
           取消
         </Button>
-        <Button size="sm" onClick={handleApply} disabled={!selected}>
+        <Button size="sm" onClick={() => void handleApply()} disabled={!selected}>
           <Wand2 className="h-3.5 w-3.5" />
           套用此规则
         </Button>

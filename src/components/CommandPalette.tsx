@@ -20,6 +20,8 @@ import { toast } from "sonner";
 
 import { animateModalOpen } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
+import { formatTaskActionError } from "@/lib/taskActionError";
+import { formatCreateScanTaskError } from "@/lib/taskInitError";
 import { useAppNavigate } from "@/router";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useTaskStore } from "@/store/taskStore";
@@ -142,11 +144,15 @@ export function CommandPalette() {
       icon: <ScanSearch className="h-4 w-4" />,
       action: () => {
         const opts = useDownloadStore.getState().scanOptions;
-        void createScanTask(Object.keys(opts).length > 0 ? opts : undefined).then((taskId) => {
-          setActive(taskId);
-          navigate("/tasks");
-          toast.success("已创建扫描任务");
-        });
+        void createScanTask(Object.keys(opts).length > 0 ? opts : undefined)
+          .then((taskId) => {
+            setActive(taskId);
+            navigate("/tasks");
+            toast.success("已创建扫描任务");
+          })
+          .catch((error) => {
+            toast.error(formatCreateScanTaskError(error));
+          });
       },
       keywords: ["扫描", "scan", "开始", "任务"],
     },
@@ -172,9 +178,14 @@ export function CommandPalette() {
             group: "操作",
             icon: <ListTodo className="h-4 w-4" />,
             action: () => {
-              void cancelTask(activeTaskId);
-              navigate("/tasks");
-              toast.success("已取消当前任务");
+              void cancelTask(activeTaskId)
+                .then(() => {
+                  navigate("/tasks");
+                  toast.success("已取消当前任务");
+                })
+                .catch((error) => {
+                  toast.error(formatTaskActionError("取消任务", error));
+                });
             },
             keywords: ["取消", "任务", "停止"],
           },
@@ -185,7 +196,11 @@ export function CommandPalette() {
       label: "打开下载目录",
       group: "操作",
       icon: <FolderOpen className="h-4 w-4" />,
-      action: () => apiOpenOutputDir().catch(() => {}),
+      action: () => {
+        void apiOpenOutputDir().catch((error) => {
+          toast.error(`打开下载目录失败：${String(error)}`);
+        });
+      },
       keywords: ["目录", "文件夹", "打开"],
     },
   ];

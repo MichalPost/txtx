@@ -37,11 +37,10 @@ export function SiteAdCleanupPreview({ site, onClose }: Props) {
 
   // 提取章节正文（使用站点配置的 XPath），再对其应用广告清理规则
   const contentXPath = site.novel_content ?? "";
-  const fallbacks = site.novel_content_fallbacks ?? [];
 
   const chapterPreview = useMemo(
-    () => (html ? buildChapterContentPreview(html, contentXPath, fallbacks) : null),
-    [html, contentXPath, fallbacks],
+    () => (html ? buildChapterContentPreview(html, contentXPath, site.novel_content_fallbacks ?? []) : null),
+    [html, contentXPath, site.novel_content_fallbacks],
   );
 
   const adPreview = useMemo(() => {

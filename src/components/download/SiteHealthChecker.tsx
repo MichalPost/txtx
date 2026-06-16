@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Activity, Loader2, Wifi, WifiOff } from "lucide-react";
+import { toast } from "sonner";
 
 import { apiCheckSites } from "@/lib/api";
 import type { SiteHealth } from "@/types";
@@ -24,8 +25,8 @@ export function SiteHealthChecker({ onHealthMap }: SiteHealthCheckerProps) {
         map[r.domain] = r;
       });
       onHealthMap(map);
-    } catch {
-      // ignore
+    } catch (error) {
+      toast.error(`站点检查失败：${String(error)}`);
     } finally {
       setChecking(false);
     }

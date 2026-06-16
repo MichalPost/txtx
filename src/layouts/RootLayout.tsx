@@ -8,8 +8,10 @@ import { Sidebar } from "@/components/Sidebar";
 import { apiCheckFirstRun } from "@/lib/api";
 import { useAiStore } from "@/store/aiStore";
 import { useConfigStore } from "@/store/configStore";
+import { runScheduledBatchTask } from "@/store/schedulerRunner";
 import { useSchedulerStore } from "@/store/schedulerStore";
 import { useTaskStore } from "@/store/taskStore";
+import { toast } from "sonner";
 
 // 页面切换动画变体：轻微向上淡入，向下淡出
 const pageVariants = {
@@ -85,12 +87,17 @@ export function RootLayout() {
         schedMarkRan: markRan,
         createBatchTask: createTask,
       } = schedRef.current;
-      const now = new Date();
-      const today = now.toISOString().slice(0, 10);
-      if (now.getHours() === hour && lastRun !== today) {
-        markRan();
-        createTask().catch(console.error);
-      }
+      void runScheduledBatchTask({
+        now: new Date(),
+        targetHour: hour,
+        lastRun,
+        createTask,
+        markRan,
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`定时任务创建失败：${message}`);
+        },
+      });
     };
 
     check();

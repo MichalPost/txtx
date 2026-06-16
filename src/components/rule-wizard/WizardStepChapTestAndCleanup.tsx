@@ -41,6 +41,7 @@ import {
   type AdCleanupRules,
 } from "./adCleanupUtils";
 import { buildXPathFromRule, type WizardData } from "./ruleUtils";
+import { getAiNumber, getAiObject, getAiStringArray } from "./utils/aiResponse";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -243,22 +244,21 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
         AI_SYSTEM_AD_CLEANUP,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      if (parsed) {
+      const parsed = getAiObject(extractJson(reply));
+      if (Object.keys(parsed).length > 0) {
         updateRules({
-          xpath_rules: [...new Set([...rules.xpath_rules, ...(parsed.xpath_rules ?? [])])].filter(
-            Boolean,
-          ),
-          regex_rules: [...new Set([...rules.regex_rules, ...(parsed.regex_rules ?? [])])].filter(
-            Boolean,
-          ),
+          xpath_rules: [
+            ...new Set([...rules.xpath_rules, ...getAiStringArray(parsed.xpath_rules)]),
+          ].filter(Boolean),
+          regex_rules: [
+            ...new Set([...rules.regex_rules, ...getAiStringArray(parsed.regex_rules)]),
+          ].filter(Boolean),
           nav_keywords: [
-            ...new Set([...rules.nav_keywords, ...(parsed.nav_keywords ?? [])]),
+            ...new Set([...rules.nav_keywords, ...getAiStringArray(parsed.nav_keywords)]),
           ].filter(Boolean),
           // AI 建议的头尾修整（只取更大的值，不覆盖用户已有设置）
-          trim_head: Math.max(rules.trim_head ?? 0, Number(parsed.trim_head ?? 0) || 0),
-          trim_tail: Math.max(rules.trim_tail ?? 0, Number(parsed.trim_tail ?? 0) || 0),
+          trim_head: Math.max(rules.trim_head ?? 0, getAiNumber(parsed.trim_head)),
+          trim_tail: Math.max(rules.trim_tail ?? 0, getAiNumber(parsed.trim_tail)),
         });
       }
     } catch (e) {

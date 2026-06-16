@@ -12,6 +12,7 @@ import {
   type UpdateListBookItem,
   type WizardData,
 } from "../ruleUtils";
+import { getAiFieldResult, getAiObject, getAiString } from "../utils/aiResponse";
 import { AI_SYSTEM_LIST_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 import { evalXPathAll, mergeBooks } from "../utils/xpathEval";
 
@@ -61,14 +62,19 @@ export function useListPageAi(
         AI_SYSTEM_LIST_FIELDS,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
+      const parsed = getAiObject(extractJson(reply));
       const next: WizardData = {
         ...data,
         update_list_html: html,
-        list_novel_name: applyAiResult(data.list_novel_name, parsed?.list_novel_name),
-        list_release_date: applyAiResult(data.list_release_date, parsed?.list_release_date),
-        list_release_url: applyAiResult(data.list_release_url, parsed?.list_release_url),
+        list_novel_name: applyAiResult(data.list_novel_name, getAiFieldResult(parsed.list_novel_name)),
+        list_release_date: applyAiResult(
+          data.list_release_date,
+          getAiFieldResult(parsed.list_release_date),
+        ),
+        list_release_url: applyAiResult(
+          data.list_release_url,
+          getAiFieldResult(parsed.list_release_url),
+        ),
       };
       onChange({ ...next, update_books: reparseBooks(next) });
     } catch (e) {
@@ -97,9 +103,8 @@ export function useListPageAi(
         system,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
-      const xpath: string = parsed?.xpath ?? "";
+      const parsed = getAiObject(extractJson(reply));
+      const xpath = getAiString(parsed.xpath);
       const rule: FieldRule = { ...data[key], mode: "ai", xpath };
       const next = { ...data, update_list_html: html, [key]: rule };
       onChange({ ...next, update_books: reparseBooks(next) });
@@ -123,8 +128,7 @@ export function useListPageAi(
         AI_PAGINATION_SYSTEM,
         aiConfig,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const parsed = extractJson(reply) as any;
+      const parsed = getAiObject(extractJson(reply));
       if (parsed) {
         onChange({
           ...data,
@@ -134,7 +138,10 @@ export function useListPageAi(
             | "suffix"
             | "insert",
           page_total: Math.max(1, Number(parsed.page_total) || 2),
-          page_insert_part: parsed.page_insert_part ?? data.page_insert_part,
+          page_insert_part:
+            typeof parsed.page_insert_part === "string"
+              ? parsed.page_insert_part
+              : data.page_insert_part,
         });
       }
     } catch (e) {

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { CheckCircle, FileText, FolderOpen, Merge, XCircle } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { apiMergeFiles, apiPickDirectory, apiPickFile } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 import type { ConvertResult } from "./types";
 import { usePathList } from "./usePathList";
@@ -16,15 +18,23 @@ export function MergeTab() {
   const [running, setRunning] = useState(false);
 
   const pickInput = async (i: number) => {
-    const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
-    if (f) updatePath(i, f);
+    try {
+      const f = await apiPickFile([{ name: "文本文件", extensions: ["txt"] }]);
+      if (f) updatePath(i, f);
+    } catch (error) {
+      toast.error(formatToolActionError("选择输入文件", error));
+    }
   };
 
   const pickOutput = async () => {
-    const dir = await apiPickDirectory();
-    if (dir) {
-      // Suggest an output name inside that dir
-      setOutput(dir.replace(/\\/g, "/") + "/merged.txt");
+    try {
+      const dir = await apiPickDirectory();
+      if (dir) {
+        // Suggest an output name inside that dir
+        setOutput(dir.replace(/\\/g, "/") + "/merged.txt");
+      }
+    } catch (error) {
+      toast.error(formatToolActionError("选择输出目录", error));
     }
   };
 

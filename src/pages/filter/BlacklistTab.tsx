@@ -31,6 +31,10 @@ export function BlacklistTab() {
     useConfigStore.setState({ config: { ...config, blacklist: { ...bl, ...patch } } });
   };
 
+  const handleSave = async () => {
+    await saveConfig(useConfigStore.getState().config!);
+  };
+
   const handleExport = () => {
     const data: Partial<BlacklistConfig> = {
       keywords: bl.keywords,
@@ -115,7 +119,7 @@ export function BlacklistTab() {
           >
             <Download className="h-3 w-3" /> 导出
           </button>
-          <Button size="sm" onClick={() => saveConfig(config)} disabled={saving}>
+          <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
             <Save className="h-3.5 w-3.5" />
             {saving ? "保存中..." : "保存"}
           </Button>

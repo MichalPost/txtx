@@ -20,6 +20,8 @@ import { Button } from "@/components/Button";
 import { ChapterQualityReport } from "@/components/download/ChapterQualityReport";
 import { PageHeader } from "@/components/PageHeader";
 import { apiDeleteBook, apiListBooks, apiOpenBook } from "@/lib/api";
+import { readLocalTextFile } from "@/platform/filesystem";
+import { PLATFORM_CAPABILITIES } from "@/platform/runtime";
 import { useConfigStore } from "@/store/configStore";
 import type { BookFile } from "@/types";
 
@@ -114,22 +116,11 @@ export function BookshelfPage() {
     }
     setCheckingQuality(book.path);
     try {
-      // Use Tauri fs plugin if available, otherwise show unsupported message
-      const isTauri =
-        typeof (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ !== "undefined";
-      if (!isTauri) {
+      if (!PLATFORM_CAPABILITIES.canReadLocalFiles) {
         toast.error("质量检查仅在桌面版（Tauri）中可用");
         return;
       }
-      // Use Function constructor to avoid TypeScript static module resolution
-      const fs = (await new Function("m", "return import(m)")("@tauri-apps/plugin-fs").catch(
-        () => null,
-      )) as { readTextFile: (p: string) => Promise<string> } | null;
-      if (!fs) {
-        toast.error("文件读取不可用");
-        return;
-      }
-      const content = await fs.readTextFile(book.path);
+      const content = await readLocalTextFile(book.path);
       setQualityReport({ book, content });
     } catch (e) {
       toast.error(`无法读取文件: ${String(e)}`);

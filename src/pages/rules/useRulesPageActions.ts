@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useConfigStore } from "@/store/configStore";
 import type { WebsiteConfig } from "@/types";
 
+import { saveRuleConfigAndThen } from "./ruleSaveFlow";
 import { DEFAULT_SITE, generateSiteKey } from "./rulesPageUtils";
 
 export function useRulesPageActions() {
@@ -17,7 +18,7 @@ export function useRulesPageActions() {
     setEditingKey(key);
   };
 
-  const handleWizardApply = (key: string, patch: Partial<WebsiteConfig>) => {
+  const handleWizardApply = async (key: string, patch: Partial<WebsiteConfig>) => {
     if (!config) return;
     const websites = config.websites;
     const base = websites[key] ?? { ...DEFAULT_SITE };
@@ -59,13 +60,18 @@ export function useRulesPageActions() {
       }
     }
 
-    saveConfig({
-      ...config,
-      network: { ...config.network, encoding_map: encodingMap },
-      websites: { ...websites, [key]: updatedSite },
-    });
-    setRecentlySavedKey(key);
-    setEditingKey(null);
+    await saveRuleConfigAndThen(
+      () =>
+        saveConfig({
+          ...config,
+          network: { ...config.network, encoding_map: encodingMap },
+          websites: { ...websites, [key]: updatedSite },
+        }),
+      () => {
+        setRecentlySavedKey(key);
+        setEditingKey(null);
+      },
+    );
   };
 
   const handleWizardClose = () => setEditingKey(null);
@@ -117,10 +123,10 @@ export function useRulesPageActions() {
     return { filled, total: required.length, complete: filled === required.length };
   };
 
-  const quickSave = (key: string, patch: Partial<WebsiteConfig>) => {
+  const quickSave = async (key: string, patch: Partial<WebsiteConfig>) => {
     if (!config) return;
     const websites = config.websites;
-    saveConfig(
+    await saveConfig(
       {
         ...config,
         websites: { ...websites, [key]: { ...websites[key], ...patch } },
@@ -129,7 +135,7 @@ export function useRulesPageActions() {
     );
   };
 
-  const duplicateSite = (key: string) => {
+  const duplicateSite = async (key: string) => {
     if (!config) return;
     const websites = config.websites;
     const base = websites[key];
@@ -145,17 +151,22 @@ export function useRulesPageActions() {
 
     const newSite: WebsiteConfig = { ...base, domain_name: "https://", enabled: true };
 
-    saveConfig(
-      {
-        ...config,
-        websites: { ...websites, [newKey]: newSite },
+    await saveRuleConfigAndThen(
+      () =>
+        saveConfig(
+          {
+            ...config,
+            websites: { ...websites, [newKey]: newSite },
+          },
+          true,
+        ),
+      () => {
+        setEditingKey(newKey);
       },
-      true,
     );
-    setEditingKey(newKey);
   };
 
-  const reorderSites = (orderedKeys: string[]) => {
+  const reorderSites = async (orderedKeys: string[]) => {
     if (!config) return;
     const websites = config.websites;
     const sitePriority: Record<string, number> = {};
@@ -165,7 +176,7 @@ export function useRulesPageActions() {
         sitePriority[site.domain_name] = index + 1;
       }
     });
-    saveConfig(
+    await saveConfig(
       {
         ...config,
         filtering: { ...config.filtering, site_priority: sitePriority },
@@ -195,7 +206,7 @@ export function useRulesPageActions() {
       const file = input.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const parsed = JSON.parse(reader.result as string) as Record<string, WebsiteConfig>;
           const keys = Object.keys(parsed);
@@ -205,7 +216,7 @@ export function useRulesPageActions() {
             return;
           }
           const merged = { ...config.websites, ...parsed };
-          saveConfig(
+          await saveConfig(
             {
               ...config,
               websites: merged,

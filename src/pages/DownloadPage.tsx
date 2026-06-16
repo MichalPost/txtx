@@ -9,6 +9,9 @@ import { PreflightPanel } from "@/components/download/PreflightPanel";
 import { QueueResumePanel } from "@/components/download/QueueResumePanel";
 import { SingleDownloadInput } from "@/components/download/SingleDownloadInput";
 import { PageHeader } from "@/components/PageHeader";
+import { formatTaskCreateError, formatTaskCreateSuccess } from "@/lib/taskCreateFeedback";
+import { formatTaskInitError } from "@/lib/taskInitError";
+import { createTasksFromUrls } from "@/lib/taskSubmission";
 import { useAppNavigate } from "@/router";
 import { useConfigStore } from "@/store/configStore";
 import { useDownloadStore } from "@/store/downloadStore";
@@ -25,17 +28,24 @@ export function DownloadPage() {
   const navigate = useAppNavigate();
 
   useEffect(() => {
-    void initTasks();
+    void initTasks().catch((error) => {
+      toast.error(formatTaskInitError(error));
+    });
   }, [initTasks]);
 
   const isRunning = phase === "scanning" || phase === "downloading";
 
   const handleCreateScanTask = async () => {
-    const opts = useDownloadStore.getState().scanOptions;
-    const taskId = await createScanTask(Object.keys(opts).length > 0 ? opts : undefined);
-    setActive(taskId);
-    toast.success("已创建扫描任务，请在任务管理确认书单并开始下载");
-    navigate("/tasks");
+    try {
+      const opts = useDownloadStore.getState().scanOptions;
+      const taskId = await createScanTask(Object.keys(opts).length > 0 ? opts : undefined);
+      setActive(taskId);
+      toast.success(formatTaskCreateSuccess("scan"));
+      navigate("/tasks");
+    } catch (error) {
+      toast.error(formatTaskCreateError("scan", error));
+      throw error;
+    }
   };
 
   // Header right-side controls
@@ -55,9 +65,7 @@ export function DownloadPage() {
       {!isRunning && (
         <Button
           size="sm"
-          onClick={() => {
-            void handleCreateScanTask();
-          }}
+          onClick={handleCreateScanTask}
           disabled={!config}
         >
           <ScanSearch className="h-3.5 w-3.5" /> 新建扫描任务
@@ -93,9 +101,9 @@ export function DownloadPage() {
         <div className="mt-3 shrink-0 px-5">
           <PreflightPanel
             onDismiss={() => setShowPreflight(false)}
-            onConfirm={() => {
+            onConfirm={async () => {
               setShowPreflight(false);
-              void handleCreateScanTask();
+              await handleCreateScanTask();
             }}
           />
         </div>
@@ -108,7 +116,7 @@ export function DownloadPage() {
               disabled={isRunning}
               onSubmit={async (url) => {
                 await createSingleTask(url);
-                toast.success("已创建单本下载任务，请在任务管理查看进度");
+                toast.success(formatTaskCreateSuccess("single"));
               }}
             />
           </div>
@@ -129,26 +137,21 @@ export function DownloadPage() {
             onImport={async (urls) => {
               if (urls.length === 1) {
                 await createSingleTask(urls[0]);
-                toast.success("已创建单本下载任务，请在任务管理查看进度");
+                toast.success(formatTaskCreateSuccess("single"));
+                return;
               } else {
-                let successCount = 0;
-                const failedUrls: string[] = [];
-                for (const url of urls) {
-                  try {
-                    await createSingleTask(url);
-                    successCount++;
-                  } catch (e) {
-                    console.error("创建任务失败:", url, e);
-                    failedUrls.push(url);
+                const result = await createTasksFromUrls(urls, createSingleTask);
+                if (result.failures.length > 0) {
+                  toast.error(
+                    `${result.failures.length} 个任务创建失败，已成功创建 ${result.successCount} 个`,
+                  );
+                  if (result.successCount === 0) {
+                    throw new Error("所有任务创建都失败了，请检查 URL 或后端状态后重试");
                   }
-                }
-                if (failedUrls.length > 0) {
-                  toast.error(`${failedUrls.length} 个任务创建失败，已成功创建 ${successCount} 个`);
                 } else {
-                  toast.success(`已创建 ${successCount} 个下载任务，请前往「任务管理」查看`);
+                  toast.success(formatTaskCreateSuccess("multi_single", result.successCount));
                 }
               }
-              setShowImport(false);
             }}
           />
         )}
