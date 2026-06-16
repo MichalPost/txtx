@@ -12,6 +12,7 @@ import {
   type UpdateListBookItem,
   type WizardData,
 } from "../ruleUtils";
+import { formatWizardActionError } from "../utils/wizardActionError";
 import { detectPagination } from "../utils/paginationDetect";
 import { evalXPathAll, mergeBooks } from "../utils/xpathEval";
 
@@ -41,7 +42,9 @@ export function reparseUpdateBooks(data: WizardData): UpdateListBookItem[] {
 }
 
 export function useUpdateListStep(data: WizardData, onChange: (d: WizardData) => void) {
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>("idle");
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>(
+    data.update_list_html ? "ok" : "idle",
+  );
   const [fetchError, setFetchError] = useState("");
   const [showSource, setShowSource] = useState(false);
   const [autoMatchLoading, setAutoMatchLoading] = useState(false);
@@ -102,8 +105,8 @@ export function useUpdateListStep(data: WizardData, onChange: (d: WizardData) =>
         encoding: data.encoding || detectedEncoding,
       });
       setFetchStatus("ok");
-    } catch (e) {
-      setFetchError(String(e));
+    } catch (error) {
+      setFetchError(formatWizardActionError("获取更新列表页", error));
       setFetchStatus("error");
     }
   };
@@ -150,8 +153,8 @@ export function useUpdateListStep(data: WizardData, onChange: (d: WizardData) =>
       };
       const next = { ...data, update_list_html: html, list_release_url: rule };
       onChange({ ...next, update_books: reparseUpdateBooks(next) });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError("自动匹配更新列表链接", error));
     } finally {
       setAutoMatchLoading(false);
     }
@@ -175,6 +178,8 @@ export function useUpdateListStep(data: WizardData, onChange: (d: WizardData) =>
   const handleUrlChange = (value: string) => {
     onChange({ ...data, update_list_url: value, update_list_html: "" });
     setFetchStatus("idle");
+    setFetchError("");
+    setAiError("");
     setPaginationDetected(null);
   };
 

@@ -13,6 +13,7 @@ import {
   type WizardData,
 } from "../ruleUtils";
 import { readAiFieldMap, readAiXPathReply } from "../utils/aiSafeParse";
+import { formatWizardActionError } from "../utils/wizardActionError";
 import { AI_SYSTEM_CATALOG_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 import { evalXPathAll, resolveUrl } from "../utils/xpathEval";
 
@@ -71,8 +72,8 @@ export function useCatalogAi(
         chapter_items: chapters,
         chapter_test_url: chapters[0]?.url ?? next.chapter_test_url,
       });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError("AI 批量分析目录页", error));
     } finally {
       setAiLoading(null);
     }
@@ -108,8 +109,8 @@ export function useCatalogAi(
         chapter_items: chapters,
         chapter_test_url: chapters[0]?.url ?? next.chapter_test_url,
       });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError(`AI 分析${label}`, error));
     } finally {
       setAiLoading(null);
     }

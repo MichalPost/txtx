@@ -20,6 +20,7 @@ import { Button } from "@/components/Button";
 import { ChapterQualityReport } from "@/components/download/ChapterQualityReport";
 import { PageHeader } from "@/components/PageHeader";
 import { apiDeleteBook, apiListBooks, apiOpenBook } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 import { readLocalTextFile } from "@/platform/filesystem";
 import { PLATFORM_CAPABILITIES } from "@/platform/runtime";
 import { useConfigStore } from "@/store/configStore";
@@ -73,7 +74,7 @@ export function BookshelfPage() {
       toast.success("已删除");
       setConfirmDelete(null);
     },
-    onError: (e) => toast.error(String(e)),
+    onError: (error) => toast.error(formatToolActionError("删除书籍", error)),
   });
 
   const filtered = useMemo(() => {
@@ -108,6 +109,21 @@ export function BookshelfPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    const result = await refetch();
+    if (result.error) {
+      toast.error(formatToolActionError("刷新书架", result.error));
+    }
+  };
+
+  const handleOpenBook = async (path: string) => {
+    try {
+      await apiOpenBook(path);
+    } catch (error) {
+      toast.error(formatToolActionError("打开文件", error));
+    }
+  };
+
   const handleCheckQuality = async (book: BookFile) => {
     if (checkingQuality === book.path) {
       setQualityReport(null);
@@ -122,8 +138,8 @@ export function BookshelfPage() {
       }
       const content = await readLocalTextFile(book.path);
       setQualityReport({ book, content });
-    } catch (e) {
-      toast.error(`无法读取文件: ${String(e)}`);
+    } catch (error) {
+      toast.error(formatToolActionError("读取书籍文件", error));
     } finally {
       setCheckingQuality(null);
     }
@@ -159,7 +175,7 @@ export function BookshelfPage() {
             : "浏览已下载的书目"
         }
         actions={
-          <Button variant="secondary" size="sm" onClick={() => void refetch()} disabled={isLoading}>
+          <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} disabled={isLoading}>
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             刷新
           </Button>
@@ -291,7 +307,7 @@ export function BookshelfPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <button
-                        onClick={() => apiOpenBook(book.path).catch((e) => toast.error(String(e)))}
+                        onClick={() => void handleOpenBook(book.path)}
                         className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
                         style={{
                           borderColor: "var(--color-border)",
@@ -325,8 +341,9 @@ export function BookshelfPage() {
                             onClick={() => deleteMutation.mutate(book.path)}
                             className="rounded px-2 py-1 text-xs font-medium"
                             style={{ background: "var(--color-danger)", color: "#fff" }}
+                            disabled={deleteMutation.isPending}
                           >
-                            删除
+                            {deleteMutation.isPending ? "删除中..." : "删除"}
                           </button>
                           <button
                             onClick={() => setConfirmDelete(null)}
@@ -335,6 +352,7 @@ export function BookshelfPage() {
                               borderColor: "var(--color-border)",
                               color: "var(--color-text-muted)",
                             }}
+                            disabled={deleteMutation.isPending}
                           >
                             取消
                           </button>

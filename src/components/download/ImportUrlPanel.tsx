@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Textarea } from "@/components/Input";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 // ─── URL Extraction ───────────────────────────────────────────────────────────
 
@@ -32,8 +33,12 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
   const urls = extractUrls(text);
 
   const handleFile = async (file: File) => {
-    const content = await file.text();
-    setText(content);
+    try {
+      const content = await file.text();
+      setText(content);
+    } catch (error) {
+      toast.error(formatToolActionError("读取导入文件", error));
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -55,7 +60,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
       await onImport(urls);
       onClose();
     } catch (error) {
-      toast.error(taskMode ? `创建任务失败：${String(error)}` : `开始下载失败：${String(error)}`);
+      toast.error(formatToolActionError(taskMode ? "创建任务" : "开始下载", error));
     } finally {
       setSubmitting(false);
     }
@@ -81,6 +86,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           className="ml-auto rounded-md p-0.5 transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-muted)" }}
           aria-label="关闭"
+          disabled={submitting}
         >
           <X className="h-4 w-4" />
         </button>
@@ -112,6 +118,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           onChange={(e) => setText(e.target.value)}
           className="rounded-lg border-0 focus:ring-0"
           style={{ background: "transparent" }}
+          disabled={submitting}
         />
         {dragOver && (
           <div
@@ -135,6 +142,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
             color: "var(--color-text-muted)",
           }}
           onClick={() => fileInputRef.current?.click()}
+          disabled={submitting}
         >
           <FileUp className="h-3.5 w-3.5" />
           选择文件（.txt / .csv）
@@ -145,6 +153,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           accept=".txt,.csv"
           className="hidden"
           onChange={handleFileInput}
+          disabled={submitting}
         />
 
         {/* URL count */}

@@ -36,8 +36,12 @@ export function T2STab() {
       try {
         const msg = await apiConvertFile(p.trim());
         out.push({ path: p, message: msg, ok: true });
-      } catch (e) {
-        out.push({ path: p, message: String(e), ok: false });
+      } catch (error) {
+        out.push({
+          path: p,
+          message: formatToolActionError("转换文件", error),
+          ok: false,
+        });
       }
     }
     setResults(out);
@@ -55,19 +59,20 @@ export function T2STab() {
                 placeholder="TXT 文件路径..."
                 value={p}
                 onChange={(e) => updatePath(i, e.target.value)}
+                disabled={running}
               />
-              <Button variant="secondary" size="md" onClick={() => void pickFile(i)}>
+              <Button variant="secondary" size="md" onClick={() => void pickFile(i)} disabled={running}>
                 <FolderOpen className="h-4 w-4" />
               </Button>
               {paths.length > 1 && (
-                <Button variant="ghost" size="sm" onClick={() => removePath(i)}>
+                <Button variant="ghost" size="sm" onClick={() => removePath(i)} disabled={running}>
                   ✕
                 </Button>
               )}
             </div>
           ))}
           <div className="mt-1 flex gap-2">
-            <Button variant="secondary" size="sm" onClick={addPath}>
+            <Button variant="secondary" size="sm" onClick={addPath} disabled={running}>
               <FileText className="h-3.5 w-3.5" /> 添加文件
             </Button>
             <Button

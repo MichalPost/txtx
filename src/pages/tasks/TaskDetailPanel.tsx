@@ -6,6 +6,7 @@ import { animateFadeIn } from "@/lib/animations";
 import { apiOpenOutputDir } from "@/lib/api";
 import { formatTaskActionError } from "@/lib/taskActionError";
 import { formatTaskRetryError } from "@/lib/taskRetryError";
+import { formatToolActionError } from "@/lib/toolActionError";
 import { useTaskStore } from "@/store/taskStore";
 
 import { DoneView } from "./detail/DoneView";
@@ -42,6 +43,12 @@ export function TaskDetailPanel() {
   const handleRetry = () => {
     void retryTask(task.id).catch((error) => {
       toast.error(formatTaskRetryError(error));
+    });
+  };
+
+  const handleOpenOutputDir = () => {
+    void apiOpenOutputDir().catch((error) => {
+      toast.error(formatToolActionError("打开输出目录", error));
     });
   };
 
@@ -146,7 +153,7 @@ export function TaskDetailPanel() {
                 task={task}
                 onRetry={handleRetry}
                 failedMessages={failedMessages}
-                onOpenDir={() => apiOpenOutputDir().catch((e) => toast.error(String(e)))}
+                onOpenDir={handleOpenOutputDir}
               />
             )}
             {task.status === "failed" && <FailedView task={task} onRetry={handleRetry} />}

@@ -6,6 +6,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
 import { apiCheckSites } from "@/lib/api";
+import { formatToolActionError } from "@/lib/toolActionError";
 
 export function HealthPage() {
   const {
@@ -15,7 +16,7 @@ export function HealthPage() {
     isSuccess,
   } = useMutation({
     mutationFn: apiCheckSites,
-    onError: (e) => toast.error(String(e)),
+    onError: (error) => toast.error(formatToolActionError("检查站点健康", error)),
   });
 
   const reachable = results.filter((r) => r.reachable).length;

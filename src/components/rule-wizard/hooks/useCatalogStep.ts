@@ -6,6 +6,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { buildBookNameXPath } from "../components/BookNameConfig";
 import { useCatalogAi } from "./useCatalogAi";
 import { buildXPathFromRule, detectCharset, type FieldRule, type WizardData } from "../ruleUtils";
+import { formatWizardActionError } from "../utils/wizardActionError";
 import { evalXPathAll, resolveUrl } from "../utils/xpathEval";
 
 type FetchStatus = "idle" | "loading" | "ok" | "error";
@@ -78,8 +79,8 @@ export function useCatalogStep(data: WizardData, onChange: (d: WizardData) => vo
         encoding: data.encoding || detectedEncoding,
       });
       setFetchStatus("ok");
-    } catch (e) {
-      setFetchError(String(e));
+    } catch (error) {
+      setFetchError(formatWizardActionError("获取目录页", error));
       setFetchStatus("error");
     }
   };
@@ -147,8 +148,8 @@ export function useCatalogStep(data: WizardData, onChange: (d: WizardData) => vo
         chapter_items: chapters,
         chapter_test_url: chapters[0]?.url ?? next.chapter_test_url,
       });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError("自动匹配目录页链接", error));
     } finally {
       setAutoMatchLoading(false);
     }
@@ -177,6 +178,8 @@ export function useCatalogStep(data: WizardData, onChange: (d: WizardData) => vo
       chapter_items: [],
     });
     setFetchStatus("idle");
+    setFetchError("");
+    setAiError("");
   };
 
   const toggleSource = async () => {

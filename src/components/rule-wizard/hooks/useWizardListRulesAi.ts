@@ -8,6 +8,7 @@ import { useAiStore } from "@/store/aiStore";
 
 import type { FieldRule, WizardData } from "../ruleUtils";
 import { readAiFieldMap, readAiXPathReply } from "../utils/aiSafeParse";
+import { formatWizardActionError } from "../utils/wizardActionError";
 import { AI_SYSTEM_CATALOG_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 
 export function useWizardListRulesAi(
@@ -40,8 +41,8 @@ export function useWizardListRulesAi(
         list_release_date: applyAiResult(data.list_release_date, parsed.list_release_date),
         list_release_url: applyAiResult(data.list_release_url, parsed.list_release_url),
       });
-    } catch (e) {
-      setError(String(e));
+    } catch (error) {
+      setError(formatWizardActionError("AI 批量分析目录规则", error));
     } finally {
       setAiLoading(null);
     }
@@ -74,8 +75,8 @@ export function useWizardListRulesAi(
         catalog_html: html,
         [fieldKey]: { ...data[fieldKey], mode: "ai", xpath } as FieldRule,
       });
-    } catch (e) {
-      setError(String(e));
+    } catch (error) {
+      setError(formatWizardActionError(`AI 分析${fieldLabel}`, error));
     } finally {
       setAiLoading(null);
     }

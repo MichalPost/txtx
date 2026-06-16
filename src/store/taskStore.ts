@@ -22,6 +22,7 @@ import type {
 } from "@/types";
 
 import { applyTaskEvent, makeLogEntry } from "./taskEventHandler";
+import { applyTaskPollFailure, applyTaskPollSuccess } from "./taskPollingState";
 import { hasTaskChanged } from "./taskSync";
 
 const MAX_LOGS = 500;
@@ -42,6 +43,8 @@ interface TaskStore {
   activeTaskId: TaskId | null;
   logs: PerTaskLogs;
   _initialized: boolean;
+  pollError: string | null;
+  pollErrorVersion: number;
 
   // Lifecycle
   init: () => Promise<void>;
@@ -67,6 +70,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   activeTaskId: null,
   logs: {},
   _initialized: false,
+  pollError: null,
+  pollErrorVersion: 0,
 
   init: async () => {
     if (_initPromise) return _initPromise;
@@ -75,10 +80,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       set({ _initialized: true });
 
       // Load persisted + in-memory tasks
-      const [persisted, current] = await Promise.all([
-        apiLoadPersistedTasks().catch(() => [] as TaskRecord[]),
-        apiListTasks().catch(() => [] as TaskRecord[]),
-      ]);
+      const persisted = await apiLoadPersistedTasks().catch(() => [] as TaskRecord[]);
+      let current: TaskRecord[] = [];
+      try {
+        current = await apiListTasks();
+      } catch (error) {
+        set((s) => applyTaskPollFailure(s, error));
+      }
       const merged = [...current];
       for (const p of persisted) {
         if (!merged.find((t) => t.id === p.id)) merged.push(p);
@@ -134,13 +142,17 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
               });
               // Also add any server-side tasks not yet in local store
               const newTasks = freshTasks.filter((f) => !s.tasks.find((e) => e.id === f.id));
+              const pollState = applyTaskPollSuccess(s);
               if (updated.some((u, i) => u !== s.tasks[i]) || newTasks.length > 0) {
-                return { tasks: [...updated, ...newTasks] };
+                return { tasks: [...updated, ...newTasks], ...pollState };
+              }
+              if (pollState !== s) {
+                return { ...s, ...pollState };
               }
               return s;
             });
-          } catch {
-            // Ignore poll errors
+          } catch (error) {
+            set((s) => applyTaskPollFailure(s, error));
           }
         };
 

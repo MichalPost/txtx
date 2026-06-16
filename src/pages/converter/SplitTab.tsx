@@ -32,8 +32,8 @@ export function SplitTab() {
     try {
       const files = await apiSplitFile(path.trim(), pattern.trim() || undefined);
       setResults(files);
-    } catch (e) {
-      setError(String(e));
+    } catch (error) {
+      setError(formatToolActionError("分割文件", error));
     } finally {
       setRunning(false);
     }
@@ -49,8 +49,9 @@ export function SplitTab() {
             placeholder="D:/books/novel.txt"
             value={path}
             onChange={(e) => setPath(e.target.value)}
+            disabled={running}
           />
-          <Button variant="secondary" size="md" onClick={() => void pickFile()}>
+          <Button variant="secondary" size="md" onClick={() => void pickFile()} disabled={running}>
             <FolderOpen className="h-4 w-4" />
           </Button>
         </div>
@@ -61,6 +62,7 @@ export function SplitTab() {
             placeholder="^第[零一二三四五六七八九十百千\d]+[章节]"
             value={pattern}
             onChange={(e) => setPattern(e.target.value)}
+            disabled={running}
           />
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
             默认匹配：第X章、第X节、第X回等常见格式，输出文件保存到源文件同目录

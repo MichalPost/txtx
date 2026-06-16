@@ -42,6 +42,7 @@ import {
 } from "./adCleanupUtils";
 import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 import { getAiNumber, getAiObject, getAiStringArray } from "./utils/aiResponse";
+import { formatWizardActionError } from "./utils/wizardActionError";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -163,8 +164,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
       );
       setMultiPageText(result.text);
       setMultiPageCount(result.pageCount);
-    } catch (e) {
-      setMultiPageError(String(e));
+    } catch (error) {
+      setMultiPageError(formatWizardActionError("合并章节分页", error));
     } finally {
       setMultiPageLoading(false);
     }
@@ -203,6 +204,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     if (!url) return;
     setChangeLoading(true);
     setChangeError("");
+    setAdError("");
+    setMultiPageError("");
     multiPageLoadedRef.current = false;
     setMultiPageText("");
     setMultiPageCount(1);
@@ -210,8 +213,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
       const html = await apiFetchSource(url);
       onChange({ ...data, chapter_html: html, chapter_test_url: url });
       setShowChangeChapter(false);
-    } catch (e) {
-      setChangeError(String(e));
+    } catch (error) {
+      setChangeError(formatWizardActionError("抓取章节预览", error));
     } finally {
       setChangeLoading(false);
     }
@@ -261,8 +264,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
           trim_tail: Math.max(rules.trim_tail ?? 0, getAiNumber(parsed.trim_tail)),
         });
       }
-    } catch (e) {
-      setAdError(String(e));
+    } catch (error) {
+      setAdError(formatWizardActionError("AI 分析广告清理规则", error));
     } finally {
       setAiAdLoading(false);
     }
@@ -805,8 +808,8 @@ function FetchChapterInline({ defaultUrl, onFetched }: FetchChapterInlineProps) 
     try {
       const html = await apiFetchSource(u);
       onFetched(u, html);
-    } catch (e) {
-      setError(String(e));
+    } catch (error) {
+      setError(formatWizardActionError("抓取章节页面", error));
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { formatTaskCreateError } from "@/lib/taskCreateFeedback";
+import { formatTaskInitError } from "@/lib/taskInitError";
 import { useTaskStore } from "@/store/taskStore";
 import type { ScanTaskOptions } from "@/types";
 
@@ -9,11 +10,25 @@ import { TaskDetailPanel } from "./TaskDetailPanel";
 import { TaskListPanel } from "./TaskListPanel";
 
 export function TaskManagerPage() {
-  const { init, createScanTask, createBatchTask, createSingleTask } = useTaskStore();
+  const {
+    init,
+    createScanTask,
+    createBatchTask,
+    createSingleTask,
+    pollError,
+    pollErrorVersion,
+  } = useTaskStore();
 
   useEffect(() => {
-    init();
+    void init().catch((error) => {
+      toast.error(formatTaskInitError(error));
+    });
   }, [init]);
+
+  useEffect(() => {
+    if (!pollError) return;
+    toast.error(`任务列表自动刷新失败：${pollError}`);
+  }, [pollError, pollErrorVersion]);
 
   const handleNewScan = async (opts: ScanTaskOptions) => {
     try {

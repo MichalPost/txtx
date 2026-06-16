@@ -10,6 +10,7 @@ import { Input } from "@/components/Input";
 import { PageHeader } from "@/components/PageHeader";
 import { apiClearHistory, apiQueryHistory, type HistoryQuery } from "@/lib/api";
 import { usePersistedState } from "@/lib/persist";
+import { formatToolActionError } from "@/lib/toolActionError";
 import { formatTaskRetryError } from "@/lib/taskRetryError";
 import { useAppNavigate } from "@/router";
 import { useDownloadStore } from "@/store/downloadStore";
@@ -59,12 +60,19 @@ export function HistoryPage() {
       toast.success("历史已清空");
       setPage(1);
     },
-    onError: (e) => toast.error(String(e)),
+    onError: (error) => toast.error(formatToolActionError("清空历史", error)),
   });
 
   const handleSearch = () => {
     setActiveSearch(search);
     setPage(1);
+  };
+
+  const handleRefresh = async () => {
+    const result = await refetch();
+    if (result.error) {
+      toast.error(formatToolActionError("刷新历史", result.error));
+    }
   };
 
   const handleRedownload = async (url: string, name: string) => {
@@ -116,7 +124,7 @@ export function HistoryPage() {
             >
               <BarChart2 className="h-3.5 w-3.5" /> 统计图表
             </button>
-            <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} disabled={isLoading}>
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> 刷新
             </Button>
             {confirmingClear ? (
@@ -135,7 +143,12 @@ export function HistoryPage() {
                 >
                   清空
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfirmingClear(false)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmingClear(false)}
+                  disabled={clearMutation.isPending}
+                >
                   取消
                 </Button>
               </div>

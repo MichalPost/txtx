@@ -6,6 +6,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { buildBookNameXPath } from "../components/BookNameConfig";
 import { useWizardListRulesAi } from "./useWizardListRulesAi";
 import type { FieldRule, WizardData } from "../ruleUtils";
+import { formatWizardActionError } from "../utils/wizardActionError";
 
 export const LIST_RULES_COMMON_RULES = [
   { label: "-- 常用规则 --", value: "" },
@@ -104,8 +105,8 @@ export function useListRulesStep(data: WizardData, onChange: (d: WizardData) => 
       } else {
         setErrorMsg("自动匹配未找到合适规则，请手动设置");
       }
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(formatWizardActionError("自动匹配目录规则", error));
     } finally {
       setAutoMatchLoading(false);
     }
@@ -116,8 +117,8 @@ export function useListRulesStep(data: WizardData, onChange: (d: WizardData) => 
     try {
       await ensureHtml();
       setShowSource((v) => !v);
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(formatWizardActionError("查看目录页源码", error));
     }
   };
 

@@ -13,6 +13,7 @@ import {
   type WizardData,
 } from "../ruleUtils";
 import { getAiFieldResult, getAiObject, getAiString } from "../utils/aiResponse";
+import { formatWizardActionError } from "../utils/wizardActionError";
 import { AI_SYSTEM_LIST_FIELDS, applyAiResult } from "../utils/wizardAiHelpers";
 import { evalXPathAll, mergeBooks } from "../utils/xpathEval";
 
@@ -77,8 +78,8 @@ export function useListPageAi(
         ),
       };
       onChange({ ...next, update_books: reparseBooks(next) });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError("AI 批量分析更新列表页", error));
     } finally {
       setAiLoading(null);
     }
@@ -108,8 +109,8 @@ export function useListPageAi(
       const rule: FieldRule = { ...data[key], mode: "ai", xpath };
       const next = { ...data, update_list_html: html, [key]: rule };
       onChange({ ...next, update_books: reparseBooks(next) });
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError(`AI 分析${label}`, error));
     } finally {
       setAiLoading(null);
     }
@@ -144,8 +145,8 @@ export function useListPageAi(
               : data.page_insert_part,
         });
       }
-    } catch (e) {
-      setAiError(String(e));
+    } catch (error) {
+      setAiError(formatWizardActionError("AI 分析分页规则", error));
     } finally {
       setAiLoading(null);
     }

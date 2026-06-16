@@ -12,6 +12,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { buildChapterContentPreview } from "./adCleanupUtils";
 import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 import { TestPanel } from "./TestPanel";
+import { formatWizardActionError } from "./utils/wizardActionError";
 
 interface Props {
   data: WizardData;
@@ -61,8 +62,10 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
       ].filter(Boolean).length;
       setSummary({ passed: passCount, total: 3 });
       onChange({ ...data, chapter_html: html, chapter_test_url: url });
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(
+        formatWizardActionError(forceRefetch ? "重新测试章节规则" : "测试章节规则", error),
+      );
     } finally {
       setLoading(false);
     }
@@ -88,6 +91,8 @@ export function WizardStep5ChapTest({ data, onChange }: Props) {
             value={customUrl}
             onChange={(e) => {
               setCustomUrl(e.target.value);
+              setErrorMsg("");
+              setSummary(null);
               onChange({ ...data, chapter_html: "" });
             }}
           />

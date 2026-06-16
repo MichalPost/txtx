@@ -6,6 +6,7 @@ import { useAiStore } from "@/store/aiStore";
 
 import type { FieldRule, WizardData } from "../ruleUtils";
 import { getAiFieldResult, getAiObject, getAiString } from "../utils/aiResponse";
+import { formatWizardActionError } from "../utils/wizardActionError";
 
 type FetchStatus = "idle" | "loading" | "ok" | "error";
 
@@ -95,8 +96,8 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
         setNextPageDetected(true);
         setShowAdvanced(true);
       }
-    } catch (e) {
-      setFetchError(String(e));
+    } catch (error) {
+      setFetchError(formatWizardActionError("获取章节页面", error));
       setFetchStatus("error");
     }
   };
@@ -137,8 +138,8 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
         chapter_next_page_xpath: nextPageXPath || data.chapter_next_page_xpath,
       });
       if (nextPageXPath) setShowAdvanced(true);
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(formatWizardActionError("AI 批量分析章节页", error));
     } finally {
       setAiLoading(null);
     }
@@ -172,8 +173,8 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
           xpath: getAiString(parsed.xpath),
         } as FieldRule,
       });
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(formatWizardActionError(`AI 分析${fieldLabel}`, error));
     } finally {
       setAiLoading(null);
     }
@@ -196,6 +197,8 @@ export function useChapterRulesStep(data: WizardData, onChange: (d: WizardData) 
   const handleChapterUrlChange = (value: string) => {
     onChange({ ...data, chapter_test_url: value, chapter_html: "" });
     setFetchStatus("idle");
+    setFetchError("");
+    setErrorMsg("");
     setNextPageDetected(false);
   };
 

@@ -12,6 +12,7 @@ import { apiFetchSource } from "@/lib/api/files";
 
 import { buildXPathFromRule, type ChapterListItem, type WizardData } from "./ruleUtils";
 import { TestPanel } from "./TestPanel";
+import { formatWizardActionError } from "./utils/wizardActionError";
 
 interface Props {
   data: WizardData;
@@ -87,8 +88,10 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
           chapterItems.find((item) => item.url === chapterTestUrl)?.title ??
           data.selected_chapter_title,
       });
-    } catch (e) {
-      setErrorMsg(String(e));
+    } catch (error) {
+      setErrorMsg(
+        formatWizardActionError(forceRefetch ? "重新测试目录规则" : "测试目录规则", error),
+      );
     } finally {
       setLoading(false);
     }

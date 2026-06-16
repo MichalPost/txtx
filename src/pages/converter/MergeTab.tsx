@@ -46,8 +46,12 @@ export function MergeTab() {
     try {
       const msg = await apiMergeFiles(valid, output.trim());
       setResult({ path: output, message: msg, ok: true });
-    } catch (e) {
-      setResult({ path: output, message: String(e), ok: false });
+    } catch (error) {
+      setResult({
+        path: output,
+        message: formatToolActionError("合并文件", error),
+        ok: false,
+      });
     } finally {
       setRunning(false);
     }
@@ -70,18 +74,25 @@ export function MergeTab() {
                 placeholder="TXT 文件路径..."
                 value={p}
                 onChange={(e) => updatePath(i, e.target.value)}
+                disabled={running}
               />
-              <Button variant="secondary" size="md" onClick={() => void pickInput(i)}>
+              <Button variant="secondary" size="md" onClick={() => void pickInput(i)} disabled={running}>
                 <FolderOpen className="h-4 w-4" />
               </Button>
               {paths.length > 1 && (
-                <Button variant="ghost" size="sm" onClick={() => removePath(i)}>
+                <Button variant="ghost" size="sm" onClick={() => removePath(i)} disabled={running}>
                   ✕
                 </Button>
               )}
             </div>
           ))}
-          <Button variant="secondary" size="sm" className="mt-1 self-start" onClick={addPath}>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-1 self-start"
+            onClick={addPath}
+            disabled={running}
+          >
             <FileText className="h-3.5 w-3.5" /> 添加文件
           </Button>
         </div>
@@ -97,12 +108,14 @@ export function MergeTab() {
               placeholder="D:/books/merged.txt"
               value={output}
               onChange={(e) => setOutput(e.target.value)}
+              disabled={running}
             />
             <Button
               variant="secondary"
               size="md"
               onClick={() => void pickOutput()}
               className="mt-5"
+              disabled={running}
             >
               <FolderOpen className="h-4 w-4" />
             </Button>

@@ -28,6 +28,7 @@ function isLikelyHttpUrl(value: string): boolean {
 
 export function WizardStep6Save({ data, onApply, onClose }: Props) {
   const [encoding, setEncoding] = useState(data.encoding ?? "");
+  const [submitting, setSubmitting] = useState(false);
   const autoDetected = data.encoding?.trim() ?? ""; // what was auto-detected on fetch
   const listNameXPath = buildXPathFromRule(data.list_novel_name);
   const listUrlXPath = buildXPathFromRule(data.list_release_url);
@@ -124,6 +125,8 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
   const hasBlockingValidation = missingRequired || invalidDomain || invalidCatalogUrl;
 
   const handleApply = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     // ── Build page_list from pagination settings ───────────────────────────────
     // page_list entries are paths that get appended to domain_name by the crawler.
     // We derive them from update_list_url: extract the path relative to domain_name,
@@ -207,7 +210,11 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
         trim_tail: data.site_ad_rules.trim_tail,
       },
     };
-    await onApply(patch);
+    try {
+      await onApply(patch);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -336,6 +343,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
             placeholder="如 gbk、big5，留空自动"
             value={encoding}
             onChange={(e) => setEncoding(e.target.value)}
+            disabled={submitting}
           />
           {encoding.trim() && encoding.trim() !== autoDetected && (
             <button
@@ -347,6 +355,7 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
               }}
               onClick={() => setEncoding(autoDetected)}
               title="恢复自动检测结果"
+              disabled={submitting}
             >
               恢复检测值
             </button>
@@ -367,11 +376,15 @@ export function WizardStep6Save({ data, onApply, onClose }: Props) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => void handleApply()} disabled={hasBlockingValidation}>
+        <Button
+          size="sm"
+          onClick={() => void handleApply()}
+          disabled={hasBlockingValidation || submitting}
+        >
           <Save className="h-3.5 w-3.5" />
-          应用到网站配置
+          {submitting ? "应用中..." : "应用到网站配置"}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
           取消
         </Button>
       </div>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { apiFetchSource } from "@/lib/api/files";
 
 import { buildXPathFromRule, type UpdateListBookItem, type WizardData } from "../ruleUtils";
+import { formatWizardActionError } from "../utils/wizardActionError";
 
 export function buildPageUrl(
   baseUrl: string,
@@ -121,14 +122,15 @@ export function useSelectBookStep(data: WizardData, onChange: (d: WizardData) =>
       const html = await apiFetchSource(pageUrl);
       setPageBooks(parseBooksFromHtml(html, data, pageUrl));
       setCurrentPage(pageIndex);
-    } catch (e) {
-      setPageError(String(e));
+    } catch (error) {
+      setPageError(formatWizardActionError(`获取第 ${pageIndex} 页书籍列表`, error));
     } finally {
       setPageLoading(false);
     }
   };
 
   const selectBook = (book: UpdateListBookItem) => {
+    setPageError("");
     onChange({
       ...data,
       selected_book_name: book.name,
@@ -139,6 +141,7 @@ export function useSelectBookStep(data: WizardData, onChange: (d: WizardData) =>
   };
 
   const setCatalogUrl = (value: string) => {
+    setPageError("");
     onChange({ ...data, catalog_url: value, catalog_html: "" });
   };
 
