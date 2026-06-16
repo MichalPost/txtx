@@ -129,5 +129,3 @@ pub(super) async fn spawn_task_worker<F, Fut>(
         }
     });
 }
-
-}
