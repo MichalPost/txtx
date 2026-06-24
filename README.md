@@ -75,7 +75,8 @@ pnpm test
 pnpm lint
 pnpm format:check
 pnpm build
-cargo check --manifest-path src-tauri/Cargo.toml --features tauri-build
+pnpm build:tauri
+pnpm check:rust
 ```
 
 常用修复命令：
@@ -87,7 +88,8 @@ pnpm format
 
 ## 测试与性能注意事项
 
-- `pnpm test` 运行 `src/components`、`src/lib`、`src/pages`、`src/platform`、`src/store` 下的 `*.test.ts`。
+- `pnpm test` 运行 `src/**/*.test.ts`，新增嵌套测试目录会自动纳入。
+- `pnpm check:rust` 同时检查 HTTP server 二进制和 Tauri feature 构建路径。
 - 任务、历史、扫描预览、书架等列表功能要覆盖搜索、筛选、排序、空状态和错误提示。
 - 不要让测试依赖真实网络、真实小说站点或用户本机目录。
 - 历史页已经使用后端分页与统计，不要重新把全量历史搬到前端分页。

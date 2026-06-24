@@ -130,7 +130,8 @@ pnpm test
 pnpm lint
 pnpm format:check
 pnpm build
-cargo check --manifest-path src-tauri/Cargo.toml --features tauri-build
+pnpm build:tauri
+pnpm check:rust
 ```
 
 常用辅助命令：
@@ -143,9 +144,10 @@ pnpm preview
 
 说明：
 
-- `pnpm test` 使用 Node 内置 test runner，覆盖 `src/components`、`src/lib`、`src/pages`、`src/platform`、`src/store` 下的 `*.test.ts`。
+- `pnpm test` 使用 Node 内置 test runner，覆盖 `src/**/*.test.ts`，新增嵌套测试目录会自动纳入。
 - `pnpm build` 执行 `tsc && vite build`，主要验证前端类型和生产构建。
-- Rust 后端没有接入 npm script，需直接运行 `cargo check --manifest-path src-tauri/Cargo.toml --features tauri-build`。
+- `pnpm build:tauri` 使用 `VITE_TAURI_MODE=true` 构建桌面前端产物，避免桌面包误走 Web HTTP 配置加载路径。
+- `pnpm check:rust` 同时检查 Rust HTTP server 二进制和 Tauri feature 构建路径。
 
 ## 测试注意事项
 
