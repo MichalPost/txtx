@@ -5,19 +5,33 @@
 ## 功能概览
 
 - 单本下载、批量导入、全站扫描预览
-- 任务中心：查看扫描、确认、下载、失败与完成状态
-- 规则管理：维护站点规则与抓取字段
-- 过滤中心：管理广告、导航词和清洗策略
-- 本地书架：浏览、打开、删除已下载书籍
-- 下载历史：分页查询、统计图表、重新下载
+- 任务中心：搜索、筛选、排序，查看扫描、确认、下载、失败与完成状态
+- 规则管理：维护站点规则、XPath、编码覆盖和抓取字段
+- 过滤中心：管理广告、导航词、黑名单、白名单和清洗策略
+- 本地书架：浏览、打开、删除和检查已下载书籍
+- 下载历史：分页查询、统计图表、站点筛选、排序和重新下载
 - 文本转换：拆分、合并、编码处理与繁简转换
 - 设置中心：路径、网络、并发、电子书、AI 与后处理配置
+- 站点健康检查：检查站点可用性和延迟
+
+## 当前主流程
+
+当前推荐流程是：
+
+1. 首次运行时选择本地保存目录
+2. 在首页发起单本下载、批量导入或站点扫描
+3. 进入任务中心查看进度、日志和失败信息
+4. 扫描完成后在任务详情中确认候选书单
+5. 后端继续下载，完成后写入历史和本地书架
+
+一句话原则：`首页负责发起，任务中心负责执行与查看，Rust 后端负责真实状态与持久化`。
 
 ## 技术栈
 
-- 前端：React 19、TypeScript、Vite、Zustand、TanStack Query
-- 桌面端：Tauri 2、Rust、SQLite
+- 前端：React 19、TypeScript、Vite、React Router、Zustand、TanStack Query
+- 桌面端/后端：Tauri 2、Rust、Axum、SQLite
 - UI：Tailwind CSS 4、Lucide、Sonner、Framer Motion
+- 测试：Node 内置 test runner
 
 ## 本地开发
 
@@ -27,25 +41,26 @@
 pnpm install
 ```
 
-启动前端 + 后端开发环境：
+启动前端 + Rust HTTP 后端：
 
 ```bash
 pnpm dev
 ```
 
-只启动前端：
+默认地址：
+
+- 前端：`http://localhost:1420`
+- 后端：`http://localhost:3721`
+- Web 开发模式下 Vite 会代理 `/api/*` 到后端
+
+也可以分开启动：
 
 ```bash
 pnpm dev:frontend
-```
-
-只启动 Rust HTTP 后端：
-
-```bash
 pnpm dev:backend
 ```
 
-启动 Tauri 桌面版开发：
+启动 Tauri 桌面开发模式：
 
 ```bash
 pnpm dev:tauri
@@ -53,48 +68,42 @@ pnpm dev:tauri
 
 ## 质量检查
 
-运行测试：
+提交前建议运行：
 
 ```bash
 pnpm test
-```
-
-运行 lint：
-
-```bash
 pnpm lint
-```
-
-构建前端产物：
-
-```bash
+pnpm format:check
 pnpm build
-```
-
-校验 Tauri/Rust：
-
-```bash
 cargo check --manifest-path src-tauri/Cargo.toml --features tauri-build
 ```
 
+常用修复命令：
+
+```bash
+pnpm lint:fix
+pnpm format
+```
+
+## 测试与性能注意事项
+
+- `pnpm test` 运行 `src/components`、`src/lib`、`src/pages`、`src/platform`、`src/store` 下的 `*.test.ts`。
+- 任务、历史、扫描预览、书架等列表功能要覆盖搜索、筛选、排序、空状态和错误提示。
+- 不要让测试依赖真实网络、真实小说站点或用户本机目录。
+- 历史页已经使用后端分页与统计，不要重新把全量历史搬到前端分页。
+- 任务事件可能高频到达，前端应合并快照并避免每次事件都做昂贵重算。
+- 新增大型依赖前先确认是否只在单页使用，必要时配合懒加载或动态加载。
+
 ## 目录说明
 
-- [src](D:/Code/Node/txtx/src) 前端页面、组件、状态和平台适配
-- [src-tauri](D:/Code/Node/txtx/src-tauri) Tauri 命令、下载逻辑、SQLite 历史与本地能力
-- [docs/plans](D:/Code/Node/txtx/docs/plans) 历次规划与实施文档
-- [PRODUCT.md](D:/Code/Node/txtx/PRODUCT.md) 产品定位与语气约束
+- [src](D:/Code/Node/txtx/src)：前端页面、组件、状态和平台适配
+- [src-tauri](D:/Code/Node/txtx/src-tauri)：Tauri 命令、Rust HTTP 服务、下载逻辑、SQLite 历史与本地能力
+- [docs/project-flow.md](D:/Code/Node/txtx/docs/project-flow.md)：当前产品主流程与数据流
+- [docs/plans](D:/Code/Node/txtx/docs/plans)：历次规划与实施文档
+- [DEV.md](D:/Code/Node/txtx/DEV.md)：本地开发、验证和性能注意事项
+- [PRODUCT.md](D:/Code/Node/txtx/PRODUCT.md)：产品定位与语气约束
 
-## 当前重点
+## 进一步阅读
 
-这次迭代重点补强了三件事：
-
-- 修复高频页面的乱码文案与按钮辅助说明
-- 给任务中心补上搜索、筛选、排序和摘要能力
-- 把桌面端历史查询改成后端分页与统计，降低大数据量下的前端压力
-
-同时，任务中心现在已经补上了关键状态快照与恢复能力：
-
-- 扫描完成待确认、下载进行中、暂停、取消、失败、完成等关键状态会写入本地 SQLite
-- 扫描预览页的勾选结果、站点筛选和排序草稿也会进入任务快照，桌面端重启后可继续确认下载
-- 任务重试会尽量复用原始扫描参数和已选下载列表，避免重试语义漂移
-- Tauri 端会在事件丢失时触发兜底刷新，降低任务列表与详情不同步的概率
+- [开发指南](D:/Code/Node/txtx/DEV.md)
+- [项目流程梳理](D:/Code/Node/txtx/docs/project-flow.md)

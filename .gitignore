@@ -67,6 +67,7 @@ cs/
 
 # ── Dev data (local SQLite databases, dev mode only) ─────────────────────────
 data/
+/download_history.db
 
 # ── Tauri app data (local runtime DB, written by dev builds) ─────────────────
 txtx/

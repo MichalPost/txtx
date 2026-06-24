@@ -4,22 +4,27 @@ import { ChevronDown, Globe } from "lucide-react";
 import type { ScanItem } from "@/types";
 
 import { ScanRow } from "./ScanRow";
-import { groupScanItemsBySite } from "./scanPreviewUtils";
+import { getVisibleGroupedScanItems, groupScanItemsBySite } from "./scanPreviewUtils";
+
+const GROUP_PREVIEW_LIMIT = 80;
 
 export function GroupedScanTable({
   items,
   selectedUrls,
   onToggle,
+  onSelectUrls,
   onForceAdd,
 }: {
   items: ScanItem[];
   selectedUrls: Set<string>;
   onToggle: (url: string) => void;
+  onSelectUrls: (urls: Iterable<string>, value: boolean) => void;
   onForceAdd: (item: ScanItem) => void;
 }) {
   const groups = useMemo(() => groupScanItemsBySite(items, selectedUrls), [items, selectedUrls]);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   function toggleGroup(site: string) {
     setCollapsed((prev) => {
@@ -32,10 +37,15 @@ export function GroupedScanTable({
 
   function selectGroup(site: string, value: boolean) {
     const pendingUrls = groups.find((group) => group.site === site)?.pendingUrls ?? [];
-    pendingUrls.forEach((url) => {
-      const has = selectedUrls.has(url);
-      if (value && !has) onToggle(url);
-      if (!value && has) onToggle(url);
+    onSelectUrls(pendingUrls, value);
+  }
+
+  function toggleExpanded(site: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(site)) next.delete(site);
+      else next.add(site);
+      return next;
     });
   }
 
@@ -45,6 +55,11 @@ export function GroupedScanTable({
         const { site, label, items: groupItems, pendingCount, excludedCount, allPendingSelected } =
           group;
         const isCollapsed = collapsed.has(site);
+        const isExpanded = expandedGroups.has(site);
+        const { visibleItems, hiddenCount, canExpand } = getVisibleGroupedScanItems(groupItems, {
+          expanded: isExpanded,
+          limit: GROUP_PREVIEW_LIMIT,
+        });
         return (
           <div
             key={site}
@@ -58,6 +73,9 @@ export function GroupedScanTable({
             >
               <input
                 type="checkbox"
+                id={`scan-preview-group-${site}`}
+                name="scan-preview-group"
+                aria-label={`选择站点分组：${label}`}
                 checked={allPendingSelected}
                 onChange={(e) => {
                   e.stopPropagation();
@@ -106,19 +124,47 @@ export function GroupedScanTable({
               />
             </div>
             {!isCollapsed && (
-              <table className="w-full border-collapse text-sm">
-                <tbody>
-                  {groupItems.map((item) => (
-                    <ScanRow
-                      key={item.url}
-                      item={item}
-                      checked={selectedUrls.has(item.url)}
-                      onToggle={() => onToggle(item.url)}
-                      onForceAdd={item.excluded_reason ? () => onForceAdd(item) : undefined}
-                    />
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {visibleItems.map((item) => (
+                      <ScanRow
+                        key={item.url}
+                        item={item}
+                        checked={selectedUrls.has(item.url)}
+                        onToggle={() => onToggle(item.url)}
+                        onForceAdd={item.excluded_reason ? () => onForceAdd(item) : undefined}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+                {(canExpand || isExpanded) && groupItems.length > GROUP_PREVIEW_LIMIT && (
+                  <div
+                    className="border-t px-3 py-2 text-center"
+                    style={{
+                      borderColor: "var(--color-border)",
+                      background: "var(--color-surface)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+                      style={{
+                        background: "var(--color-surface-2)",
+                        color: "var(--color-text-muted)",
+                      }}
+                      onClick={() => toggleExpanded(site)}
+                      aria-label={
+                        isExpanded
+                          ? `收起 ${label} 的扫描结果`
+                          : `展开 ${label} 剩余 ${hiddenCount} 条扫描结果`
+                      }
+                    >
+                      {isExpanded ? "收起到前 80 条" : `显示剩余 ${hiddenCount} 条`}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         );

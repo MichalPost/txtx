@@ -49,6 +49,8 @@ export function ListRulesQuickTools({
         </Button>
 
         <select
+          name="list-rule-common-rule"
+          aria-label="选择常用列表规则"
           className="rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
           style={{
             background: "var(--color-surface-1)",
@@ -68,10 +70,16 @@ export function ListRulesQuickTools({
         </select>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <label
+            htmlFor="list-rule-encoding"
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             编码
-          </span>
+          </label>
           <select
+            id="list-rule-encoding"
+            name="list-rule-encoding"
             className="rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
             style={{
               background: "var(--color-surface-1)",

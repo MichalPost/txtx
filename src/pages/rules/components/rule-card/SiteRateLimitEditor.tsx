@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { ShieldCheck, Trash2 } from "lucide-react";
 
+import { useConfirmDialog } from "@/components/ConfirmDialog";
+import { parseBoundedIntegerInput } from "@/lib/numberInput";
 import { useConfigStore } from "@/store/configStore";
 import type { RateLimitRule } from "@/types";
 
@@ -27,6 +29,8 @@ const EMPTY_RULE = (domain: string): RateLimitRule => ({
 
 export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }) {
   const { config, saveConfig, saving } = useConfigStore();
+  const [deletePending, setDeletePending] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   // Extract the matching rule index (by domain substring match) and the rule itself.
   const allRules = config?.rate_limit?.rules ?? [];
@@ -67,11 +71,25 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
   };
 
   const handleDelete = async () => {
-    if (!config || !hasRule) return;
-    if (!confirm(`确认删除「${draft.name}」限速规则？`)) return;
+    if (!config || !hasRule || deletePending) return;
+    setDeletePending(true);
+    const confirmed = await confirm({
+      title: `删除「${draft.name}」限速规则？`,
+      description: "删除后此站点会回到全局限速策略，当前限速规则无法自动恢复。",
+      confirmLabel: "删除限速规则",
+      tone: "danger",
+    }).catch(() => false);
+    if (!confirmed) {
+      setDeletePending(false);
+      return;
+    }
     const updated = allRules.filter((_, i) => i !== matchIndex);
-    await saveConfig({ ...config, rate_limit: { rules: updated } });
-    setDraft(EMPTY_RULE(displayDomain));
+    try {
+      await saveConfig({ ...config, rate_limit: { rules: updated } });
+      setDraft(EMPTY_RULE(displayDomain));
+    } finally {
+      setDeletePending(false);
+    }
   };
 
   return (
@@ -89,9 +107,11 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
           <button
             type="button"
             onClick={() => void handleDelete()}
+            disabled={deletePending}
             className="rounded-md p-1 text-xs hover:opacity-70"
             style={{ color: "var(--color-danger)" }}
-            title="删除此限速规则"
+            title={deletePending ? "等待确认" : "删除此限速规则"}
+            aria-label={deletePending ? "等待确认删除限速规则" : "删除此限速规则"}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -100,10 +120,16 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
 
       {/* Rule name */}
       <div className="flex items-center gap-2">
-        <label className="w-16 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor="rate-limit-name"
+          className="w-16 shrink-0 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           规则名称
         </label>
         <input
+          id="rate-limit-name"
+          name="rate-limit-name"
           className="flex-1 rounded-lg border px-2 py-1 text-xs focus:outline-none"
           style={{
             background: "var(--color-surface-2)",
@@ -117,10 +143,12 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
 
       {/* Domains */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label htmlFor="rate-limit-domains" className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           匹配域名（每行一条，URL 包含任意一条即命中）
         </label>
         <textarea
+          id="rate-limit-domains"
+          name="rate-limit-domains"
           rows={2}
           className="w-full resize-y rounded-lg border px-2 py-1.5 font-mono text-xs focus:outline-none"
           style={{
@@ -136,10 +164,16 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
       {/* Delay range */}
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <label
+            htmlFor="rate-limit-delay-min-ms"
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             最小延迟（ms）
           </label>
           <input
+            id="rate-limit-delay-min-ms"
+            name="rate-limit-delay-min-ms"
             type="number"
             min={0}
             className="w-full rounded-lg border px-2 py-1 text-xs focus:outline-none"
@@ -149,14 +183,22 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
               color: "var(--color-text)",
             }}
             value={draft.delay_min_ms}
-            onChange={(e) => set("delay_min_ms", Number(e.target.value))}
+            onChange={(e) =>
+              set("delay_min_ms", parseBoundedIntegerInput(e.target.value, draft.delay_min_ms, { min: 0 }))
+            }
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <label
+            htmlFor="rate-limit-delay-max-ms"
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             最大延迟（ms）
           </label>
           <input
+            id="rate-limit-delay-max-ms"
+            name="rate-limit-delay-max-ms"
             type="number"
             min={0}
             className="w-full rounded-lg border px-2 py-1 text-xs focus:outline-none"
@@ -166,17 +208,25 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
               color: "var(--color-text)",
             }}
             value={draft.delay_max_ms}
-            onChange={(e) => set("delay_max_ms", Number(e.target.value))}
+            onChange={(e) =>
+              set("delay_max_ms", parseBoundedIntegerInput(e.target.value, draft.delay_max_ms, { min: 0 }))
+            }
           />
         </div>
       </div>
 
       {/* RPS */}
       <div className="flex items-center gap-2">
-        <label className="w-16 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor="rate-limit-requests-per-second"
+          className="w-16 shrink-0 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           每秒请求数
         </label>
         <input
+          id="rate-limit-requests-per-second"
+          name="rate-limit-requests-per-second"
           type="number"
           min={0}
           className="w-24 rounded-lg border px-2 py-1 text-xs focus:outline-none"
@@ -186,7 +236,12 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
             color: "var(--color-text)",
           }}
           value={draft.requests_per_second}
-          onChange={(e) => set("requests_per_second", Number(e.target.value))}
+          onChange={(e) =>
+            set(
+              "requests_per_second",
+              parseBoundedIntegerInput(e.target.value, draft.requests_per_second, { min: 0 }),
+            )
+          }
         />
         <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
           0 = 使用随机延迟
@@ -195,10 +250,12 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
 
       {/* UA pool */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label htmlFor="rate-limit-ua-pool" className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           User-Agent 池（每行一条；空 = 使用全局 UA）
         </label>
         <textarea
+          id="rate-limit-ua-pool"
+          name="rate-limit-ua-pool"
           rows={3}
           className="w-full resize-y rounded-lg border px-2 py-1.5 font-mono text-xs focus:outline-none"
           style={{
@@ -239,6 +296,7 @@ export function SiteRateLimitEditor({ displayDomain }: { displayDomain: string }
           {saving ? "保存中…" : hasRule ? "更新限速规则" : "创建限速规则"}
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }

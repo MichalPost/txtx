@@ -561,6 +561,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange, onGoToChapterRule
           ) : (
             <div className="flex flex-col gap-2">
               <Textarea
+                name="wizard-chapter-content-preview"
+                aria-label="正文预览"
                 readOnly
                 value={finalContentText}
                 className="h-64 font-mono text-xs leading-relaxed"
@@ -625,6 +627,8 @@ export function WizardStepChapTestAndCleanup({ data, onChange, onGoToChapterRule
             </span>
           </div>
           <Textarea
+            name="wizard-cleaned-content-preview"
+            aria-label="清理后预览"
             readOnly
             value={rules.enabled ? adPreview.cleanedText : finalContentText}
             className="h-64 font-mono text-xs leading-relaxed"
@@ -658,49 +662,55 @@ export function WizardStepChapTestAndCleanup({ data, onChange, onGoToChapterRule
         className="flex flex-col gap-3 rounded-xl border"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
-        <button
-          type="button"
-          onClick={() => setShowCleanup((v) => !v)}
-          className="flex items-center gap-2 px-3 pt-3 pb-2 text-left"
-        >
-          {showCleanup ? (
-            <ChevronUp
-              className="h-3.5 w-3.5 shrink-0"
-              style={{ color: "var(--color-text-subtle)" }}
-            />
-          ) : (
-            <ChevronDown
-              className="h-3.5 w-3.5 shrink-0"
-              style={{ color: "var(--color-text-subtle)" }}
-            />
-          )}
-          <span className="flex-1 text-xs font-semibold" style={{ color: "var(--color-text)" }}>
-            站点广告清理规则
-          </span>
-          {activeRuleCount > 0 && (
-            <span
-              className="rounded-full px-2 py-0.5 text-xs"
-              style={{ background: "var(--color-accent-muted)", color: "var(--color-accent)" }}
-            >
-              {activeRuleCount} 条规则
+        <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+          <button
+            type="button"
+            onClick={() => setShowCleanup((v) => !v)}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            aria-expanded={showCleanup}
+            aria-controls="wizard-site-ad-cleanup-panel"
+          >
+            {showCleanup ? (
+              <ChevronUp
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: "var(--color-text-subtle)" }}
+              />
+            ) : (
+              <ChevronDown
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: "var(--color-text-subtle)" }}
+              />
+            )}
+            <span className="flex-1 text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+              站点广告清理规则
             </span>
-          )}
+            {activeRuleCount > 0 && (
+              <span
+                className="rounded-full px-2 py-0.5 text-xs"
+                style={{ background: "var(--color-accent-muted)", color: "var(--color-accent)" }}
+              >
+                {activeRuleCount} 条规则
+              </span>
+            )}
+          </button>
           <label
             className="flex shrink-0 items-center gap-1.5 text-xs"
             style={{ color: "var(--color-text-muted)" }}
-            onClick={(e) => e.stopPropagation()}
+            htmlFor="site-ad-cleanup-enabled"
           >
             <input
+              id="site-ad-cleanup-enabled"
+              name="site-ad-cleanup-enabled"
               type="checkbox"
               checked={rules.enabled}
               onChange={(e) => updateRules({ enabled: e.target.checked })}
             />
             启用
           </label>
-        </button>
+        </div>
 
         {showCleanup && (
-          <div className="flex flex-col gap-3 px-3 pb-3">
+          <div id="wizard-site-ad-cleanup-panel" className="flex flex-col gap-3 px-3 pb-3">
             <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
               保存后会和过滤中心的全局规则一起作用于当前站点。调整规则后，右侧「清理后预览」会实时更新。
             </p>
@@ -989,6 +999,8 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
       </div>
       <div className="flex gap-2">
         <Input
+          name={`wizard-cleanup-${kind}-draft`}
+          aria-label={`新增${meta.label}`}
           value={draft}
           placeholder={meta.placeholder}
           onChange={(e) => onDraftChange(e.target.value)}
@@ -1002,6 +1014,7 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
           onClick={onAdd}
           disabled={!draft.trim()}
           title="添加规则"
+          aria-label={`添加${meta.label}`}
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>
@@ -1030,6 +1043,7 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
                 className="rounded p-1 transition-colors"
                 style={{ color: "var(--color-danger)" }}
                 title="删除"
+                aria-label={`删除第 ${index + 1} 条${meta.label}`}
               >
                 <Trash2 className="h-3 w-3" />
               </button>

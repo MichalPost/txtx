@@ -119,6 +119,7 @@ export function WizardStepAdCleanup({ data, onChange }: Props) {
           </div>
           <label className="flex shrink-0 items-center gap-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
             <input
+              name="site-ad-cleanup-enabled"
               type="checkbox"
               checked={rules.enabled}
               onChange={(e) => updateRules({ enabled: e.target.checked })}
@@ -276,6 +277,8 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
       </span>
       <div className="flex gap-2">
         <Input
+          name={`site-ad-${kind}-draft`}
+          aria-label={`新增${meta.label}`}
           value={draft}
           placeholder={meta.placeholder}
           onChange={(e) => onDraftChange(e.target.value)}
@@ -283,7 +286,14 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
             if (e.key === "Enter") onAdd();
           }}
         />
-        <Button size="sm" variant="secondary" onClick={onAdd} disabled={!draft.trim()} title="添加规则">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onAdd}
+          disabled={!draft.trim()}
+          title="添加规则"
+          aria-label={`添加${meta.label}`}
+        >
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -298,7 +308,14 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
               <code className="min-w-0 flex-1 truncate text-xs" style={{ color: "var(--color-text-muted)" }}>
                 {value}
               </code>
-              <button type="button" onClick={() => onRemove(index)} className="rounded p-1" style={{ color: "var(--color-danger)" }} title="删除">
+              <button
+                type="button"
+                onClick={() => onRemove(index)}
+                className="rounded p-1"
+                style={{ color: "var(--color-danger)" }}
+                title="删除"
+                aria-label={`删除第 ${index + 1} 条${meta.label}`}
+              >
                 <Trash2 className="h-3 w-3" />
               </button>
             </div>
@@ -316,6 +333,8 @@ function PreviewText({ title, value }: { title: string; value: string }) {
         {title}
       </span>
       <Textarea
+        name={title.includes("合并后") ? "site-ad-cleanup-merged-preview" : "site-ad-cleanup-original-preview"}
+        aria-label={title}
         readOnly
         value={value}
         className="h-64 font-mono text-xs leading-relaxed"

@@ -70,6 +70,7 @@ export function T2STab() {
           {items.map((item, index) => (
             <div key={item.id} className="flex items-center gap-2">
               <Input
+                name={`t2s-path-${index + 1}`}
                 className="flex-1"
                 placeholder="TXT 文件路径..."
                 value={item.path}

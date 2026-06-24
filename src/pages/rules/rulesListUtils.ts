@@ -17,6 +17,14 @@ export interface RulesSummary {
   incomplete: number;
 }
 
+export interface VisibleRuleWindow {
+  visibleKeys: string[];
+  visibleCount: number;
+  totalCount: number;
+  hasMore: boolean;
+  nextVisibleCount: number;
+}
+
 function getRuleCompletion(site: WebsiteConfig): boolean {
   const required = [site.domain_name, site.list_novel_name, site.release_url, site.novel_content];
   return required.filter((value) => Boolean(value?.trim())).length === required.length;
@@ -84,4 +92,25 @@ export function buildRulesSummary(websites: Record<string, WebsiteConfig>): Rule
     },
     { total: 0, enabled: 0, complete: 0, incomplete: 0 },
   );
+}
+
+export function buildVisibleRuleWindow(
+  siteKeys: string[],
+  visibleCount: number,
+  batchSize: number,
+): VisibleRuleWindow {
+  const normalizedBatch = Math.max(1, Math.floor(batchSize));
+  const normalizedVisibleCount = Math.min(
+    siteKeys.length,
+    Math.max(normalizedBatch, Math.floor(visibleCount)),
+  );
+  const nextVisibleCount = Math.min(siteKeys.length, normalizedVisibleCount + normalizedBatch);
+
+  return {
+    visibleKeys: siteKeys.slice(0, normalizedVisibleCount),
+    visibleCount: normalizedVisibleCount,
+    totalCount: siteKeys.length,
+    hasMore: normalizedVisibleCount < siteKeys.length,
+    nextVisibleCount,
+  };
 }

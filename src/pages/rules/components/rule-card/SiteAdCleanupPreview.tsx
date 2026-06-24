@@ -378,6 +378,8 @@ function PreviewPane({
       </span>
       <textarea
         readOnly
+        aria-label={title}
+        name={highlight === "success" ? "site-ad-cleanup-after-preview" : "site-ad-cleanup-before-preview"}
         value={text}
         className="h-48 resize-none rounded-lg border-0 bg-transparent font-mono text-xs leading-relaxed focus:outline-none"
         style={{ color: "var(--color-text)", opacity: 0.85 }}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle, ChevronLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,16 +13,21 @@ import { DoneView } from "./detail/DoneView";
 import { DownloadingView } from "./detail/DownloadingView";
 import { EmptyState } from "./detail/EmptyState";
 import { FailedView } from "./detail/FailedView";
+import { PausedView } from "./detail/PausedView";
 import { ScanPreviewPanel } from "./detail/ScanPreviewPanel";
 import { TaskLogPanel } from "./detail/TaskLogPanel";
-import { getRecentFailureMessages } from "./detail/taskDetailUtils";
+import { getRecentFailureMessages, getTaskRetryAction } from "./detail/taskDetailUtils";
 
 interface TaskDetailPanelProps {
   onBackToList?: () => void;
 }
 
 export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
-  const { tasks, activeTaskId, getActiveLogs, confirmDownload, retryTask } = useTaskStore();
+  const tasks = useTaskStore((state) => state.tasks);
+  const activeTaskId = useTaskStore((state) => state.activeTaskId);
+  const getActiveLogs = useTaskStore((state) => state.getActiveLogs);
+  const confirmDownload = useTaskStore((state) => state.confirmDownload);
+  const retryTask = useTaskStore((state) => state.retryTask);
   const task = tasks.find((t) => t.id === activeTaskId);
   const logs = getActiveLogs();
   const contentRef = useRef<HTMLDivElement>(null);
@@ -30,6 +35,15 @@ export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
   const [confirmPending, setConfirmPending] = useState(false);
   const [confirmError, setConfirmError] = useState("");
   const [retryPending, setRetryPending] = useState(false);
+  const failedMessages = useMemo(
+    () =>
+      logs
+        .filter((log) => log.level === "error")
+        .map((log) => log.message)
+        .filter(Boolean),
+    [logs],
+  );
+  const recentFailedMessages = useMemo(() => getRecentFailureMessages(logs), [logs]);
 
   // Fade content in whenever the active task changes
   useEffect(() => {
@@ -69,7 +83,12 @@ export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
   };
 
   const handleRetry = () => {
-    if (retryPending) return;
+    if (retryPending || !task) return;
+    const retryAction = getTaskRetryAction(task);
+    if (!retryAction.canRun) {
+      toast.error(retryAction.unavailableReason);
+      return;
+    }
     setRetryPending(true);
     void retryTask(task.id)
       .then((taskId) => {
@@ -77,7 +96,7 @@ export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
           toast.error("当前任务缺少可重试的来源信息，请回到下载页重新发起任务");
           return;
         }
-        toast.success("已创建重试任务");
+        toast.success(task.status === "paused" ? "已创建继续任务" : "已创建重试任务");
       })
       .catch((error) => {
         toast.error(formatTaskRetryError(error));
@@ -92,12 +111,6 @@ export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
       toast.error(formatToolActionError("打开输出目录", error));
     });
   };
-
-  const failedMessages = logs
-    .filter((log) => log.level === "error")
-    .map((log) => log.message)
-    .filter(Boolean);
-  const recentFailedMessages = getRecentFailureMessages(logs);
 
   const statusColor =
     task.status === "done"
@@ -256,8 +269,11 @@ export function TaskDetailPanel({ onBackToList }: TaskDetailPanelProps) {
                 )}
               </div>
             )}
-            {(task.status === "downloading" || task.status === "paused") && (
+            {task.status === "downloading" && (
               <DownloadingView task={task} />
+            )}
+            {task.status === "paused" && (
+              <PausedView task={task} onContinue={handleRetry} retryPending={retryPending} />
             )}
             {task.status === "done" && (
               <DoneView

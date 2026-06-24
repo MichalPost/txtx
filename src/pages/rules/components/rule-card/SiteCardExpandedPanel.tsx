@@ -44,10 +44,16 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
       style={{ borderColor: "var(--color-border)" }}
     >
       <div className="flex items-center gap-2">
-        <label className="w-14 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor="site-domain-name"
+          className="w-14 shrink-0 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           域名
         </label>
         <input
+          id="site-domain-name"
+          name="site-domain-name"
           className="flex-1 rounded-lg border px-2 py-1 text-xs"
           style={{
             background: "var(--color-surface-2)",
@@ -60,10 +66,16 @@ export function SiteCardExpandedPanel({ site, onClose, onQuickSave }: SiteCardEx
         />
       </div>
       <div className="flex items-center gap-2">
-        <label className="w-14 shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor="site-release-url"
+          className="w-14 shrink-0 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           更新页
         </label>
         <input
+          id="site-release-url"
+          name="site-release-url"
           className="flex-1 rounded-lg border px-2 py-1 text-xs"
           style={{
             background: "var(--color-surface-2)",

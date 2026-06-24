@@ -1,6 +1,7 @@
 import { SlidersHorizontal } from "lucide-react";
 
 import { Card } from "@/components/Card";
+import { parseBoundedFloatInput, parseBoundedIntegerInput } from "@/lib/numberInput";
 import {
   inlineInputClass,
   inlineInputStyle,
@@ -20,7 +21,11 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
         {/* Safety threshold */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor="content-filter-safety-threshold"
+              className="text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               安全回退阈值
             </label>
             <span
@@ -31,12 +36,21 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
             </span>
           </div>
           <input
+            id="content-filter-safety-threshold"
+            name="safety_threshold"
             type="range"
             min={0}
             max={1}
             step={0.05}
             value={config.safety_threshold}
-            onChange={(e) => onUpdate({ safety_threshold: parseFloat(e.target.value) })}
+            onChange={(e) =>
+              onUpdate({
+                safety_threshold: parseBoundedFloatInput(e.target.value, config.safety_threshold, {
+                  min: 0,
+                  max: 1,
+                }),
+              })
+            }
             className="w-full accent-[var(--color-accent)]"
           />
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
@@ -46,15 +60,29 @@ export function FilterParamsCard({ config, onUpdate }: FilterParamsCardProps) {
 
         {/* Fallback trim lines */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+          <label
+            htmlFor="content-filter-fallback-trim-lines"
+            className="text-xs font-medium"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             回退时末尾删除行数
           </label>
           <input
+            id="content-filter-fallback-trim-lines"
+            name="fallback_trim_lines"
             type="number"
             min={0}
             max={10}
             value={config.fallback_trim_lines}
-            onChange={(e) => onUpdate({ fallback_trim_lines: parseInt(e.target.value) || 0 })}
+            onChange={(e) =>
+              onUpdate({
+                fallback_trim_lines: parseBoundedIntegerInput(
+                  e.target.value,
+                  config.fallback_trim_lines,
+                  { min: 0, max: 10 },
+                ),
+              })
+            }
             className={`w-full ${inlineInputClass}`}
             style={inlineInputStyle}
             {...inputFocusHandlersSimple}

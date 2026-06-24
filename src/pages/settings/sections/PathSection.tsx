@@ -41,6 +41,8 @@ export function PathSection() {
             size="md"
             onClick={() => pickDir("base_dir")}
             className="justify-center sm:self-auto"
+            aria-label="选择下载目录"
+            title="选择下载目录"
           >
             <FolderOpen className="h-4 w-4" />
           </Button>
@@ -56,6 +58,8 @@ export function PathSection() {
             size="md"
             onClick={() => pickDir("temp_dir")}
             className="justify-center sm:self-auto"
+            aria-label="选择临时目录"
+            title="选择临时目录"
           >
             <FolderOpen className="h-4 w-4" />
           </Button>
@@ -71,6 +75,8 @@ export function PathSection() {
             size="md"
             onClick={() => pickDir("log_dir")}
             className="justify-center sm:self-auto"
+            aria-label="选择日志目录"
+            title="选择日志目录"
           >
             <FolderOpen className="h-4 w-4" />
           </Button>

@@ -2,7 +2,7 @@
  * CommandPalette — Cmd+K 全局命令面板
  * 使用 cmdk 库，支持页面跳转、快速操作、历史搜索
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Command } from "cmdk";
 import {
   Activity,
@@ -36,8 +36,13 @@ interface CommandItem {
   keywords?: string[];
 }
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+export function CommandPalette({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const navigate = useAppNavigate();
   const { createScanTask, setActive, tasks, activeTaskId, cancelTask } = useTaskStore();
   const isRunning = tasks.some(
@@ -46,16 +51,15 @@ export function CommandPalette() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
+
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setOpen((v) => !v);
-      }
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") onOpenChange(false);
     };
+
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     if (open && panelRef.current) {
@@ -65,8 +69,8 @@ export function CommandPalette() {
 
   const run = useCallback((action: () => void) => {
     action();
-    setOpen(false);
-  }, []);
+    onOpenChange(false);
+  }, [onOpenChange]);
 
   const navItems: CommandItem[] = [
     {
@@ -216,7 +220,7 @@ export function CommandPalette() {
         background: "rgba(0,0,0,0.45)",
         animation: "fadeIn 150ms ease forwards",
       }}
-      onClick={() => setOpen(false)}
+      onClick={() => onOpenChange(false)}
     >
       <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
       <div

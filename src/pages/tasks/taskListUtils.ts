@@ -27,9 +27,27 @@ export interface TaskListViewState {
   showRefresh: boolean;
 }
 
+export interface BulkTaskActionState {
+  disposableTaskIds: string[];
+  recoverableTaskIds: string[];
+  canDeleteFinished: boolean;
+  canRecoverFailed: boolean;
+  deleteFinishedLabel: string;
+  recoverFailedLabel: string;
+}
+
+export interface VisibleTaskWindow {
+  tasks: TaskRecord[];
+  visibleCount: number;
+  hasMore: boolean;
+  nextVisibleCount: number;
+}
+
 const ACTIVE_STATUSES: TaskStatus[] = ["scanning", "downloading", "preview"];
 const QUEUED_STATUSES: TaskStatus[] = ["queued", "paused"];
 const FINISHED_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"];
+const DISPOSABLE_STATUSES: TaskStatus[] = ["done", "failed", "cancelled"];
+const RECOVERABLE_STATUSES: TaskStatus[] = ["failed", "paused"];
 
 function matchesStatus(task: TaskRecord, status: TaskFilterStatus): boolean {
   if (status === "all") return true;
@@ -107,6 +125,62 @@ export function buildTaskListSummary(tasks: TaskRecord[]): TaskListSummary {
     summary.finished > 0 ? Math.round((successful / summary.finished) * 100) : 0;
 
   return summary;
+}
+
+export function buildBulkTaskActionState(tasks: TaskRecord[]): BulkTaskActionState {
+  const disposableTaskIds = tasks
+    .filter((task) => DISPOSABLE_STATUSES.includes(task.status))
+    .map((task) => task.id);
+  const recoverableTaskIds = tasks.filter(isRecoverableTask).map((task) => task.id);
+
+  return {
+    disposableTaskIds,
+    recoverableTaskIds,
+    canDeleteFinished: disposableTaskIds.length > 0,
+    canRecoverFailed: recoverableTaskIds.length > 0,
+    deleteFinishedLabel:
+      disposableTaskIds.length > 0
+        ? `清理 ${disposableTaskIds.length} 个已结束任务`
+        : "没有可清理任务",
+    recoverFailedLabel:
+      recoverableTaskIds.length > 0
+        ? `恢复 ${recoverableTaskIds.length} 个失败/暂停任务`
+        : "没有可恢复任务",
+  };
+}
+
+function isRecoverableTask(task: TaskRecord): boolean {
+  if (!RECOVERABLE_STATUSES.includes(task.status)) return false;
+
+  if (task.kind === "single_download") {
+    return Boolean(task.source_url ?? task.scan_items[0]?.url);
+  }
+
+  if (task.kind === "selected_download") {
+    return (task.retry_context?.selected_items?.length ?? 0) > 0;
+  }
+
+  return task.kind === "batch_download" || task.kind === "full_scan";
+}
+
+export function buildVisibleTaskWindow(
+  tasks: TaskRecord[],
+  visibleCount: number,
+  batchSize: number,
+): VisibleTaskWindow {
+  const safeBatchSize = Math.max(1, Math.floor(batchSize));
+  const safeVisibleCount = Math.min(
+    tasks.length,
+    Math.max(safeBatchSize, Math.floor(visibleCount)),
+  );
+  const nextVisibleCount = Math.min(tasks.length, safeVisibleCount + safeBatchSize);
+
+  return {
+    tasks: tasks.slice(0, safeVisibleCount),
+    visibleCount: safeVisibleCount,
+    hasMore: safeVisibleCount < tasks.length,
+    nextVisibleCount,
+  };
 }
 
 export function deriveTaskListViewState(args: {

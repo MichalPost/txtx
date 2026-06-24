@@ -98,11 +98,14 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
         </Button>
         <div className="flex gap-1">
           <Input
+            id="new-task-single-url"
+            name="new-task-single-url"
             className="h-7 flex-1 text-xs"
             placeholder="输入小说 URL..."
             value={singleUrl}
             disabled={submitting}
             onChange={(e) => setSingleUrl(e.target.value)}
+            aria-label="新建单本下载 URL"
             onKeyDown={(e) => {
               if (e.key === "Enter" && singleUrl.trim() && !submitting) {
                 void runSubmit(() =>
@@ -120,6 +123,8 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
           <Button
             size="sm"
             disabled={!singleUrl.trim() || submitting}
+            aria-label={submitting ? "正在创建单本下载任务" : "创建单本下载任务"}
+            title={submitting ? "正在创建单本下载任务" : "创建单本下载任务"}
             onClick={() => {
               if (singleUrl.trim()) {
                 void runSubmit(() =>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, Download, RefreshCw, Save, ShieldCheck, Upload } from "lucide-react";
@@ -6,12 +6,12 @@ import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { apiSaveTextFile } from "@/lib/api";
 import { formatToolActionError } from "@/lib/toolActionError";
 import { useAiStore } from "@/store/aiStore";
 import { useConfigStore } from "@/store/configStore";
-import type { AppConfig } from "@/types";
 
 import { AdvancedNetworkSection } from "./sections/AdvancedNetworkSection";
 import { AiSection } from "./sections/AiSection";
@@ -22,11 +22,19 @@ import { NetworkSection } from "./sections/NetworkSection";
 import { PathSection } from "./sections/PathSection";
 import { PostScriptSection } from "./sections/PostScriptSection";
 import { TextConversionSection } from "./sections/TextConversionSection";
-import { configToForm, formToConfig, settingsSchema, type SettingsForm } from "./settingsSchema";
+import {
+  buildSettingsChangeSummary,
+  configToForm,
+  formToConfig,
+  parseImportedConfig,
+  settingsSchema,
+  type SettingsForm,
+} from "./settingsSchema";
 
 export function SettingsPage() {
   const { config, saveConfig, saving, loading, error, loadConfig } = useConfigStore();
   const flushAiSave = useAiStore((s) => s.flushSave);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const methods = useForm<SettingsForm>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,26 +46,46 @@ export function SettingsPage() {
     handleSubmit,
     reset,
     formState: { isDirty },
+    watch,
   } = methods;
+  const currentForm = watch();
 
   const appliedSnapshotRef = useRef<string | null>(null);
+  const baselineFormRef = useRef<SettingsForm | null>(null);
+  const configSyncVersionRef = useRef(0);
   useEffect(() => {
     if (!config) return;
 
     const nextForm = configToForm(config);
     const nextSnapshot = JSON.stringify(nextForm);
     if (appliedSnapshotRef.current === nextSnapshot) return;
+    const syncVersion = configSyncVersionRef.current + 1;
+    configSyncVersionRef.current = syncVersion;
+    let cancelled = false;
 
-    if (isDirty && appliedSnapshotRef.current !== null) {
-      const shouldReplace = window.confirm(
-        "检测到配置已在其他地方更新。是否放弃当前未保存修改并加载最新配置？",
-      );
-      if (!shouldReplace) return;
-    }
+    const applyConfigSnapshot = async () => {
+      if (isDirty && appliedSnapshotRef.current !== null) {
+        const shouldReplace = await confirm({
+          title: "加载最新配置？",
+          description: "检测到配置已在其他地方更新。加载最新配置会放弃当前未保存修改。",
+          confirmLabel: "加载最新配置",
+          tone: "warning",
+        }).catch(() => false);
+        if (!shouldReplace) return;
+      }
 
-    reset(nextForm);
-    appliedSnapshotRef.current = nextSnapshot;
-  }, [config, isDirty, reset]);
+      if (cancelled || configSyncVersionRef.current !== syncVersion) return;
+      reset(nextForm);
+      baselineFormRef.current = nextForm;
+      appliedSnapshotRef.current = nextSnapshot;
+    };
+
+    void applyConfigSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [config, confirm, isDirty, reset]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,10 +107,11 @@ export function SettingsPage() {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
-        const parsed = JSON.parse(ev.target!.result as string) as AppConfig;
+        const parsed = parseImportedConfig(JSON.parse(ev.target!.result as string));
         await saveConfig(parsed);
         const nextForm = configToForm(parsed);
         reset(nextForm);
+        baselineFormRef.current = nextForm;
         appliedSnapshotRef.current = JSON.stringify(nextForm);
         toast.success("配置已导入并应用");
       } catch (err) {
@@ -92,6 +121,27 @@ export function SettingsPage() {
     reader.readAsText(file);
     e.target.value = "";
   };
+
+  const onSubmit = async (form: SettingsForm) => {
+    if (!config) return;
+
+    try {
+      await Promise.all([saveConfig(formToConfig(form, config)), flushAiSave()]);
+      reset(form);
+      baselineFormRef.current = form;
+      appliedSnapshotRef.current = JSON.stringify(form);
+    } catch (error) {
+      toast.error(formatToolActionError("保存设置", error));
+    }
+  };
+
+  const changeSummary = useMemo(
+    () =>
+      baselineFormRef.current
+        ? buildSettingsChangeSummary(currentForm, baselineFormRef.current, 6)
+        : [],
+    [currentForm],
+  );
 
   if (loading && !config) {
     return (
@@ -155,16 +205,6 @@ export function SettingsPage() {
     );
   }
 
-  const onSubmit = async (form: SettingsForm) => {
-    try {
-      await Promise.all([saveConfig(formToConfig(form, config)), flushAiSave()]);
-      reset(form);
-      appliedSnapshotRef.current = JSON.stringify(form);
-    } catch (error) {
-      toast.error(formatToolActionError("保存设置", error));
-    }
-  };
-
   return (
     <FormProvider {...methods}>
       <form
@@ -176,10 +216,16 @@ export function SettingsPage() {
           subtitle="目录、下载、网络、过滤统一在这里调整"
           actions={
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <label htmlFor="settings-import-file" className="sr-only">
+                导入 JSON 配置文件
+              </label>
               <input
+                id="settings-import-file"
                 ref={fileInputRef}
                 type="file"
                 accept=".json"
+                name="settings-import-file"
+                aria-label="导入 JSON 配置文件"
                 className="hidden"
                 onChange={handleFileImport}
               />
@@ -213,6 +259,31 @@ export function SettingsPage() {
 
         <div className="flex-1 overflow-y-auto pr-1">
           <div className="flex flex-col gap-4">
+            {isDirty && (
+              <div
+                className="flex flex-col gap-2 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                style={{
+                  background: "var(--color-warning-bg)",
+                  borderColor: "color-mix(in srgb, var(--color-warning) 30%, transparent)",
+                  color: "var(--color-text)",
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">有未保存的设置变更</p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                    {changeSummary.length > 0
+                      ? `已修改：${changeSummary.map((item) => item.label).join("、")}`
+                      : "表单内容已变化，请保存或刷新配置。"}
+                  </p>
+                </div>
+                <Button type="submit" size="sm" disabled={saving}>
+                  <Save className="h-3.5 w-3.5" />
+                  {saving ? "保存中..." : "保存变更"}
+                </Button>
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="flex flex-col gap-4">
                 <PathSection />
@@ -260,6 +331,7 @@ export function SettingsPage() {
           </div>
         </div>
       </form>
+      {confirmDialog}
     </FormProvider>
   );
 }

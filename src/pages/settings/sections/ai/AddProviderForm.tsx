@@ -12,6 +12,7 @@ import {
 } from "@/store/aiStore";
 
 import { ApiKeyInput, Field, ModelSelect } from "./AiFormFields";
+import { parseProviderPositiveIntegerDraft } from "./providerCardUtils";
 
 export function AddProviderForm({ allNames }: { allNames: string[] }) {
   const { addProvider } = useAiStore();
@@ -112,6 +113,9 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
         {/* Quick preset */}
         <Field label="快速预设">
           <select
+            id="ai-provider-preset"
+            name="ai-provider-preset"
+            aria-label="快速预设"
             value={preset}
             onChange={(e) => handlePresetChange(e.target.value as AiProviderPresetKey)}
             className="w-full rounded-[10px] border px-3 py-2 text-sm focus:outline-none"
@@ -144,7 +148,13 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
           </div>
           <div className="col-span-2">
             <Field label="API Key" hint="仅存本地，写入 SQLite 数据库">
-              <ApiKeyInput value={form.api_key} onChange={set("api_key")} />
+              <ApiKeyInput
+                id="ai-provider-api-key"
+                name="ai-provider-api-key"
+                aria-label="API Key"
+                value={form.api_key}
+                onChange={set("api_key")}
+              />
             </Field>
           </div>
           <div className="col-span-2">
@@ -158,6 +168,9 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
           <div>
             <Field label="当前模型">
               <ModelSelect
+                id="ai-provider-model"
+                name="ai-provider-model"
+                aria-label="当前模型"
                 value={form.model}
                 onChange={set("model")}
                 options={form.available_models}
@@ -169,7 +182,9 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
               label="最大 Token 数"
               type="number"
               value={String(form.max_tokens)}
-              onChange={(e) => set("max_tokens")(parseInt(e.target.value, 10) || 2048)}
+              onChange={(e) =>
+                set("max_tokens")(parseProviderPositiveIntegerDraft(e.target.value, form.max_tokens))
+              }
             />
           </div>
         </div>

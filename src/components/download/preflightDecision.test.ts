@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildPreflightDecision,
   buildPreflightScope,
   canContinueWithPreflight,
   summarizePreflightResults,
@@ -56,4 +57,69 @@ test("canContinueWithPreflight blocks while check is still running", () => {
     }),
     false,
   );
+});
+
+test("buildPreflightDecision explains the pending and error states", () => {
+  assert.deepEqual(
+    buildPreflightDecision({
+      done: false,
+      error: "",
+      scopedSites: ["a.example", "b.example"],
+      summary: { results: [], total: 0, successCount: 0, failCount: 0, failingDomains: [] },
+    }),
+    {
+      canContinue: false,
+      ctaLabel: "先检测站点",
+      description: "将检测 2 个目标站点的可达性，避免直接创建大批失败任务。",
+      retryLabel: "开始检测",
+      title: "等待预检",
+      tone: "neutral",
+    },
+  );
+
+  assert.equal(
+    buildPreflightDecision({
+      done: true,
+      error: "network",
+      scopedSites: ["a.example"],
+      summary: { results: [], total: 0, successCount: 0, failCount: 0, failingDomains: [] },
+    }).tone,
+    "danger",
+  );
+});
+
+test("buildPreflightDecision distinguishes partial failure and successful checks", () => {
+  const warning = buildPreflightDecision({
+    done: true,
+    error: "",
+    scopedSites: ["a.example", "b.example"],
+    summary: {
+      results: [],
+      total: 2,
+      successCount: 1,
+      failCount: 1,
+      failingDomains: ["b.example"],
+    },
+  });
+
+  assert.equal(warning.canContinue, true);
+  assert.equal(warning.tone, "warning");
+  assert.equal(warning.ctaLabel, "忽略异常并创建");
+  assert.match(warning.description, /b\.example/);
+
+  const success = buildPreflightDecision({
+    done: true,
+    error: "",
+    scopedSites: ["a.example"],
+    summary: {
+      results: [],
+      total: 1,
+      successCount: 1,
+      failCount: 0,
+      failingDomains: [],
+    },
+  });
+
+  assert.equal(success.tone, "success");
+  assert.equal(success.ctaLabel, "创建扫描任务");
 });

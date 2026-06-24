@@ -67,6 +67,8 @@ export function BookNameConfig({
         ))}
         <div className="flex-1" style={{ minWidth: 80 }}>
           <Input
+            label="属性值"
+            name="book-name-attr-value"
             placeholder="属性值，如 bookname"
             value={data.book_name_val}
             onChange={(e) => onChange({ ...data, book_name_val: e.target.value })}

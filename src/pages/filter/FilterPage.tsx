@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Shield, Sparkles, TriangleAlert } from "lucide-react";
 
 import { Card } from "@/components/Card";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { useConfigStore } from "@/store/configStore";
 import type { AppConfig, BlacklistConfig, ContentFilterConfig } from "@/types";
@@ -40,6 +41,8 @@ export function FilterPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [blacklistDraft, setBlacklistDraft] = useState<BlacklistConfig | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentFilterConfig | null>(null);
+  const [tabSwitchPending, setTabSwitchPending] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const blacklist = config?.blacklist;
   const contentFilter = config?.content_filter;
@@ -142,12 +145,18 @@ export function FilterPage() {
 
   const activeMetrics = tabMetrics[activeTab];
 
-  const switchTab = (nextTab: TabId) => {
+  const switchTab = async (nextTab: TabId) => {
     if (nextTab === activeTab) return;
+    if (tabSwitchPending) return;
     if (saveState?.dirty) {
-      const shouldSwitch = window.confirm(
-        "当前筛选页有未保存修改。确认切换标签并保留草稿，稍后再回来保存吗？",
-      );
+      setTabSwitchPending(true);
+      const shouldSwitch = await confirm({
+        title: "切换过滤标签？",
+        description: "当前筛选页有未保存修改。切换后草稿会保留，但请记得回到本页保存。",
+        confirmLabel: "切换标签",
+        tone: "warning",
+      }).catch(() => false);
+      setTabSwitchPending(false);
       if (!shouldSwitch) return;
     }
     setActiveTab(nextTab);
@@ -241,7 +250,8 @@ export function FilterPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => switchTab(tab.id)}
+              onClick={() => void switchTab(tab.id)}
+              disabled={tabSwitchPending}
               className="rounded-[18px] border p-4 text-left transition-all"
               style={{
                 background: isActive ? "var(--color-surface)" : "var(--color-surface-2)",
@@ -330,6 +340,7 @@ export function FilterPage() {
           />
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

@@ -11,15 +11,13 @@ import { TaskDetailPanel } from "./TaskDetailPanel";
 import { TaskListPanel } from "./TaskListPanel";
 
 export function TaskManagerPage() {
-  const {
-    init,
-    createScanTask,
-    createBatchTask,
-    createSingleTask,
-    activeTaskId,
-    pollError,
-    pollErrorVersion,
-  } = useTaskStore();
+  const init = useTaskStore((state) => state.init);
+  const createScanTask = useTaskStore((state) => state.createScanTask);
+  const createBatchTask = useTaskStore((state) => state.createBatchTask);
+  const createSingleTask = useTaskStore((state) => state.createSingleTask);
+  const activeTaskId = useTaskStore((state) => state.activeTaskId);
+  const pollError = useTaskStore((state) => state.pollError);
+  const pollErrorVersion = useTaskStore((state) => state.pollErrorVersion);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [initError, setInitError] = useState<string | null>(null);
 

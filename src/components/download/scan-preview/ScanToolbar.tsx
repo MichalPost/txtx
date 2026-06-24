@@ -103,6 +103,9 @@ export function ScanToolbar({
           style={{ color: "var(--color-text-subtle)" }}
         />
         <Input
+          id="scan-preview-search"
+          name="scan-preview-search"
+          aria-label="搜索扫描结果"
           className="h-8 w-full pl-8 text-xs"
           placeholder="搜索书名或站点..."
           value={search}

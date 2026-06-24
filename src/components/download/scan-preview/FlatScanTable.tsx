@@ -1,3 +1,6 @@
+import { useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
 import type { ScanItem } from "@/types";
 
 import { ScanRow } from "./ScanRow";
@@ -65,14 +68,36 @@ export function FlatScanTable({
   onToggle: (url: string) => void;
   onForceAdd: (item: ScanItem) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 41,
+    overscan: 12,
+  });
+
   return (
-    <div className="rounded-lg border" style={{ borderColor: "var(--color-border)" }}>
-      <table className="w-full border-collapse text-sm">
+    <div
+      ref={scrollRef}
+      className="max-h-full overflow-auto rounded-lg border"
+      style={{ borderColor: "var(--color-border)" }}
+    >
+      <table className="w-full table-fixed border-collapse text-sm">
+        <colgroup>
+          <col className="w-10" />
+          <col />
+          <col className="w-36" />
+          <col className="w-28" />
+          <col className="w-36" />
+        </colgroup>
         <thead className="sticky top-0 z-10" style={{ background: "var(--color-surface-1)" }}>
           <tr>
             <th className="w-10 px-3 py-2.5 text-left">
               <input
                 type="checkbox"
+                id="scan-preview-select-all"
+                name="scan-preview-select-all"
+                aria-label="选择所有待下载项目"
                 checked={allPendingSelected}
                 onChange={(e) => onSelectAll(e.target.checked)}
                 className="rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
@@ -120,15 +145,49 @@ export function FlatScanTable({
               </td>
             </tr>
           ) : (
-            filtered.map((item) => (
-              <ScanRow
-                key={item.url}
-                item={item}
-                checked={selectedUrls.has(item.url)}
-                onToggle={() => onToggle(item.url)}
-                onForceAdd={item.excluded_reason ? () => onForceAdd(item) : undefined}
-              />
-            ))
+            <tr>
+              <td
+                colSpan={5}
+                className="p-0"
+                style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const item = filtered[virtualRow.index];
+                  return (
+                    <div
+                      key={item.url}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <table className="w-full table-fixed border-collapse text-sm">
+                        <colgroup>
+                          <col className="w-10" />
+                          <col />
+                          <col className="w-36" />
+                          <col className="w-28" />
+                          <col className="w-36" />
+                        </colgroup>
+                        <tbody>
+                          <ScanRow
+                            item={item}
+                            checked={selectedUrls.has(item.url)}
+                            onToggle={() => onToggle(item.url)}
+                            onForceAdd={item.excluded_reason ? () => onForceAdd(item) : undefined}
+                          />
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </td>
+            </tr>
           )}
         </tbody>
       </table>

@@ -1,4 +1,7 @@
 import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { buildImportSummary, parseRegexLineDraft } from "./filterPageUtils";
 
 export function isValidRegex(pattern: string): boolean {
   try {
@@ -33,34 +36,20 @@ export function useAdPatterns({ patterns, onUpdate }: UseAdPatternsOptions) {
     onUpdate(patterns.filter((x) => x !== p));
   };
 
+  const bulkDraft = useMemo(
+    () => parseRegexLineDraft(bulkText, patterns, isValidRegex),
+    [bulkText, patterns],
+  );
+
   const handleBulkAdd = () => {
-    const lines = bulkText
-      .split(/[\r\n]+/)
-      .map((l) => l.trim())
-      .filter((l) => l && isValidRegex(l));
-    if (lines.length === 0) return;
-    onUpdate([...new Set([...patterns, ...lines])]);
+    if (bulkDraft.accepted.length === 0) return;
+    onUpdate([...patterns, ...bulkDraft.accepted]);
     setBulkText("");
     setBulkMode(false);
   };
 
-  const bulkValidCount = useMemo(
-    () =>
-      bulkText
-        .split(/[\r\n]+/)
-        .map((l) => l.trim())
-        .filter((l) => l && isValidRegex(l)).length,
-    [bulkText],
-  );
-
-  const bulkInvalidCount = useMemo(
-    () =>
-      bulkText
-        .split(/[\r\n]+/)
-        .map((l) => l.trim())
-        .filter((l) => l && !isValidRegex(l)).length,
-    [bulkText],
-  );
+  const bulkValidCount = bulkDraft.accepted.length;
+  const bulkInvalidCount = bulkDraft.invalidCount;
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,11 +57,23 @@ export function useAdPatterns({ patterns, onUpdate }: UseAdPatternsOptions) {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const newPatterns = text
-        .split(/[\r\n]+/)
-        .map((l) => l.trim())
-        .filter((l) => l && isValidRegex(l));
-      onUpdate([...new Set([...patterns, ...newPatterns])]);
+      const parsed = parseRegexLineDraft(text, patterns, isValidRegex);
+      if (parsed.accepted.length > 0) {
+        onUpdate([...patterns, ...parsed.accepted]);
+      }
+      const summary = buildImportSummary(
+        parsed.accepted.length,
+        parsed.duplicateCount,
+        parsed.emptyCount,
+        "广告规则",
+      );
+      const invalid = parsed.invalidCount > 0 ? `跳过 ${parsed.invalidCount} 条无效正则` : null;
+      const feedback = [summary, invalid].filter(Boolean).join("，");
+      if (feedback) {
+        toast.success(feedback);
+      } else {
+        toast.info("没有可导入的广告规则");
+      }
     };
     reader.readAsText(file);
     e.target.value = "";

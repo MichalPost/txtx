@@ -4,6 +4,7 @@ import test from "node:test";
 import type { SiteHealth } from "@/types";
 
 import {
+  buildHealthReport,
   buildHealthSummary,
   deriveHealthViewState,
   filterAndSortSiteHealth,
@@ -104,4 +105,17 @@ test("deriveHealthViewState distinguishes initial, checking, empty and no-match 
     }),
     "no-match",
   );
+});
+
+test("buildHealthReport exports summary and sorted site details", () => {
+  const report = buildHealthReport({
+    results: sampleResults,
+    checkedAt: new Date("2026-06-24T10:00:00+08:00"),
+  });
+
+  assert.match(report, /站点总数：3/);
+  assert.match(report, /可达站点：2/);
+  assert.match(report, /不可达站点：1/);
+  assert.match(report, /bravo\.example\.com：不可达；延迟：暂无；错误：timeout/);
+  assert.match(report, /alpha\.example\.com：可达；延迟：120 ms/);
 });

@@ -62,6 +62,9 @@ export function ScanPreviewPanel({
         <div className="flex flex-wrap items-center gap-2">
           {sites.length > 1 && (
           <select
+            id={`task-scan-preview-site-filter-${taskId}`}
+            name="task-scan-preview-site-filter"
+            aria-label="按站点筛选扫描结果"
             value={siteFilter}
             onChange={(e) =>
               updatePreviewDraft(taskId, {
@@ -86,6 +89,9 @@ export function ScanPreviewPanel({
             </select>
           )}
           <select
+            id={`task-scan-preview-sort-${taskId}`}
+            name="task-scan-preview-sort"
+            aria-label="排序扫描结果"
             value={scanSort}
             onChange={(e) =>
               updatePreviewDraft(taskId, { scan_sort: e.target.value as ScanSortKey })
@@ -175,11 +181,13 @@ export function ScanPreviewPanel({
           >
             {!item.excluded_reason && (
               <input
+                name="task-scan-preview-item"
                 type="checkbox"
                 checked={selected.has(item.url)}
                 disabled={confirmPending}
                 onChange={() => toggle(item.url)}
                 className="shrink-0 accent-[var(--color-accent)]"
+                aria-label={`选择下载：${item.name}`}
               />
             )}
             {item.excluded_reason && <div className="w-4 shrink-0" />}

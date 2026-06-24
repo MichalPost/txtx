@@ -104,6 +104,8 @@ export function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
             )}
             <label className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-text-muted)" }}>
               <input
+                id="task-log-auto-scroll"
+                name="task-log-auto-scroll"
                 type="checkbox"
                 checked={autoScroll}
                 onChange={(event) => setAutoScroll(event.target.checked)}
@@ -151,6 +153,8 @@ export function TaskLogPanel({ logs }: { logs: LogEntry[] }) {
         >
           <Search className="h-3.5 w-3.5" style={{ color: "var(--color-text-subtle)" }} />
           <input
+            id="task-log-search"
+            name="task-log-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索时间或日志内容"

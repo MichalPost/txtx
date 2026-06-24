@@ -16,6 +16,6 @@ export function hasTaskChanged(existing: TaskRecord, server: TaskRecord): boolea
     !sameJsonValue(server.retry_context, existing.retry_context) ||
     !sameJsonValue(server.scan_stats, existing.scan_stats) ||
     !sameJsonValue(server.stats, existing.stats) ||
-    (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)
+    !sameJsonValue(server.scan_items, existing.scan_items)
   );
 }

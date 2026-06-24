@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   CheckCircle,
   Clock3,
+  FileDown,
   Loader2,
   RefreshCw,
   Search,
@@ -17,10 +18,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { PageHeader } from "@/components/PageHeader";
-import { apiCheckSites } from "@/lib/api";
+import { apiCheckSites, apiSaveTextFile } from "@/lib/api";
 import { formatToolActionError } from "@/lib/toolActionError";
 
 import {
+  buildHealthReport,
   buildHealthSummary,
   deriveHealthViewState,
   filterAndSortSiteHealth,
@@ -61,6 +63,7 @@ export function HealthPage() {
   const [statusFilter, setStatusFilter] = useState<HealthStatusFilter>("all");
   const [sort, setSort] = useState<HealthSortOption>("status");
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
+  const [exportingReport, setExportingReport] = useState(false);
   const {
     mutate: checkSites,
     data: results = [],
@@ -108,6 +111,28 @@ export function HealthPage() {
     setSearch("");
     setStatusFilter("all");
     setSort("status");
+  };
+
+  const focusFailures = () => {
+    setSearch("");
+    setStatusFilter("unreachable");
+    setSort("status");
+  };
+
+  const exportReport = async () => {
+    if (results.length === 0 || exportingReport) return;
+    setExportingReport(true);
+    try {
+      await apiSaveTextFile(
+        `站点健康检查报告-${new Date().toISOString().slice(0, 10)}.txt`,
+        buildHealthReport({ results, checkedAt: lastCheckedAt }),
+      );
+      toast.success("健康检查报告已导出");
+    } catch (error) {
+      toast.error(formatToolActionError("导出健康检查报告", error));
+    } finally {
+      setExportingReport(false);
+    }
   };
 
   const subtitle = (() => {
@@ -166,6 +191,20 @@ export function HealthPage() {
                 清空筛选
               </Button>
             )}
+            {summary.unreachable > 0 && statusFilter !== "unreachable" && (
+              <Button variant="ghost" size="sm" onClick={focusFailures}>
+                只看异常
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void exportReport()}
+              disabled={results.length === 0 || exportingReport}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {exportingReport ? "导出中..." : "导出报告"}
+            </Button>
             <Button variant="secondary" size="sm" onClick={runCheck} disabled={checking}>
               {checking ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -215,6 +254,9 @@ export function HealthPage() {
                 style={{ color: "var(--color-text-muted)" }}
               />
               <input
+                id="health-search"
+                name="health-search"
+                aria-label="搜索站点健康检查结果"
                 className="w-full rounded-lg border py-2 pr-9 pl-8 text-xs focus:outline-none"
                 style={{
                   background: "var(--color-surface-2)",
@@ -231,6 +273,7 @@ export function HealthPage() {
                   className="absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-opacity hover:opacity-70"
                   style={{ color: "var(--color-text-muted)" }}
                   title="清空搜索"
+                  aria-label="清空健康检查搜索"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -243,6 +286,9 @@ export function HealthPage() {
                   style={{ color: "var(--color-text-muted)" }}
                 />
                 <select
+                  id="health-status-filter"
+                  name="health-status-filter"
+                  aria-label="按站点健康状态筛选"
                   className="w-full appearance-none rounded-lg border py-2 pr-8 pl-8 text-xs focus:outline-none"
                   style={{
                     background: "var(--color-surface-2)",
@@ -265,6 +311,9 @@ export function HealthPage() {
                   style={{ color: "var(--color-text-muted)" }}
                 />
                 <select
+                  id="health-sort"
+                  name="health-sort"
+                  aria-label="站点健康结果排序"
                   className="w-full appearance-none rounded-lg border py-2 pr-8 pl-8 text-xs focus:outline-none"
                   style={{
                     background: "var(--color-surface-2)",
@@ -308,6 +357,7 @@ export function HealthPage() {
 
       {isError && (
         <div
+          role="alert"
           className="flex shrink-0 flex-col gap-3 rounded-2xl border px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between"
           style={{
             background: "var(--color-danger-bg)",
@@ -447,6 +497,8 @@ export function HealthPage() {
           <>
             <div
               className="flex items-center justify-between rounded-xl border px-3 py-2 text-xs"
+              role="status"
+              aria-live="polite"
               style={{
                 background: "var(--color-surface-2)",
                 borderColor: "var(--color-border)",

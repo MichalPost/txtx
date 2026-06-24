@@ -35,6 +35,8 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
 
         <textarea
           className="w-full resize-none rounded-lg border px-3 py-2 font-mono text-xs transition-colors focus:outline-none"
+          name="content-clean-preview-input"
+          aria-label="章节内容过滤预览输入"
           style={{
             background: "var(--color-surface-2)",
             borderColor: "var(--color-border)",

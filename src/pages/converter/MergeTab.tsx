@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, FolderOpen, Merge, Trash2 } from "lucide-react";
+import { ClipboardPaste, FileText, FolderOpen, Merge, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
@@ -9,7 +9,7 @@ import { apiMergeFiles, apiPickDirectory, apiPickFile } from "@/lib/api";
 import { formatToolActionError } from "@/lib/toolActionError";
 
 import { ResultsCard } from "./ResultsCard";
-import { countFilledPaths } from "./converterUtils";
+import { countFilledPaths, parsePathImportDraft, type PathImportSummary } from "./converterUtils";
 import type { ConvertResult } from "./types";
 import { usePathList } from "./usePathList";
 
@@ -17,6 +17,8 @@ export function MergeTab() {
   const { items, paths, addPath, removePath, updatePath } = usePathList();
   const [output, setOutput] = useState("");
   const [results, setResults] = useState<ConvertResult[]>([]);
+  const [bulkDraft, setBulkDraft] = useState("");
+  const [bulkSummary, setBulkSummary] = useState<PathImportSummary | null>(null);
   const [running, setRunning] = useState(false);
   const validCount = countFilledPaths(paths);
 
@@ -66,6 +68,17 @@ export function MergeTab() {
     }
   };
 
+  const handleBulkImport = () => {
+    const summary = parsePathImportDraft(bulkDraft, paths);
+    setBulkSummary(summary);
+    if (summary.accepted.length === 0) return;
+
+    summary.accepted.forEach((path) => addPath(path));
+    setBulkDraft("");
+    setResults([]);
+    toast.success(`已添加 ${summary.accepted.length} 个文件路径`);
+  };
+
   return (
     <>
       <Card title="要合并的文件（按顺序）" className="flex min-h-0 flex-1 flex-col">
@@ -88,6 +101,7 @@ export function MergeTab() {
                 {index + 1}
               </span>
               <Input
+                name={`merge-input-path-${index + 1}`}
                 className="flex-1"
                 placeholder="TXT 文件路径..."
                 value={item.path}
@@ -135,6 +149,52 @@ export function MergeTab() {
           >
             <FileText className="h-3.5 w-3.5" /> 添加文件
           </Button>
+
+          <div
+            className="mt-2 rounded-xl border p-3"
+            style={{
+              background: "var(--color-surface-2)",
+              borderColor: "var(--color-border)",
+            }}
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
+                批量粘贴路径
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkImport}
+                disabled={running || !bulkDraft.trim()}
+              >
+                <ClipboardPaste className="h-3.5 w-3.5" />
+                导入路径
+              </Button>
+            </div>
+            <textarea
+              name="merge-bulk-paths"
+              className="min-h-20 w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs outline-none"
+              style={{
+                background: "var(--color-surface)",
+                borderColor: "var(--color-border)",
+                color: "var(--color-text)",
+              }}
+              placeholder={"每行一个 TXT 路径，也支持用分号分隔\nD:/books/a.txt\nD:/books/b.txt"}
+              value={bulkDraft}
+              onChange={(event) => {
+                setBulkDraft(event.target.value);
+                setBulkSummary(null);
+              }}
+              disabled={running}
+              aria-label="批量粘贴要合并的文件路径"
+            />
+            {bulkSummary && (
+              <p className="mt-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                可导入 {bulkSummary.accepted.length} 个，重复 {bulkSummary.duplicateCount} 个，
+                空项 {bulkSummary.emptyCount} 个
+              </p>
+            )}
+          </div>
         </div>
 
         <div

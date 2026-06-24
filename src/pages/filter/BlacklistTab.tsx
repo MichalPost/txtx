@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { formatDraftFeedback, isValidRegexPattern } from "@/pages/blacklist/blacklistEditorUtils";
 import { FilterSettingsCard } from "@/pages/blacklist/FilterSettingsCard";
 import { KeywordPanel } from "@/pages/blacklist/KeywordPanel";
 import { RegexPanel } from "@/pages/blacklist/RegexPanel";
@@ -11,7 +12,11 @@ import { TagPanel } from "@/pages/blacklist/TagPanel";
 import type { BlacklistConfig } from "@/types";
 
 import { BlacklistTestPanel } from "./BlacklistTestPanel";
-import { buildImportSummary, mergeUniqueStrings, serializeFilterDraft } from "./filterPageUtils";
+import {
+  buildBlacklistImportPlan,
+  mergeUniqueStrings,
+  serializeFilterDraft,
+} from "./filterPageUtils";
 import { WhitelistPanel } from "./WhitelistPanel";
 
 interface BlacklistTabProps {
@@ -38,6 +43,7 @@ export function BlacklistTab({
             `${currentBlacklist.keywords.length} 个关键词`,
             `${currentBlacklist.regex_patterns.length} 条正则`,
             `${currentBlacklist.whitelist?.length ?? 0} 个白名单`,
+            `${currentBlacklist.filtered_tags?.length ?? 0} 个标签`,
           ]
         : [],
     [currentBlacklist],
@@ -57,6 +63,7 @@ export function BlacklistTab({
       keywords: currentBlacklist.keywords,
       regex_patterns: currentBlacklist.regex_patterns,
       whitelist: currentBlacklist.whitelist ?? [],
+      filtered_tags: currentBlacklist.filtered_tags ?? [],
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json;charset=utf-8",
@@ -77,43 +84,47 @@ export function BlacklistTab({
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string) as Partial<BlacklistConfig>;
-        const keywords = Array.isArray(parsed.keywords)
-          ? parsed.keywords.map((item) => String(item).trim()).filter(Boolean)
-          : [];
-        const regex_patterns = Array.isArray(parsed.regex_patterns)
-          ? parsed.regex_patterns.map((item) => String(item).trim()).filter(Boolean)
-          : [];
-        const whitelist = Array.isArray(parsed.whitelist)
-          ? parsed.whitelist.map((item) => String(item).trim()).filter(Boolean)
-          : [];
+        const plan = buildBlacklistImportPlan(parsed, currentBlacklist, isValidRegexPattern);
         const merged = {
-          keywords: mergeUniqueStrings(currentBlacklist.keywords, keywords),
-          regex_patterns: mergeUniqueStrings(currentBlacklist.regex_patterns, regex_patterns),
-          whitelist: mergeUniqueStrings(currentBlacklist.whitelist ?? [], whitelist),
+          keywords: mergeUniqueStrings(currentBlacklist.keywords, plan.keywords.accepted),
+          regex_patterns: mergeUniqueStrings(
+            currentBlacklist.regex_patterns,
+            plan.regexPatterns.accepted,
+          ),
+          whitelist: mergeUniqueStrings(currentBlacklist.whitelist ?? [], plan.whitelist.accepted),
+          filtered_tags: mergeUniqueStrings(
+            currentBlacklist.filtered_tags ?? [],
+            plan.filteredTags.accepted,
+          ),
         };
         update(merged);
         const feedback = [
-          buildImportSummary(
-            merged.keywords.length - currentBlacklist.keywords.length,
-            keywords.length - (merged.keywords.length - currentBlacklist.keywords.length),
-            0,
-            "关键词",
+          formatDraftFeedback(
+            plan.keywords.accepted.length,
+            plan.keywords.duplicateCount,
+            plan.keywords.emptyCount,
           ),
-          buildImportSummary(
-            merged.regex_patterns.length - currentBlacklist.regex_patterns.length,
-            regex_patterns.length -
-              (merged.regex_patterns.length - currentBlacklist.regex_patterns.length),
-            0,
-            "正则",
+          formatDraftFeedback(
+            plan.regexPatterns.accepted.length,
+            plan.regexPatterns.duplicateCount,
+            plan.regexPatterns.emptyCount,
+            plan.regexPatterns.invalidCount,
           ),
-          buildImportSummary(
-            merged.whitelist.length - (currentBlacklist.whitelist?.length ?? 0),
-            whitelist.length -
-              (merged.whitelist.length - (currentBlacklist.whitelist?.length ?? 0)),
-            0,
-            "白名单",
+          formatDraftFeedback(
+            plan.whitelist.accepted.length,
+            plan.whitelist.duplicateCount,
+            plan.whitelist.emptyCount,
+          ),
+          formatDraftFeedback(
+            plan.filteredTags.accepted.length,
+            plan.filteredTags.duplicateCount,
+            plan.filteredTags.emptyCount,
           ),
         ]
+          .map((item, index) => {
+            if (!item) return null;
+            return `${["关键词", "正则", "白名单", "标签"][index]}：${item}`;
+          })
           .filter(Boolean)
           .join("；");
         toast.success(feedback || "导入完成");
@@ -162,14 +173,20 @@ export function BlacklistTab({
         <div>
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
             {currentBlacklist.keywords.length} 个关键词，{currentBlacklist.regex_patterns.length}{" "}
-            条正则，支持模糊搜索与正则补充过滤
+            条正则，{currentBlacklist.filtered_tags?.length ?? 0} 个标签，支持模糊搜索与正则补充过滤
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="blacklist-import-file" className="sr-only">
+            导入黑名单 JSON 文件
+          </label>
           <input
+            id="blacklist-import-file"
             ref={fileInputRef}
             type="file"
             accept=".json"
+            name="blacklist-import-file"
+            aria-label="导入黑名单 JSON 文件"
             className="hidden"
             onChange={handleImport}
           />
@@ -189,7 +206,8 @@ export function BlacklistTab({
             disabled={
               currentBlacklist.keywords.length === 0 &&
               currentBlacklist.regex_patterns.length === 0 &&
-              (currentBlacklist.whitelist?.length ?? 0) === 0
+              (currentBlacklist.whitelist?.length ?? 0) === 0 &&
+              (currentBlacklist.filtered_tags?.length ?? 0) === 0
             }
             className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
             style={{

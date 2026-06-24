@@ -34,6 +34,17 @@ export interface GroupedScanItems {
   allPendingSelected: boolean;
 }
 
+export interface ScanSelectionBatch {
+  urls: Iterable<string>;
+  selected: boolean;
+}
+
+export interface VisibleGroupedScanItems {
+  visibleItems: ScanItem[];
+  hiddenCount: number;
+  canExpand: boolean;
+}
+
 function getSiteLabel(site: string) {
   return site.replace(/^https?:\/\//, "");
 }
@@ -174,4 +185,39 @@ export function groupScanItemsBySite(items: ScanItem[], selectedUrls: Set<string
         group.pendingCount > 0 && group.selectedPendingCount === group.pendingCount,
     }))
     .sort((left, right) => right.items.length - left.items.length);
+}
+
+export function applyScanSelectionBatch(
+  selectedUrls: Set<string>,
+  { urls, selected }: ScanSelectionBatch,
+): Set<string> {
+  const next = new Set(selectedUrls);
+  for (const url of urls) {
+    if (selected) {
+      next.add(url);
+    } else {
+      next.delete(url);
+    }
+  }
+  return next;
+}
+
+export function getVisibleGroupedScanItems(
+  items: ScanItem[],
+  { expanded, limit }: { expanded: boolean; limit: number },
+): VisibleGroupedScanItems {
+  const normalizedLimit = Math.max(1, Math.floor(limit));
+  if (expanded || items.length <= normalizedLimit) {
+    return {
+      visibleItems: items,
+      hiddenCount: 0,
+      canExpand: false,
+    };
+  }
+
+  return {
+    visibleItems: items.slice(0, normalizedLimit),
+    hiddenCount: items.length - normalizedLimit,
+    canExpand: true,
+  };
 }

@@ -5,6 +5,7 @@ import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { parseBoundedIntegerInput } from "@/lib/numberInput";
 
 import type { WizardData } from "../ruleUtils";
 import { WizardSection } from "./WizardSection";
@@ -62,10 +63,16 @@ export function PaginationSection({
       {data.has_pagination && (
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor="page-url-mode"
+              className="text-xs"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               链接变化方式
             </label>
             <select
+              id="page-url-mode"
+              name="page-url-mode"
               className="rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
               style={{
                 background: "var(--color-surface-1)",
@@ -86,10 +93,16 @@ export function PaginationSection({
           </div>
 
           <div className="flex flex-col gap-1" style={{ width: 80 }}>
-            <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor="page-total"
+              className="text-xs"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               分页总数
             </label>
             <input
+              id="page-total"
+              name="page-total"
               type="number"
               min={1}
               max={999}
@@ -101,16 +114,21 @@ export function PaginationSection({
               }}
               value={data.page_total}
               onChange={(e) =>
-                onChange({ ...data, page_total: Math.max(1, Number(e.target.value)) })
+                onChange({
+                  ...data,
+                  page_total: parseBoundedIntegerInput(e.target.value, data.page_total, {
+                    min: 1,
+                    max: 999,
+                  }),
+                })
               }
             />
           </div>
 
           <div className="flex flex-1 flex-col gap-1" style={{ minWidth: 100 }}>
-            <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-              插入链接部分
-            </label>
             <Input
+              label="插入链接部分"
+              name="page-insert-part"
               placeholder="如：_2  ?page=2"
               value={data.page_insert_part}
               onChange={(e) => onChange({ ...data, page_insert_part: e.target.value })}

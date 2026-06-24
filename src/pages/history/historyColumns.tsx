@@ -9,6 +9,8 @@ const columnHelper = createColumnHelper<HistoryEntry>();
 interface ColumnOptions {
   isRunning: boolean;
   onRedownload: (url: string, name: string) => void;
+  isSelected?: (entry: HistoryEntry) => boolean;
+  onSelect?: (entry: HistoryEntry, checked: boolean) => void;
   sortBy: HistorySortField;
   sortOrder: HistorySortOrder;
   onSortChange: (field: HistorySortField) => void;
@@ -40,6 +42,8 @@ function buildSortableHeader(
 export function buildHistoryColumns({
   isRunning,
   onRedownload,
+  isSelected,
+  onSelect,
   sortBy,
   sortOrder,
   onSortChange,
@@ -47,6 +51,25 @@ export function buildHistoryColumns({
   const activeSort = { sortBy, sortOrder };
 
   return [
+    columnHelper.display({
+      id: "select",
+      header: "",
+      size: 36,
+      cell: ({ row }) => {
+        const entry = row.original;
+        if (entry.status !== "error" || !entry.url) return null;
+
+        return (
+          <input
+            type="checkbox"
+            checked={isSelected?.(entry) ?? false}
+            onChange={(event) => onSelect?.(entry, event.target.checked)}
+            disabled={isRunning}
+            aria-label={`选择重下 ${entry.name}`}
+          />
+        );
+      },
+    }),
     columnHelper.accessor("status", {
       header: () => buildSortableHeader("状态", "status", activeSort, onSortChange),
       size: 48,

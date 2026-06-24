@@ -1,11 +1,12 @@
 import { Pause, RotateCcw, Square, Trash2 } from "lucide-react";
 
 import type { TaskRecord } from "@/types";
+import { getTaskRetryAction } from "./detail/taskDetailUtils";
 
 interface Props {
   task: TaskRecord;
   isActive: boolean;
-  pendingAction?: "cancel" | "pause" | "delete" | "retry" | null;
+  pendingAction?: "cancel" | "pause" | "delete" | "retry" | "confirm" | null;
   onSelect: () => void;
   onCancel: () => void;
   onPause: () => void;
@@ -74,6 +75,7 @@ export function TaskListItem({
   const isScanning = task.status === "scanning";
   const isDone = task.status === "done" || task.status === "failed" || task.status === "cancelled";
   const isBusy = pendingAction !== null;
+  const retryAction = getTaskRetryAction(task);
 
   return (
     <div
@@ -175,14 +177,26 @@ export function TaskListItem({
             <Square className="h-3 w-3" style={{ color: "var(--color-danger)" }} />
           </button>
         )}
-        {isDone && (
+        {(isDone || task.status === "paused") && (
           <button
             type="button"
             onClick={onRetry}
-            disabled={isBusy}
+            disabled={isBusy || !retryAction.canRun}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title={pendingAction === "retry" ? "重试中..." : "重试"}
-            aria-label={pendingAction === "retry" ? "重试中" : "重试任务"}
+            title={
+              retryAction.canRun
+                ? pendingAction === "retry"
+                  ? retryAction.pendingLabel
+                  : retryAction.idleLabel
+                : retryAction.unavailableReason
+            }
+            aria-label={
+              retryAction.canRun
+                ? pendingAction === "retry"
+                  ? retryAction.pendingLabel
+                  : retryAction.idleLabel
+                : retryAction.unavailableReason
+            }
           >
             <RotateCcw className="h-3 w-3" style={{ color: "var(--color-accent)" }} />
           </button>
@@ -193,8 +207,20 @@ export function TaskListItem({
             onClick={onDelete}
             disabled={isBusy}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title={pendingAction === "delete" ? "删除中..." : "删除"}
-            aria-label={pendingAction === "delete" ? "删除中" : "删除任务"}
+            title={
+              pendingAction === "confirm"
+                ? "等待确认..."
+                : pendingAction === "delete"
+                  ? "删除中..."
+                  : "删除"
+            }
+            aria-label={
+              pendingAction === "confirm"
+                ? "等待确认"
+                : pendingAction === "delete"
+                  ? "删除中"
+                  : "删除任务"
+            }
           >
             <Trash2 className="h-3 w-3" style={{ color: "var(--color-text-muted)" }} />
           </button>

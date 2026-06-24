@@ -35,8 +35,14 @@ export function BlacklistTestPanel({ blacklist }: Props) {
             黑名单当前处于关闭状态，下面的结果会以“不会拦截”为主，适合先预演规则再决定是否启用。
           </div>
         )}
+        <label htmlFor="blacklist-test-title" className="sr-only">
+          测试书名
+        </label>
         <input
+          id="blacklist-test-title"
           className="w-full rounded-lg border px-3 py-2 text-xs focus:outline-none"
+          name="blacklist-test-title"
+          aria-label="测试书名"
           style={{
             background: "var(--color-surface-2)",
             borderColor: result

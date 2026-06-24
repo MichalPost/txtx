@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/Button";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import type { WebsiteConfig } from "@/types";
 
 import {
@@ -73,6 +74,7 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   }, [site]);
   const [data, setData] = useState<WizardData>(initialData);
   const [showXPathTool, setShowXPathTool] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const hasSavedRef = useRef(false);
   const xpathDialogRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
@@ -170,9 +172,14 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
     [data, initialData],
   );
 
-  const handleCloseAttempt = () => {
+  const handleCloseAttempt = async () => {
     if (!hasSavedRef.current && hasUnsavedChanges) {
-      const confirmed = confirm("当前向导还有未保存的数据，确定要退出吗？");
+      const confirmed = await confirm({
+        title: "退出规则向导？",
+        description: "当前向导还有未保存的数据，退出后这些修改不会写入规则配置。",
+        confirmLabel: "退出",
+        tone: "warning",
+      });
       if (!confirmed) return;
     }
     onClose();
@@ -458,6 +465,7 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
           </Button>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

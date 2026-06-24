@@ -22,10 +22,16 @@ export function FilterSettingsCard({ blacklist: bl, onUpdate }: FilterSettingsCa
         />
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+          <label
+            htmlFor="blacklist-filter-level"
+            className="text-xs font-medium"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             过滤级别
           </label>
           <select
+            id="blacklist-filter-level"
+            name="blacklist-filter-level"
             className="rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none"
             style={{
               background: "var(--color-surface)",

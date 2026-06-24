@@ -67,3 +67,31 @@ export function buildRuleImportPlan(
     replacedKeys,
   };
 }
+
+export function buildStarterRuleTemplate(): Record<string, WebsiteConfig> {
+  return {
+    example_site: {
+      enabled: true,
+      domain_name: "https://example.com",
+      release_date: "//time/text()",
+      release_url: "//a[contains(@href, '/book/')]/@href",
+      list_novel_name: "//a[contains(@href, '/book/')]/text()",
+      novel_name_x: "//h1/text()",
+      chapter_url_x: "//a[contains(@href, '/chapter/')]/@href",
+      novel_content: "//div[contains(@class, 'chapter-content')]//text()",
+      page_list: ["/updates", "/books"],
+      special_mode: "normal",
+      encoding: "",
+      novel_content_fallbacks: ["//article//text()", "//main//p/text()"],
+      book_intro_x: "//meta[@name='description']/@content",
+      site_ad_rules: {
+        enabled: true,
+        xpath_rules: ["//script", "//style", "//div[contains(@class, 'ad')]"],
+        regex_rules: ["本章未完.*$", "请收藏本站.*$"],
+        nav_keywords: ["上一章", "下一章", "返回目录"],
+        trim_head: 0,
+        trim_tail: 0,
+      },
+    },
+  };
+}

@@ -26,8 +26,12 @@ import type {
 } from "@/types";
 
 import { applyTaskEvent, makeLogEntry } from "./taskEventHandler";
-import { applyTaskPollFailure, applyTaskPollSuccess } from "./taskPollingState";
-import { buildDefaultPreviewDraft, mergeTaskSnapshots } from "./taskStoreUtils";
+import {
+  applyTaskPollFailure,
+  applyTaskPollSuccess,
+  getTaskPollScheduleDelayMs,
+} from "./taskPollingState";
+import { buildDefaultPreviewDraft, hasRunningTask, mergeTaskSnapshots } from "./taskStoreUtils";
 
 const MAX_LOGS = 500;
 
@@ -52,6 +56,9 @@ interface TaskStore {
   _needsRefresh: boolean;
   pollError: string | null;
   pollErrorVersion: number;
+  pollFailureCount: number;
+  nextPollDelayMs: number;
+  lastRecoveredAt: string | null;
 
   // Lifecycle
   init: () => Promise<void>;
@@ -86,6 +93,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   _needsRefresh: false,
   pollError: null,
   pollErrorVersion: 0,
+  pollFailureCount: 0,
+  nextPollDelayMs: 2000,
+  lastRecoveredAt: null,
 
   refreshTasks: async () => {
     try {
@@ -189,7 +199,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           const state = get();
           if (!state._needsRefresh) return;
           void state.refreshTasks().catch((error) => {
-            set((s) => ({ ...applyTaskPollFailure(s, error), _needsRefresh: true }));
+            void error;
+            set({ _needsRefresh: true });
           });
         }, 5000);
       } catch {
@@ -197,16 +208,30 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         const pollTasks = async () => {
           try {
             await get().refreshTasks();
-          } catch (error) {
-            set((s) => applyTaskPollFailure(s, error));
+          } catch {
+            // refreshTasks records the failure state; polling only reschedules.
           }
         };
 
-        // Start polling every 2 seconds
-        if (_pollIntervalId !== null) clearInterval(_pollIntervalId);
-        _pollIntervalId = setInterval(() => {
-          void pollTasks();
-        }, 2000);
+        const schedulePoll = () => {
+          const state = get();
+          const delayMs = getTaskPollScheduleDelayMs({
+            baseDelayMs: state.nextPollDelayMs,
+            hasRunningTask: hasRunningTask(state.tasks),
+            isDocumentVisible:
+              typeof document === "undefined" || document.visibilityState === "visible",
+            isTaskRoute:
+              typeof window !== "undefined" && window.location.hash.startsWith("#/tasks"),
+          });
+          _pollIntervalId = setTimeout(() => {
+            void pollTasks().finally(() => {
+              schedulePoll();
+            });
+          }, delayMs);
+        };
+
+        if (_pollIntervalId !== null) clearTimeout(_pollIntervalId);
+        schedulePoll();
       }
     })().catch((err) => {
       // Reset promise on failure so init() can be retried

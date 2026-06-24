@@ -1,4 +1,4 @@
-import { buildXPathFromRule, type WizardData } from "./ruleUtils";
+import { buildXPathFromRule, type WizardData } from "./ruleUtils.ts";
 
 export type WizardStepId = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 

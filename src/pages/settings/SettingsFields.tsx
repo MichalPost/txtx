@@ -22,17 +22,23 @@ interface FormTextareaProps {
 }
 
 export function FormTextarea({ rows, label, field }: FormTextareaProps) {
+  const fieldId = String(field);
   const {
     register,
     formState: { errors },
   } = useFormContext<SettingsForm>();
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+      <label
+        htmlFor={fieldId}
+        className="text-xs font-medium"
+        style={{ color: "var(--color-text-muted)" }}
+      >
         {label}
       </label>
       <textarea
         {...register(field as never)}
+        id={fieldId}
         rows={rows}
         className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs focus:outline-none"
         style={{

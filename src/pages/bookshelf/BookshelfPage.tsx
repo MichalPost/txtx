@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { filesize } from "filesize";
@@ -38,9 +38,13 @@ import { useConfigStore } from "@/store/configStore";
 import type { BookFile } from "@/types";
 
 import {
+  buildBookshelfSelectionSummary,
   buildBookshelfSummary,
   filterAndSortBooks,
   getAvailableExtensions,
+  reconcileBookshelfSelection,
+  setVisibleBookshelfSelection,
+  toggleBookshelfPathSelection,
   type BookshelfSortDir,
   type BookshelfSortKey,
 } from "./bookshelfListUtils";
@@ -58,6 +62,16 @@ function formatDate(iso: string): string {
   }
 }
 
+const EMPTY_BOOKS: BookFile[] = [];
+
+function arePathSetsEqual(a: ReadonlySet<string>, b: ReadonlySet<string>) {
+  if (a.size !== b.size) return false;
+  for (const path of a) {
+    if (!b.has(path)) return false;
+  }
+  return true;
+}
+
 export function BookshelfPage() {
   const { config, loading: configLoading, error: configError, loadConfig } = useConfigStore();
   const qc = useQueryClient();
@@ -70,6 +84,9 @@ export function BookshelfPage() {
   const [openingBook, setOpeningBook] = useState<string | null>(null);
   const [openingParent, setOpeningParent] = useState<string | null>(null);
   const [openingShelfDir, setOpeningShelfDir] = useState(false);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [qualityReport, setQualityReport] = useState<{ book: BookFile; content: string } | null>(
     null,
   );
@@ -80,7 +97,7 @@ export function BookshelfPage() {
   const baseDir = config?.paths.base_dir ?? "";
 
   const {
-    data: books = [],
+    data: books = EMPTY_BOOKS,
     isLoading,
     error,
     refetch,
@@ -92,10 +109,15 @@ export function BookshelfPage() {
 
   const deleteMutation = useMutation({
     mutationFn: apiDeleteBook,
-    onSuccess: () => {
+    onSuccess: (_result, path) => {
       qc.invalidateQueries({ queryKey: ["books"] });
       toast.success("已删除");
       setConfirmDelete(null);
+      setSelectedPaths((current) => {
+        const next = new Set(current);
+        next.delete(path);
+        return next;
+      });
     },
     onError: (error) => toast.error(formatToolActionError("删除书籍", error)),
   });
@@ -112,6 +134,14 @@ export function BookshelfPage() {
     [books, extensionFilter, search, sortDir, sortKey],
   );
   const summary = useMemo(() => buildBookshelfSummary(books, filtered), [books, filtered]);
+  const selectionSummary = useMemo(
+    () => buildBookshelfSelectionSummary(selectedPaths, filtered),
+    [filtered, selectedPaths],
+  );
+  const selectedVisiblePaths = useMemo(
+    () => filtered.filter((book) => selectedPaths.has(book.path)).map((book) => book.path),
+    [filtered, selectedPaths],
+  );
   const hasFilters = search.trim().length > 0 || extensionFilter !== "all";
   const hasBaseDir = baseDir.trim().length > 0;
 
@@ -138,6 +168,23 @@ export function BookshelfPage() {
     } else {
       toast.success("书架已刷新");
     }
+  };
+
+  const toggleBookSelection = (path: string) => {
+    setConfirmBulkDelete(false);
+    setSelectedPaths((current) => toggleBookshelfPathSelection(current, path));
+  };
+
+  const toggleVisibleSelection = () => {
+    setConfirmBulkDelete(false);
+    setSelectedPaths(
+      setVisibleBookshelfSelection(filtered, !selectionSummary.allVisibleSelected),
+    );
+  };
+
+  const clearSelection = () => {
+    setConfirmBulkDelete(false);
+    setSelectedPaths(new Set());
   };
 
   const handleOpenBook = async (path: string) => {
@@ -176,6 +223,31 @@ export function BookshelfPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (bulkDeleting || selectedVisiblePaths.length === 0) return;
+    setBulkDeleting(true);
+    const failedPaths: string[] = [];
+    try {
+      for (const path of selectedVisiblePaths) {
+        try {
+          await apiDeleteBook(path);
+        } catch {
+          failedPaths.push(path);
+        }
+      }
+      await qc.invalidateQueries({ queryKey: ["books"] });
+      setConfirmBulkDelete(false);
+      setSelectedPaths(new Set(failedPaths));
+      if (failedPaths.length > 0) {
+        toast.error(`已删除 ${selectedVisiblePaths.length - failedPaths.length} 本，${failedPaths.length} 本失败`);
+      } else {
+        toast.success(`已删除 ${selectedVisiblePaths.length} 本书`);
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleCheckQuality = async (book: BookFile) => {
     if (checkingQuality === book.path) {
       setQualityReport(null);
@@ -209,6 +281,13 @@ export function BookshelfPage() {
       qualityReport ? buildChapterQualitySummary(qualityReport.content) : null,
     [qualityReport],
   );
+
+  useEffect(() => {
+    setSelectedPaths((current) => {
+      const next = reconcileBookshelfSelection(current, filtered);
+      return arePathSetsEqual(current, next) ? current : next;
+    });
+  }, [filtered]);
 
   const handleExportQuality = async () => {
     if (!qualityReport || !qualitySummary || exportingQuality) return;
@@ -443,6 +522,84 @@ export function BookshelfPage() {
         </div>
       </div>
 
+      {!isLoading && !error && filtered.length > 0 && (
+        <div
+          className="flex shrink-0 flex-col gap-3 rounded-2xl border px-3 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: selectionSummary.selectedCount > 0
+              ? "color-mix(in srgb, var(--color-accent) 32%, var(--color-border))"
+              : "var(--color-border)",
+          }}
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 font-medium">
+              <input
+                type="checkbox"
+                checked={selectionSummary.allVisibleSelected}
+                ref={(input) => {
+                  if (input) input.indeterminate = selectionSummary.partiallyVisibleSelected;
+                }}
+                onChange={toggleVisibleSelection}
+                aria-label={
+                  selectionSummary.allVisibleSelected ? "取消选择当前筛选结果" : "选择当前筛选结果"
+                }
+              />
+              <span style={{ color: "var(--color-text)" }}>
+                当前结果 {selectionSummary.visibleCount} 本
+              </span>
+            </label>
+            {selectionSummary.selectedCount > 0 && (
+              <span style={{ color: "var(--color-text-muted)" }}>
+                已选择 {selectionSummary.selectedCount} 本，约{" "}
+                {filesize(selectionSummary.selectedBytes, { locale: false, standard: "iec" })}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectionSummary.selectedCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearSelection} disabled={bulkDeleting}>
+                取消选择
+              </Button>
+            )}
+            {confirmBulkDelete ? (
+              <>
+                <span style={{ color: "var(--color-danger)" }}>
+                  确认删除所选 {selectionSummary.selectedCount} 本？
+                </span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => void handleBulkDelete()}
+                  disabled={bulkDeleting || selectionSummary.selectedCount === 0}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {bulkDeleting ? "删除中..." : "确认删除"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setConfirmBulkDelete(false)}
+                  disabled={bulkDeleting}
+                >
+                  取消
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={selectionSummary.selectedCount === 0 || bulkDeleting}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                批量删除
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div
           className="flex shrink-0 flex-col gap-3 rounded-2xl border px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between"
@@ -605,10 +762,25 @@ export function BookshelfPage() {
                     className="flex flex-col gap-3 rounded-xl border px-4 py-3 transition-all sm:flex-row sm:items-center"
                     style={{
                       background: "var(--color-surface)",
-                      borderColor: "var(--color-border)",
+                      borderColor: selectedPaths.has(book.path)
+                        ? "color-mix(in srgb, var(--color-accent) 38%, var(--color-border))"
+                        : "var(--color-border)",
                     }}
                   >
                     <div className="flex min-w-0 items-start gap-3">
+                      <label className="mt-1 inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5"
+                          checked={selectedPaths.has(book.path)}
+                          onChange={() => toggleBookSelection(book.path)}
+                          aria-label={
+                            selectedPaths.has(book.path)
+                              ? `取消选择 ${book.name}`
+                              : `选择 ${book.name}`
+                          }
+                        />
+                      </label>
                       <div
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
                         style={{

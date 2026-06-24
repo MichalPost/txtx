@@ -8,11 +8,13 @@ export function useScanPreviewActions({
   scanItems,
   selectedUrls,
   toggleSelect,
+  selectUrls,
   onSiteFilterClose,
 }: {
   scanItems: ScanItem[];
   selectedUrls: Set<string>;
   toggleSelect: (url: string) => void;
+  selectUrls: (urls: Iterable<string>, value: boolean) => void;
   onSiteFilterClose: () => void;
 }) {
   const summary = useMemo(
@@ -26,23 +28,17 @@ export function useScanPreviewActions({
 
   const selectBySite = useCallback((site: string) => {
     const pendingUrls = summary.sites.find((entry) => entry.site === site)?.pendingUrls ?? [];
-    pendingUrls.forEach((u) => {
-      if (!selectedUrls.has(u)) toggleSelect(u);
-    });
+    selectUrls(pendingUrls, true);
     onSiteFilterClose();
-  }, [onSiteFilterClose, selectedUrls, summary.sites, toggleSelect]);
+  }, [onSiteFilterClose, selectUrls, summary.sites]);
 
   const forceAddAllBlacklisted = useCallback(() => {
-    summary.blacklistedUrls.forEach((url) => {
-      if (!selectedUrls.has(url)) toggleSelect(url);
-    });
-  }, [selectedUrls, summary.blacklistedUrls, toggleSelect]);
+    selectUrls(summary.blacklistedUrls, true);
+  }, [selectUrls, summary.blacklistedUrls]);
 
   const forceAddAllLocal = useCallback(() => {
-    summary.localUrls.forEach((url) => {
-      if (!selectedUrls.has(url)) toggleSelect(url);
-    });
-  }, [selectedUrls, summary.localUrls, toggleSelect]);
+    selectUrls(summary.localUrls, true);
+  }, [selectUrls, summary.localUrls]);
 
   return {
     pendingCount: summary.pendingCount,

@@ -21,6 +21,7 @@ export function ScanPreview() {
     selectedUrls,
     scanStats,
     toggleSelect,
+    selectUrls,
     selectAll,
     startSelectedDownload,
     reset,
@@ -53,6 +54,7 @@ export function ScanPreview() {
     scanItems,
     selectedUrls,
     toggleSelect,
+    selectUrls,
     onSiteFilterClose: () => setShowSiteFilter(false),
   });
 
@@ -162,6 +164,7 @@ export function ScanPreview() {
             items={filtered}
             selectedUrls={selectedUrls}
             onToggle={toggleSelect}
+            onSelectUrls={selectUrls}
             onForceAdd={forceAdd}
           />
         ) : (

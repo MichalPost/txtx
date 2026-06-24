@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { TestTube2 } from "lucide-react";
 
 import { Input } from "@/components/Input";
@@ -56,10 +57,9 @@ export function ListRulesBookNameConfig({
           onChange={(value) => onChange({ ...data, book_name_attr: value })}
         />
         <div className="flex flex-1 flex-col gap-1" style={{ minWidth: 80 }}>
-          <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            值
-          </label>
           <Input
+            label="值"
+            name="list-book-name-attr-value"
             placeholder="如：bookname  book-title"
             value={data.book_name_val}
             onChange={(e) => onChange({ ...data, book_name_val: e.target.value })}
@@ -112,12 +112,15 @@ function SelectField({
   emptyLabel?: string;
   onChange: (value: string) => void;
 }) {
+  const selectId = useId();
   return (
     <div className="flex flex-col gap-1" style={{ flex: "1 1 80px", minWidth: 70 }}>
-      <label className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+      <label htmlFor={selectId} className="text-xs" style={{ color: "var(--color-text-muted)" }}>
         {label}
       </label>
       <select
+        id={selectId}
+        name={`list-book-name-${label}`}
         className="rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
         style={{
           background: "var(--color-surface-1)",

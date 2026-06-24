@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -45,19 +45,23 @@ function getVariantStyle(variant: ButtonProps["variant"]): CSSProperties {
   }
 }
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  className = "",
-  children,
-  disabled,
-  style,
-  onMouseEnter,
-  onMouseLeave,
-  ...props
-}: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  {
+    variant = "primary",
+    size = "md",
+    className = "",
+    children,
+    disabled,
+    style,
+    onMouseEnter,
+    onMouseLeave,
+    ...props
+  },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type="button"
       {...props}
       disabled={disabled}
@@ -100,4 +104,4 @@ export function Button({
       {children}
     </button>
   );
-}
+});

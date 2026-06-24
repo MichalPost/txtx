@@ -1,14 +1,16 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { BarChart2, Filter, RefreshCw, Search, TableIcon, Trash2 } from "lucide-react";
+import { BarChart2, Download, Filter, RefreshCw, RotateCcw, Search, TableIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { Input } from "@/components/Input";
 import { PageHeader } from "@/components/PageHeader";
 import { apiClearHistory, apiQueryHistory, type HistoryQuery } from "@/lib/api";
+import { apiSaveTextFile } from "@/lib/api/files";
 import { usePersistedState } from "@/lib/persist";
 import { formatTaskRetryError } from "@/lib/taskRetryError";
 import { formatToolActionError } from "@/lib/toolActionError";
@@ -17,8 +19,18 @@ import { useTaskStore } from "@/store/taskStore";
 import { hasRunningTask } from "@/store/taskStoreUtils";
 
 import { buildHistoryColumns } from "./historyColumns";
+import { buildHistoryCsv, buildHistoryExportFilename } from "./historyExportUtils";
 import { buildHistoryEmptyStateSummary } from "./historyFilterUtils";
 import { HistoryPagination } from "./HistoryPagination";
+import { clampHistoryPageForTotal, normalizeHistoryPageState } from "./historyPaginationUtils";
+import {
+  buildHistorySelectionSummary,
+  getHistoryEntryKey,
+  getRetryableHistoryKeys,
+  reconcileHistorySelection,
+  setHistorySelectionForKeys,
+  toggleHistorySelection,
+} from "./historySelectionUtils";
 import { buildHistorySiteOptions, getNextHistorySort } from "./historySortingUtils";
 import { useHistorySiteOptions } from "./useHistoryStats";
 const HistoryStatsPanel = lazy(async () => {
@@ -45,21 +57,29 @@ export function HistoryPage() {
   const [sortOrder, setSortOrder] = usePersistedState<"asc" | "desc">("history-sort-order", "desc");
   const [activeSearch, setActiveSearch] = useState("");
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [selectedHistoryKeys, setSelectedHistoryKeys] = useState<Set<string>>(() => new Set());
+  const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [bulkRetryConfirming, setBulkRetryConfirming] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const deferredSearch = useDeferredValue(search);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { siteOptions: siteOptionsFromQuery } = useHistorySiteOptions();
+  const normalizedPageState = useMemo(
+    () => normalizeHistoryPageState({ page, pageSize }),
+    [page, pageSize],
+  );
 
   const historyQuery = useMemo<HistoryQuery>(
     () => ({
-      page,
-      page_size: pageSize,
+      page: normalizedPageState.page,
+      page_size: normalizedPageState.pageSize,
       search: activeSearch || undefined,
       status: statusFilter || undefined,
       site: siteFilter || undefined,
       sort_by: sortBy,
       sort_order: sortOrder,
     }),
-    [page, pageSize, activeSearch, siteFilter, sortBy, sortOrder, statusFilter],
+    [normalizedPageState, activeSearch, siteFilter, sortBy, sortOrder, statusFilter],
   );
 
   useEffect(() => {
@@ -84,16 +104,21 @@ export function HistoryPage() {
 
   useEffect(() => {
     const total = data?.total ?? 0;
-    const totalPages = Math.ceil(total / pageSize);
-    if (!data || page >= totalPages) return;
+    const totalPages = Math.ceil(total / normalizedPageState.pageSize);
+    if (!data || normalizedPageState.page >= totalPages) return;
 
-    const nextQuery: HistoryQuery = { ...historyQuery, page: page + 1 };
+    const nextQuery: HistoryQuery = { ...historyQuery, page: normalizedPageState.page + 1 };
     void qc.prefetchQuery({
       queryKey: ["history", nextQuery],
       queryFn: () => apiQueryHistory(nextQuery),
       staleTime: 10_000,
     });
-  }, [data, historyQuery, page, pageSize, qc]);
+  }, [data, historyQuery, normalizedPageState, qc]);
+
+  useEffect(() => {
+    if (page !== normalizedPageState.page) setPage(normalizedPageState.page);
+    if (pageSize !== normalizedPageState.pageSize) setPageSize(normalizedPageState.pageSize);
+  }, [normalizedPageState, page, pageSize, setPageSize]);
 
   const clearMutation = useMutation({
     mutationFn: apiClearHistory,
@@ -127,6 +152,16 @@ export function HistoryPage() {
     }
   };
 
+  const handleExportCurrentPage = async () => {
+    if (entries.length === 0) return;
+    try {
+      await apiSaveTextFile(buildHistoryExportFilename(), buildHistoryCsv(entries));
+      toast.success(`已导出当前页 ${entries.length} 条历史记录`);
+    } catch (error) {
+      toast.error(formatToolActionError("导出历史", error));
+    }
+  };
+
   const handleRedownload = useCallback(
     async (url: string, name: string) => {
       if (isRunning) {
@@ -146,13 +181,29 @@ export function HistoryPage() {
   );
 
   const entries = useMemo(() => data?.entries ?? [], [data?.entries]);
+  useEffect(() => {
+    setSelectedHistoryKeys((current) => reconcileHistorySelection(current, entries));
+  }, [entries]);
   const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / normalizedPageState.pageSize));
+  const currentPage = clampHistoryPageForTotal({
+    page: normalizedPageState.page,
+    pageSize: normalizedPageState.pageSize,
+    total,
+  });
+  useEffect(() => {
+    if (currentPage !== page) setPage(currentPage);
+  }, [currentPage, page]);
   const siteOptions = useMemo(
     () => buildHistorySiteOptions(entries, siteOptionsFromQuery, siteFilter),
     [entries, siteFilter, siteOptionsFromQuery],
   );
   const hasActiveFilters = Boolean(activeSearch || siteFilter || statusFilter);
+  const selectionSummary = useMemo(
+    () => buildHistorySelectionSummary(selectedHistoryKeys, entries),
+    [entries, selectedHistoryKeys],
+  );
+  const retryableKeys = useMemo(() => getRetryableHistoryKeys(entries), [entries]);
   const handleSortChange = useCallback(
     (field: "downloaded_at" | "name" | "site" | "status") => {
       const nextSort = getNextHistorySort({ sortBy, sortOrder }, field);
@@ -168,12 +219,55 @@ export function HistoryPage() {
       buildHistoryColumns({
         isRunning,
         onRedownload: handleRedownload,
+        isSelected: (entry) => selectedHistoryKeys.has(getHistoryEntryKey(entry)),
+        onSelect: (entry, checked) => {
+          setSelectedHistoryKeys((current) =>
+            toggleHistorySelection(current, getHistoryEntryKey(entry), checked),
+          );
+        },
         sortBy,
         sortOrder,
         onSortChange: handleSortChange,
       }),
-    [handleRedownload, handleSortChange, isRunning, sortBy, sortOrder],
+    [handleRedownload, handleSortChange, isRunning, selectedHistoryKeys, sortBy, sortOrder],
   );
+
+  const handleBulkRetrySelected = async () => {
+    if (isRunning || bulkRetrying || bulkRetryConfirming || selectionSummary.selectedEntries.length === 0) {
+      return;
+    }
+    const selectedEntries = [...selectionSummary.selectedEntries];
+    setBulkRetryConfirming(true);
+    const confirmed = await confirm({
+      title: `重下 ${selectedEntries.length} 条失败记录？`,
+      description: "系统会为所选失败记录逐条创建新的下载任务。当前已有运行中任务时不会执行。",
+      confirmLabel: "创建重下任务",
+      tone: "warning",
+    }).catch(() => false);
+    setBulkRetryConfirming(false);
+    if (!confirmed) return;
+
+    setBulkRetrying(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedEntries.map((entry) => createSingleTask(entry.url)),
+      );
+      const successCount = results.filter((result) => result.status === "fulfilled").length;
+      const failedCount = results.length - successCount;
+      if (successCount > 0) {
+        toast.success(`已创建 ${successCount} 个重下任务`);
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} 条记录创建失败，请稍后重试`);
+      }
+      if (successCount > 0) {
+        setSelectedHistoryKeys(new Set());
+        navigate("/tasks");
+      }
+    } finally {
+      setBulkRetrying(false);
+    }
+  };
 
   const table = useReactTable({
     data: entries,
@@ -211,6 +305,36 @@ export function HistoryPage() {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
               {isFetching ? "刷新中..." : "刷新"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleExportCurrentPage()}
+              disabled={entries.length === 0}
+              title="导出当前页历史记录为 CSV"
+            >
+              <Download className="h-3.5 w-3.5" /> 导出当前页
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleBulkRetrySelected()}
+              disabled={
+                isRunning ||
+                bulkRetrying ||
+                bulkRetryConfirming ||
+                selectionSummary.selectedRetryableCount === 0
+              }
+              title={
+                isRunning
+                  ? "当前有任务正在运行"
+                  : selectionSummary.selectedRetryableCount > 0
+                    ? `重下所选 ${selectionSummary.selectedRetryableCount} 条失败记录`
+                    : "请先选择失败记录"
+              }
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {bulkRetrying ? "创建中..." : bulkRetryConfirming ? "确认中..." : "重下所选"}
             </Button>
             {confirmingClear ? (
               <div
@@ -301,17 +425,22 @@ export function HistoryPage() {
         </div>
         <div className="flex min-w-48 flex-1 gap-2">
           <Input
+            id="history-search"
+            name="history-search"
             className="h-8 flex-1 text-xs"
             placeholder="搜索书名或站点..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            aria-label="搜索下载历史"
           />
           <Button size="sm" variant="secondary" onClick={handleSearch}>
             <Search className="h-3.5 w-3.5" />
           </Button>
         </div>
         <select
+          id="history-site-filter"
+          name="history-site-filter"
           value={siteFilter}
           onChange={(e) => {
             setSiteFilter(e.target.value);
@@ -376,6 +505,30 @@ export function HistoryPage() {
             ? "正在同步最新历史记录..."
             : "搜索支持书名、站点和链接关键词"}
         </span>
+        {selectionSummary.retryableCount > 0 && (
+          <button
+            type="button"
+            className="rounded-lg border px-2 py-1 text-xs transition-colors"
+            style={{
+              borderColor: "var(--color-border)",
+              background: selectionSummary.allRetryableSelected
+                ? "var(--color-accent-muted)"
+                : "var(--color-surface-2)",
+              color: selectionSummary.allRetryableSelected
+                ? "var(--color-accent)"
+                : "var(--color-text-muted)",
+            }}
+            onClick={() =>
+              setSelectedHistoryKeys(
+                setHistorySelectionForKeys(retryableKeys, !selectionSummary.allRetryableSelected),
+              )
+            }
+          >
+            {selectionSummary.allRetryableSelected
+              ? "取消选择失败记录"
+              : `选择本页 ${selectionSummary.retryableCount} 条失败记录`}
+          </button>
+        )}
       </div>
 
       {error && (
@@ -495,10 +648,10 @@ export function HistoryPage() {
         </div>
 
         <HistoryPagination
-          page={page}
+          page={currentPage}
           totalPages={totalPages}
           total={total}
-          pageSize={pageSize}
+          pageSize={normalizedPageState.pageSize}
           onPageChange={setPage}
           onPageSizeChange={(nextPageSize) => {
             setPageSize(nextPageSize);
@@ -506,6 +659,7 @@ export function HistoryPage() {
           }}
         />
       </Card>
+      {confirmDialog}
     </div>
   );
 }

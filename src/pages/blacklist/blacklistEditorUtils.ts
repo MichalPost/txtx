@@ -62,6 +62,12 @@ export function buildDraftListFeedback(
   };
 }
 
+export function filterDraftValuesByQuery(values: string[], query: string): string[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return values;
+  return values.filter((value) => value.toLowerCase().includes(normalizedQuery));
+}
+
 export function isValidRegexPattern(pattern: string): boolean {
   try {
     new RegExp(pattern);

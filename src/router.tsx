@@ -115,9 +115,3 @@ const routeConfig = [
 ];
 
 export const router = createHashRouter(routeConfig);
-
-if (import.meta.env.DEV) {
-  router.subscribe((state) => {
-    console.log("[router]", state.location.pathname, state.navigation.state);
-  });
-}

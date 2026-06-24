@@ -27,6 +27,7 @@ import {
   pauseDownloadAndUpdateState,
   stopDownloadAndUpdateState,
 } from "./downloadControlLogic";
+import { applyScanSelectionBatch } from "@/components/download/scan-preview/scanPreviewUtils";
 import { initialSpeed, type SpeedState } from "./speedTracker";
 
 export interface NovelProgress {
@@ -82,6 +83,7 @@ interface DownloadState {
   startScan: () => void;
   startSelectedDownload: () => void;
   toggleSelect: (url: string) => void;
+  selectUrls: (urls: Iterable<string>, value: boolean) => void;
   selectAll: (value: boolean) => void;
   startDownload: () => void;
   startSingleDownload: (url: string) => void;
@@ -144,6 +146,15 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       else next.add(url);
       return { selectedUrls: next };
     });
+  },
+
+  selectUrls: (urls, value) => {
+    set((state) => ({
+      selectedUrls: applyScanSelectionBatch(state.selectedUrls, {
+        urls,
+        selected: value,
+      }),
+    }));
   },
 
   selectAll: (value) => {

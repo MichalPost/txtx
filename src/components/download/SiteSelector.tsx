@@ -99,10 +99,13 @@ export function SiteSelector({ allSites, selected, onChange, healthMap }: SiteSe
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 <input
+                  id={`site-selector-${domain}`}
+                  name="site-selector-sites"
                   type="checkbox"
                   checked={isChecked}
                   onChange={() => toggle(domain)}
                   style={{ accentColor: "var(--color-accent)" }}
+                  aria-label={`选择站点：${label}`}
                 />
                 <span className="flex-1 truncate text-xs" style={{ color: "var(--color-text)" }}>
                   {label}

@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { Textarea } from "@/components/Input";
 import { formatToolActionError } from "@/lib/toolActionError";
-import { summarizeImportedUrls } from "./importUrlPanelUtils";
+import { summarizeImportedUrls, type ImportUrlSummary } from "./importUrlPanelUtils";
 
 interface ImportUrlPanelProps {
-  onImport: (urls: string[]) => void | Promise<void>;
+  onImport: (urls: string[], summary: ImportUrlSummary) => void | Promise<void>;
   onClose: () => void;
   taskMode?: boolean;
 }
@@ -50,13 +50,19 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
     if (urls.length === 0) return;
     setSubmitting(true);
     try {
-      await onImport(urls);
+      await onImport(urls, summary);
       onClose();
     } catch (error) {
       toast.error(formatToolActionError(importLabel, error));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const cleanInput = () => {
+    if (!summary.normalizedText) return;
+    setText(summary.normalizedText);
+    toast.success(`已清洗为 ${summary.validCount} 条唯一链接`);
   };
 
   return (
@@ -105,6 +111,8 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
         onDrop={handleDrop}
       >
         <Textarea
+          id="import-url-list"
+          name="import-url-list"
           rows={7}
           placeholder={[
             "每行一个小说 URL，例如：",
@@ -118,6 +126,7 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           className="rounded-lg border-0 focus:ring-0"
           style={{ background: "transparent" }}
           disabled={submitting}
+          aria-label="批量导入 URL 列表"
         />
         {dragOver && (
           <div
@@ -145,13 +154,32 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           <FileUp className="h-3.5 w-3.5" />
           选择文件（.txt / .csv）
         </button>
+        <button
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+          style={{
+            background: "var(--color-surface-1)",
+            borderColor: "var(--color-border)",
+            color: "var(--color-text-muted)",
+          }}
+          onClick={cleanInput}
+          disabled={submitting || urls.length === 0 || text.trim() === summary.normalizedText}
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          清洗输入
+        </button>
+        <label htmlFor="import-url-file" className="sr-only">
+          选择 URL 导入文件
+        </label>
         <input
+          id="import-url-file"
+          name="import-url-file"
           ref={fileInputRef}
           type="file"
           accept=".txt,.csv"
           className="hidden"
           onChange={handleFileInput}
           disabled={submitting}
+          aria-label="选择 URL 导入文件"
         />
 
         {text.trim() && (
@@ -193,6 +221,22 @@ export function ImportUrlPanel({ onImport, onClose, taskMode = false }: ImportUr
           </div>
         )}
       </div>
+
+      {summary.invalidSamples.length > 0 ? (
+        <div
+          className="rounded-lg border px-3 py-2 text-xs leading-5"
+          style={{
+            borderColor: "color-mix(in srgb, var(--color-warning) 24%, transparent)",
+            background: "var(--color-warning-bg)",
+            color: "var(--color-warning)",
+          }}
+        >
+          已忽略无效内容：{summary.invalidSamples.join("、")}
+          {summary.invalidCount > summary.invalidSamples.length
+            ? ` 等 ${summary.invalidCount} 条`
+            : ""}
+        </div>
+      ) : null}
 
       {urls.length > 0 && (
         <div

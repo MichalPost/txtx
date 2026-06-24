@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/Button";
-import { CommandPalette } from "@/components/CommandPalette";
 import { SetupWizard } from "@/components/onboarding/SetupWizard";
 import { Sidebar } from "@/components/Sidebar";
 import { apiCheckFirstRun } from "@/lib/api";
@@ -27,11 +26,18 @@ const pageTransition = {
   ease: [0.4, 0, 0.2, 1] as const, // material ease-in-out
 };
 
+const CommandPalette = lazy(() =>
+  import("@/components/CommandPalette").then((module) => ({
+    default: module.CommandPalette,
+  })),
+);
+
 export function RootLayout() {
   const location = useLocation();
   const { error, loadConfig } = useConfigStore();
   const { loaded: aiLoaded, load: loadAi } = useAiStore();
   const [firstRun, setFirstRun] = useState<boolean | null>(null); // null = checking
+  const [commandOpen, setCommandOpen] = useState(false);
 
   // 检测首次运行
   useEffect(() => {
@@ -52,6 +58,27 @@ export function RootLayout() {
     if (!aiLoaded) loadAi();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openCommandPalette = useCallback(() => {
+    setCommandOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((isOpen) => !isOpen);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("txtx:open-command-palette", openCommandPalette);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("txtx:open-command-palette", openCommandPalette);
+    };
+  }, [openCommandPalette]);
 
   // 向导完成后加载配置
   const handleSetupComplete = () => {
@@ -169,7 +196,11 @@ export function RootLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <CommandPalette />
+      {commandOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+        </Suspense>
+      )}
     </div>
   );
 }

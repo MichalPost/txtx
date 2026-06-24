@@ -28,8 +28,184 @@ export interface ContentFilterPreviewResult {
   safetyRollback: boolean;
 }
 
+export interface ParsedLineDraft {
+  accepted: string[];
+  duplicateCount: number;
+  emptyCount: number;
+}
+
+export interface ParsedRegexLineDraft extends ParsedLineDraft {
+  invalidCount: number;
+}
+
+export interface FilterImportListPlan {
+  accepted: string[];
+  duplicateCount: number;
+  emptyCount: number;
+  invalidCount: number;
+}
+
+export interface BlacklistImportPlan {
+  keywords: FilterImportListPlan;
+  regexPatterns: FilterImportListPlan;
+  whitelist: FilterImportListPlan;
+  filteredTags: FilterImportListPlan;
+}
+
+export interface ContentFilterImportPlan {
+  adPatterns: FilterImportListPlan;
+  navKeywords: FilterImportListPlan;
+}
+
 export function mergeUniqueStrings(current: string[], incoming: string[]): string[] {
   return [...new Set([...current, ...incoming])];
+}
+
+export function parseUniqueLineDraft(
+  text: string,
+  existing: string[] = [],
+  splitter: RegExp = /[\r\n,，]+/,
+): ParsedLineDraft {
+  const accepted: string[] = [];
+  const seen = new Set(existing);
+  let duplicateCount = 0;
+  let emptyCount = 0;
+
+  text.split(splitter).forEach((raw) => {
+    const value = raw.trim();
+    if (!value) {
+      emptyCount += 1;
+      return;
+    }
+    if (seen.has(value)) {
+      duplicateCount += 1;
+      return;
+    }
+    seen.add(value);
+    accepted.push(value);
+  });
+
+  return { accepted, duplicateCount, emptyCount };
+}
+
+export function filterStringListByQuery(items: string[], query: string): string[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return items;
+  return items.filter((item) => item.toLowerCase().includes(normalizedQuery));
+}
+
+export function parseRegexLineDraft(
+  text: string,
+  existing: string[] = [],
+  isValidRegex: (pattern: string) => boolean,
+): ParsedRegexLineDraft {
+  const accepted: string[] = [];
+  const seen = new Set(existing);
+  let duplicateCount = 0;
+  let emptyCount = 0;
+  let invalidCount = 0;
+
+  text.split(/[\r\n]+/).forEach((raw) => {
+    const value = raw.trim();
+    if (!value) {
+      emptyCount += 1;
+      return;
+    }
+    if (!isValidRegex(value)) {
+      invalidCount += 1;
+      return;
+    }
+    if (seen.has(value)) {
+      duplicateCount += 1;
+      return;
+    }
+    seen.add(value);
+    accepted.push(value);
+  });
+
+  return { accepted, duplicateCount, emptyCount, invalidCount };
+}
+
+function readStringArray(value: unknown): { values: string[]; emptyCount: number; invalidCount: number } {
+  if (!Array.isArray(value)) {
+    return { values: [], emptyCount: 0, invalidCount: 0 };
+  }
+
+  const values: string[] = [];
+  let emptyCount = 0;
+  let invalidCount = 0;
+  value.forEach((item) => {
+    if (typeof item !== "string") {
+      invalidCount += 1;
+      return;
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      emptyCount += 1;
+      return;
+    }
+    values.push(trimmed);
+  });
+  return { values, emptyCount, invalidCount };
+}
+
+export function buildStringListImportPlan(
+  value: unknown,
+  existing: string[],
+  isValid?: (item: string) => boolean,
+): FilterImportListPlan {
+  const { values, emptyCount, invalidCount: malformedCount } = readStringArray(value);
+  const accepted: string[] = [];
+  const seen = new Set(existing);
+  let duplicateCount = 0;
+  let invalidCount = malformedCount;
+
+  values.forEach((item) => {
+    if (isValid && !isValid(item)) {
+      invalidCount += 1;
+      return;
+    }
+    if (seen.has(item)) {
+      duplicateCount += 1;
+      return;
+    }
+    seen.add(item);
+    accepted.push(item);
+  });
+
+  return { accepted, duplicateCount, emptyCount, invalidCount };
+}
+
+export function buildBlacklistImportPlan(
+  input: unknown,
+  current: BlacklistConfig,
+  isValidRegex: (pattern: string) => boolean,
+): BlacklistImportPlan {
+  const source = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+
+  return {
+    keywords: buildStringListImportPlan(source.keywords, current.keywords),
+    regexPatterns: buildStringListImportPlan(
+      source.regex_patterns,
+      current.regex_patterns,
+      isValidRegex,
+    ),
+    whitelist: buildStringListImportPlan(source.whitelist, current.whitelist ?? []),
+    filteredTags: buildStringListImportPlan(source.filtered_tags, current.filtered_tags ?? []),
+  };
+}
+
+export function buildContentFilterImportPlan(
+  input: unknown,
+  current: ContentFilterConfig,
+  isValidRegex: (pattern: string) => boolean,
+): ContentFilterImportPlan {
+  const source = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+
+  return {
+    adPatterns: buildStringListImportPlan(source.ad_patterns, current.ad_patterns, isValidRegex),
+    navKeywords: buildStringListImportPlan(source.nav_keywords, current.nav_keywords),
+  };
 }
 
 export function serializeFilterDraft(value: unknown): string {
@@ -41,6 +217,7 @@ export function buildImportSummary(
   duplicateCount: number,
   emptyCount: number,
   noun: string,
+  invalidCount = 0,
 ): string | null {
   const parts: string[] = [];
 
@@ -52,6 +229,9 @@ export function buildImportSummary(
   }
   if (emptyCount > 0) {
     parts.push(`忽略 ${emptyCount} 条空白项`);
+  }
+  if (invalidCount > 0) {
+    parts.push(`跳过 ${invalidCount} 条无效项`);
   }
 
   return parts.length > 0 ? parts.join("，") : null;

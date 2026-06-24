@@ -151,6 +151,8 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
             style={{ color: "var(--color-text-subtle)" }}
           />
           <input
+            id="single-download-url"
+            name="single-download-url"
             ref={inputRef}
             className="h-9 w-full rounded-lg border pr-3 pl-9 text-sm transition-all outline-none"
             style={{

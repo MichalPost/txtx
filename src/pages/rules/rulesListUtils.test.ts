@@ -5,6 +5,7 @@ import type { WebsiteConfig } from "@/types";
 
 import {
   buildRulesSummary,
+  buildVisibleRuleWindow,
   filterAndSortRules,
   type RulesListQuery,
 } from "./rulesListUtils.ts";
@@ -39,6 +40,7 @@ function makeQuery(overrides: Partial<RulesListQuery> = {}): RulesListQuery {
     search: overrides.search ?? "",
     status: overrides.status ?? "all",
     sort: overrides.sort ?? "name_asc",
+    sitePriority: overrides.sitePriority,
   };
 }
 
@@ -145,5 +147,29 @@ test("buildRulesSummary aggregates counts", () => {
     enabled: 2,
     complete: 1,
     incomplete: 2,
+  });
+});
+
+test("buildVisibleRuleWindow returns the current page of visible rule keys", () => {
+  const result = buildVisibleRuleWindow(["a", "b", "c", "d", "e"], 2, 2);
+
+  assert.deepEqual(result, {
+    visibleKeys: ["a", "b"],
+    visibleCount: 2,
+    totalCount: 5,
+    hasMore: true,
+    nextVisibleCount: 4,
+  });
+});
+
+test("buildVisibleRuleWindow clamps counts and handles invalid batch sizes", () => {
+  const result = buildVisibleRuleWindow(["a", "b", "c"], 99, 0);
+
+  assert.deepEqual(result, {
+    visibleKeys: ["a", "b", "c"],
+    visibleCount: 3,
+    totalCount: 3,
+    hasMore: false,
+    nextVisibleCount: 3,
   });
 });

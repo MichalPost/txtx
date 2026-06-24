@@ -3,7 +3,11 @@ import test from "node:test";
 
 import type { WebsiteConfig } from "@/types";
 
-import { buildRuleImportPlan, extractRuleHostname } from "./ruleImportUtils.ts";
+import {
+  buildRuleImportPlan,
+  buildStarterRuleTemplate,
+  extractRuleHostname,
+} from "./ruleImportUtils.ts";
 
 function makeSite(overrides: Partial<WebsiteConfig> = {}): WebsiteConfig {
   return {
@@ -49,4 +53,18 @@ test("buildRuleImportPlan counts imports, replacements, and skipped duplicate do
   assert.equal(plan.merged.gamma?.domain_name, "https://gamma.com");
   assert.equal(plan.merged.beta?.domain_name, "https://beta-replaced.com");
   assert.equal(plan.merged.dupe, undefined);
+});
+
+test("buildStarterRuleTemplate creates an importable, complete starter rule", () => {
+  const template = buildStarterRuleTemplate();
+  const plan = buildRuleImportPlan({}, template);
+  const site = plan.merged.example_site;
+
+  assert.equal(plan.importedCount, 1);
+  assert.equal(plan.skippedCount, 0);
+  assert.equal(site?.enabled, true);
+  assert.equal(site?.domain_name, "https://example.com");
+  assert.ok(site?.release_url);
+  assert.ok(site?.novel_content);
+  assert.ok(site?.site_ad_rules?.xpath_rules.length);
 });

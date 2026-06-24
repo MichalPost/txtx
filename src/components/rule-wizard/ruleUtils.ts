@@ -2,7 +2,7 @@ import {
   emptyAdCleanupRules,
   normalizeAdCleanupRules,
   type AdCleanupRules,
-} from "./adCleanupUtils";
+} from "./adCleanupUtils.ts";
 
 export type RuleMode =
   | "tag_name"

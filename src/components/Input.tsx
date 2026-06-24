@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { type InputHTMLAttributes, type TextareaHTMLAttributes, useId } from "react";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -20,15 +20,25 @@ const baseClass =
   "w-full border rounded-[10px] px-3 py-2 text-sm focus:outline-none transition-colors placeholder:text-[var(--color-text-subtle)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1";
 
 export function Input({ label, error, className = "", style, ...props }: InputProps) {
+  const generatedId = useId();
+  const inputId = props.id ?? generatedId;
+  const inputName = props.name ?? inputId;
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor={inputId}
+          className="text-xs font-medium"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           {label}
         </label>
       )}
       <input
         {...props}
+        id={inputId}
+        name={inputName}
         style={{
           ...baseStyle,
           ...(error ? { borderColor: "var(--color-danger)" } : {}),
@@ -56,15 +66,25 @@ export function Input({ label, error, className = "", style, ...props }: InputPr
 }
 
 export function Textarea({ label, error, className = "", style, ...props }: TextareaProps) {
+  const generatedId = useId();
+  const textareaId = props.id ?? generatedId;
+  const textareaName = props.name ?? textareaId;
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+        <label
+          htmlFor={textareaId}
+          className="text-xs font-medium"
+          style={{ color: "var(--color-text-muted)" }}
+        >
           {label}
         </label>
       )}
       <textarea
         {...props}
+        id={textareaId}
+        name={textareaName}
         style={{
           ...baseStyle,
           ...(error ? { borderColor: "var(--color-danger)" } : {}),

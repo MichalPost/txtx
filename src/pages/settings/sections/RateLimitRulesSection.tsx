@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 
@@ -23,9 +23,20 @@ export function RateLimitRulesSection() {
     formState: { errors },
   } = useFormContext<SettingsForm>();
   const { fields, append, remove } = useFieldArray({ control, name: "rate_limit_rules" });
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const knownFieldIdsRef = useRef(new Set(fields.map((field) => field.id)));
 
-  const toggle = (i: number) => setExpanded((prev) => ({ ...prev, [i]: !prev[i] }));
+  const toggle = (fieldId: string) =>
+    setExpanded((prev) => ({ ...prev, [fieldId]: !prev[fieldId] }));
+
+  useEffect(() => {
+    const known = knownFieldIdsRef.current;
+    const newField = fields.find((field) => !known.has(field.id));
+    knownFieldIdsRef.current = new Set(fields.map((field) => field.id));
+    if (newField) {
+      setExpanded((prev) => ({ ...prev, [newField.id]: true }));
+    }
+  }, [fields]);
 
   const rulesErrors = errors.rate_limit_rules as
     | Array<Record<string, { message?: string }> | undefined>
@@ -50,8 +61,8 @@ export function RateLimitRulesSection() {
             key={field.id}
             index={i}
             fieldId={field.id}
-            isOpen={!!expanded[i]}
-            onToggle={() => toggle(i)}
+            isOpen={!!expanded[field.id]}
+            onToggle={() => toggle(field.id)}
             onRemove={() => remove(i)}
             errors={rulesErrors?.[i]}
           />
@@ -60,10 +71,7 @@ export function RateLimitRulesSection() {
         <button
           type="button"
           onClick={() => {
-            const newIndex = fields.length;
             append(DEFAULT_RULE);
-            // Auto-expand the new rule
-            setExpanded((prev) => ({ ...prev, [newIndex]: true }));
           }}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-2 text-xs transition-colors"
           style={{

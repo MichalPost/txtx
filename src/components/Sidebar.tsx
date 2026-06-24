@@ -35,6 +35,14 @@ const navItems: Array<{
   { to: "/converter", icon: FileText, label: "文本转换" },
 ];
 
+const openCommandPalette = () => {
+  window.dispatchEvent(new Event("txtx:open-command-palette"));
+};
+
+const preloadCommandPalette = () => {
+  void import("@/components/CommandPalette");
+};
+
 export function Sidebar() {
   const { collapsed, toggle } = useSidebarStore();
   const location = useLocation();
@@ -168,11 +176,9 @@ export function Sidebar() {
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
             <button
-              onClick={() =>
-                window.dispatchEvent(
-                  new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }),
-                )
-              }
+              onClick={openCommandPalette}
+              onFocus={preloadCommandPalette}
+              onMouseEnter={preloadCommandPalette}
               className="flex h-7 flex-1 items-center justify-center rounded-lg border font-mono text-xs transition-colors hover:opacity-80"
               style={{
                 background: "var(--color-surface-2)",

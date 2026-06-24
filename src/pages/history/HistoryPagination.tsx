@@ -33,6 +33,8 @@ export function HistoryPagination({
       </span>
       <div className="flex flex-wrap items-center gap-2">
         <select
+          id="history-page-size"
+          name="history-page-size"
           value={pageSize}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
           className="h-7 rounded-lg border px-2 text-xs"

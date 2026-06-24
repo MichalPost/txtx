@@ -25,6 +25,8 @@ export function DailyScheduler({ enabled, hour, onToggle, onSetHour }: DailySche
         <button
           type="button"
           onClick={onToggle}
+          aria-label={enabled ? "关闭每日自动扫描" : "开启每日自动扫描"}
+          aria-pressed={enabled}
           className="relative h-4 w-8 rounded-full transition-colors"
           style={{
             background: enabled ? "var(--color-accent)" : "var(--color-surface-2)",
@@ -43,6 +45,8 @@ export function DailyScheduler({ enabled, hour, onToggle, onSetHour }: DailySche
             触发时间
           </span>
           <select
+            id="daily-scheduler-hour"
+            name="daily-scheduler-hour"
             value={hour}
             onChange={(e) => onSetHour(Number(e.target.value))}
             className="rounded border px-1.5 py-0.5 text-xs"
@@ -51,6 +55,7 @@ export function DailyScheduler({ enabled, hour, onToggle, onSetHour }: DailySche
               borderColor: "var(--color-border)",
               color: "var(--color-text-muted)",
             }}
+            aria-label="每日自动扫描触发时间"
           >
             {Array.from({ length: 24 }, (_, i) => (
               <option key={i} value={i}>

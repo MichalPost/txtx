@@ -1,13 +1,17 @@
-import { useState } from "react";
-import { ClipboardList, Navigation, Plus, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ClipboardList, Download, Navigation, Plus, Search, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { apiSaveTextFile } from "@/lib/api";
 import {
   inlineInputClass,
   inlineInputStyle,
   inputFocusHandlers,
 } from "@/pages/blacklist/blacklistUtils";
+
+import { buildImportSummary, filterStringListByQuery, parseUniqueLineDraft } from "./filterPageUtils";
 
 interface NavKeywordPanelProps {
   keywords: string[];
@@ -18,6 +22,14 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
   const [newKeyword, setNewKeyword] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkText, setBulkText] = useState("");
+  const [search, setSearch] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const bulkDraft = useMemo(() => parseUniqueLineDraft(bulkText, keywords), [bulkText, keywords]);
+  const visibleKeywords = useMemo(
+    () => filterStringListByQuery(keywords, search),
+    [keywords, search],
+  );
 
   const addKeyword = () => {
     const kw = newKeyword.trim();
@@ -31,15 +43,44 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
   };
 
   const handleBulkAdd = () => {
-    const lines = bulkText
-      .split(/[\r\n,，]+/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length === 0) return;
-    const merged = [...new Set([...keywords, ...lines])];
-    onUpdate(merged);
+    if (bulkDraft.accepted.length === 0) return;
+    onUpdate([...keywords, ...bulkDraft.accepted]);
     setBulkText("");
     setBulkMode(false);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const parsed = parseUniqueLineDraft(String(ev.target?.result ?? ""), keywords);
+      if (parsed.accepted.length > 0) {
+        onUpdate([...keywords, ...parsed.accepted]);
+      }
+      const feedback = buildImportSummary(
+        parsed.accepted.length,
+        parsed.duplicateCount,
+        parsed.emptyCount,
+        "导航词",
+      );
+      if (feedback) {
+        toast.success(feedback);
+      } else {
+        toast.info("没有可导入的导航词");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleExport = async () => {
+    try {
+      await apiSaveTextFile("nav_keywords.txt", keywords.join("\n"));
+      toast.success("导航词已导出");
+    } catch (error) {
+      toast.error(`导出失败：${String(error)}`);
+    }
   };
 
   return (
@@ -47,7 +88,21 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
       title="导航行关键词"
       actions={
         <div className="flex items-center gap-2">
+          <label htmlFor="nav-keyword-import-file" className="sr-only">
+            导入导航词文本文件
+          </label>
+          <input
+            id="nav-keyword-import-file"
+            ref={fileInputRef}
+            type="file"
+            accept=".txt"
+            name="nav-keyword-import-file"
+            aria-label="导入导航词文本文件"
+            className="hidden"
+            onChange={handleImport}
+          />
           <button
+            type="button"
             onClick={() => setBulkMode((v) => !v)}
             title="批量添加"
             className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors"
@@ -58,6 +113,31 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
             }}
           >
             <ClipboardList className="h-3 w-3" /> 批量
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors hover:opacity-80"
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-muted)",
+              background: "transparent",
+            }}
+          >
+            <Upload className="h-3 w-3" /> 导入
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleExport()}
+            disabled={keywords.length === 0}
+            className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors hover:opacity-80 disabled:opacity-40"
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-muted)",
+              background: "transparent",
+            }}
+          >
+            <Download className="h-3 w-3" /> 导出
           </button>
           <span
             className="rounded-lg px-2 py-1 text-xs"
@@ -72,7 +152,6 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
         从章节末尾向上循环检测，包含以下关键词的行将被剥离（常见：上一章、下一章、返回目录）
       </p>
 
-      {/* Bulk add area */}
       {bulkMode && (
         <div
           className="mb-3 flex flex-col gap-2 rounded-xl border p-3"
@@ -81,6 +160,8 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
           <textarea
             rows={3}
             className="w-full resize-y rounded-lg border px-3 py-2 text-xs focus:outline-none"
+            name="nav-keyword-bulk"
+            aria-label="批量添加导航行关键词"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",
@@ -93,16 +174,13 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
           />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-              {
-                bulkText
-                  .split(/[\r\n,，]+/)
-                  .map((l) => l.trim())
-                  .filter(Boolean).length
-              }{" "}
-              条待添加
+              {bulkDraft.accepted.length} 条待添加
+              {bulkDraft.duplicateCount > 0 && `，${bulkDraft.duplicateCount} 条重复`}
+              {bulkDraft.emptyCount > 0 && `，${bulkDraft.emptyCount} 条空白`}
             </span>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setBulkMode(false);
                   setBulkText("");
@@ -113,8 +191,9 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
                 <X className="h-3 w-3" /> 取消
               </button>
               <button
+                type="button"
                 onClick={handleBulkAdd}
-                disabled={bulkText.trim() === ""}
+                disabled={bulkDraft.accepted.length === 0}
                 className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs disabled:opacity-40"
                 style={{ background: "var(--color-accent)", color: "#fff" }}
               >
@@ -125,11 +204,12 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
         </div>
       )}
 
-      {/* Add input */}
       <div className="mb-3 flex gap-2">
         <input
           className={`flex-1 ${inlineInputClass}`}
           style={inlineInputStyle}
+          name="nav-keyword-new"
+          aria-label="新增导航行关键词"
           placeholder="输入导航词，Enter 添加"
           value={newKeyword}
           onChange={(e) => setNewKeyword(e.target.value)}
@@ -141,9 +221,34 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
         </Button>
       </div>
 
-      {/* Tags */}
+      <div
+        className="mb-3 flex items-center gap-2 rounded-lg border px-2.5 py-1.5"
+        style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
+      >
+        <Search className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-text-subtle)" }} />
+        <input
+          className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+          style={{ color: "var(--color-text)" }}
+          name="nav-keyword-search"
+          placeholder="搜索导航词"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="搜索导航行关键词"
+        />
+        {search.trim() && (
+          <button
+            type="button"
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+            onClick={() => setSearch("")}
+          >
+            清除
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        {keywords.map((kw) => (
+        {visibleKeywords.map((kw) => (
           <span
             key={kw}
             className="group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
@@ -156,20 +261,30 @@ export function NavKeywordPanel({ keywords, onUpdate }: NavKeywordPanelProps) {
             <Navigation className="h-2.5 w-2.5 opacity-50" />
             {kw}
             <button
+              type="button"
               onClick={() => removeKeyword(kw)}
+              aria-label={`删除导航词 ${kw}`}
               className="ml-0.5 cursor-pointer opacity-50 transition-opacity group-hover:opacity-100"
               style={{ color: "var(--color-text-muted)" }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-danger)";
+                e.currentTarget.style.color = "var(--color-danger)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
+                e.currentTarget.style.color = "var(--color-text-muted)";
               }}
             >
-              ✕
+              <X className="h-3 w-3" />
             </button>
           </span>
         ))}
+        {keywords.length > 0 && visibleKeywords.length === 0 && (
+          <p
+            className="w-full rounded-lg border border-dashed py-4 text-center text-xs"
+            style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
+          >
+            没有匹配的导航词
+          </p>
+        )}
         {keywords.length === 0 && (
           <p
             className="w-full py-2 text-center text-xs"

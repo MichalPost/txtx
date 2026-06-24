@@ -19,6 +19,7 @@ export function IconButton({
       type="button"
       onClick={onClick}
       title={title}
+      aria-label={title}
       className="flex h-8 w-8 items-center justify-center rounded-lg transition-all"
       style={{
         color,

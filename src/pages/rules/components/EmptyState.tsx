@@ -1,10 +1,16 @@
 import { useEffect, useRef } from "react";
-import { Plus, Wand2 } from "lucide-react";
+import { FileJson, Plus, Upload, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { animateFadeInUp } from "@/lib/animations";
 
-export function EmptyState({ onNew }: { onNew: () => void }) {
+interface EmptyStateProps {
+  onImport: () => void;
+  onNew: () => void;
+  onTemplate: () => void;
+}
+
+export function EmptyState({ onImport, onNew, onTemplate }: EmptyStateProps) {
   const iconRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -35,21 +41,39 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         >
           还没有站点规则
         </p>
-        <p
-          className="mt-1.5 text-sm leading-relaxed"
-          style={{ color: "var(--color-text-muted)", maxWidth: "28ch", margin: "6px auto 0" }}
+        <div
+          className="mt-3 grid gap-2 text-left text-xs sm:grid-cols-3"
+          style={{ color: "var(--color-text-muted)", maxWidth: "42rem", margin: "12px auto 0" }}
         >
-          添加一个站点，向导会帮你配置目录页和章节页的解析方式
-        </p>
+          {["新建向导抓取真实页面", "导入已有 JSON 规则", "下载模板后批量编辑"].map((item) => (
+            <span
+              key={item}
+              className="rounded-xl border px-3 py-2"
+              style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
       </div>
 
-      <Button
-        onClick={onNew}
+      <div
+        className="flex flex-wrap items-center justify-center gap-2"
         style={{ opacity: 0, animation: "fadeIn 250ms ease-out 200ms forwards" }}
       >
-        <Plus className="h-4 w-4" />
-        新建规则向导
-      </Button>
+        <Button onClick={onNew}>
+          <Plus className="h-4 w-4" />
+          新建规则向导
+        </Button>
+        <Button variant="secondary" onClick={onImport}>
+          <Upload className="h-4 w-4" />
+          导入规则
+        </Button>
+        <Button variant="secondary" onClick={onTemplate}>
+          <FileJson className="h-4 w-4" />
+          下载模板
+        </Button>
+      </div>
 
       <style>{`
         @keyframes fadeIn { to { opacity: 1; } }

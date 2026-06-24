@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useConfirmDialog } from "@/components/ConfirmDialog";
 import { useConfigStore } from "@/store/configStore";
 import type { WebsiteConfig } from "@/types";
 
-import { buildRuleImportPlan, extractRuleHostname } from "./ruleImportUtils";
+import { buildRuleImportPlan, buildStarterRuleTemplate, extractRuleHostname } from "./ruleImportUtils";
 import { saveRuleConfigAndThen } from "./ruleSaveFlow";
 import { DEFAULT_SITE, generateSiteKey } from "./rulesPageUtils";
 
@@ -12,6 +13,9 @@ export function useRulesPageActions() {
   const { config, saveConfig, saving } = useConfigStore();
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [recentlySavedKey, setRecentlySavedKey] = useState<string | null>(null);
+  const [importPending, setImportPending] = useState(false);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const handleNewSite = () => {
     if (!config) return;
@@ -90,35 +94,56 @@ export function useRulesPageActions() {
     );
   };
 
-  const deleteSite = (key: string) => {
+  const deleteSite = async (key: string) => {
     if (!config) return;
-    const websites = config.websites;
-    const confirmed = confirm(`确认删除规则「${key}」吗？删除后无法恢复。`);
-    if (!confirmed) return;
-    const updated = { ...websites };
-    delete updated[key];
-    const encodingMap = { ...(config.network.encoding_map ?? {}) };
-    const site = websites[key];
-    if (site) {
-      const hostname = extractRuleHostname(site.domain_name);
-      if (hostname) delete encodingMap[hostname];
+    if (deletingKey) return;
+    setDeletingKey(key);
+    const confirmed = await confirm({
+      title: `删除规则「${key}」？`,
+      description: "删除后会同步移除这条规则关联的编码映射，且无法恢复。",
+      confirmLabel: "删除规则",
+      tone: "danger",
+    }).catch(() => false);
+    if (!confirmed) {
+      setDeletingKey(null);
+      return;
     }
-    void saveConfig(
-      {
-        ...config,
-        network: { ...config.network, encoding_map: encodingMap },
-        websites: updated,
-      },
-      true,
-    ).then(
-      () => {
-        toast.success(`已删除规则：${key}`);
-      },
-      (err) => {
-        toast.error(`删除失败：${err instanceof Error ? err.message : String(err)}`);
-      },
-    );
-    if (editingKey === key) setEditingKey(null);
+
+    const latestConfig = useConfigStore.getState().config;
+    if (!latestConfig) {
+      toast.error("配置尚未加载，无法删除规则");
+      setDeletingKey(null);
+      return;
+    }
+    const latestWebsites = latestConfig.websites;
+    const site = latestWebsites[key];
+    if (!site) {
+      toast.info(`规则「${key}」已不存在`);
+      setDeletingKey(null);
+      return;
+    }
+
+    const updated = { ...latestWebsites };
+    delete updated[key];
+    const encodingMap = { ...(latestConfig.network.encoding_map ?? {}) };
+    const hostname = extractRuleHostname(site.domain_name);
+    if (hostname) delete encodingMap[hostname];
+    try {
+      await saveConfig(
+        {
+          ...latestConfig,
+          network: { ...latestConfig.network, encoding_map: encodingMap },
+          websites: updated,
+        },
+        true,
+      );
+      toast.success(`已删除规则：${key}`);
+      if (editingKey === key) setEditingKey(null);
+    } catch (err) {
+      toast.error(`删除失败：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeletingKey(null);
+    }
   };
 
   const getRuleStatus = (site: WebsiteConfig) => {
@@ -179,7 +204,7 @@ export function useRulesPageActions() {
   const reorderSites = async (orderedKeys: string[]) => {
     if (!config) return;
     const websites = config.websites;
-    const sitePriority: Record<string, number> = {};
+    const sitePriority: Record<string, number> = { ...config.filtering.site_priority };
     orderedKeys.forEach((key, index) => {
       const site = websites[key];
       if (site) {
@@ -213,8 +238,19 @@ export function useRulesPageActions() {
     }
   };
 
+  const exportStarterTemplate = async () => {
+    try {
+      const { apiSaveTextFile } = await import("@/lib/api");
+      const content = JSON.stringify(buildStarterRuleTemplate(), null, 2);
+      await apiSaveTextFile("websites-rule-template.json", content);
+      toast.success("规则模板已生成");
+    } catch (err) {
+      toast.error(`模板生成失败：${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   const importSites = () => {
-    if (!config) return;
+    if (!config || importPending) return;
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json";
@@ -241,26 +277,51 @@ export function useRulesPageActions() {
             }
           }
 
-          const { merged, importedCount, replacedCount, skippedCount, replacedKeys } =
-            buildRuleImportPlan(config.websites, parsed);
+          const initialPlan = buildRuleImportPlan(config.websites, parsed);
 
-          if (importedCount === 0 && replacedCount === 0 && skippedCount > 0) {
+          if (
+            initialPlan.importedCount === 0 &&
+            initialPlan.replacedCount === 0 &&
+            initialPlan.skippedCount > 0
+          ) {
             toast.error("没有可导入的新规则，请检查域名是否重复或文件内容是否有效");
             return;
           }
 
-          if (replacedKeys.length > 0) {
-            const preview = replacedKeys.slice(0, 5).join("、");
-            const suffix = replacedKeys.length > 5 ? ` 等 ${replacedKeys.length} 条规则` : "";
-            const confirmed = window.confirm(
-              `本次导入会覆盖已有规则：${preview}${suffix}。确认继续吗？`,
-            );
+          if (initialPlan.replacedKeys.length > 0) {
+            const preview = initialPlan.replacedKeys.slice(0, 5).join("、");
+            const suffix =
+              initialPlan.replacedKeys.length > 5
+                ? ` 等 ${initialPlan.replacedKeys.length} 条规则`
+                : "";
+            setImportPending(true);
+            const confirmed = await confirm({
+              title: "覆盖已有规则？",
+              description: `本次导入会覆盖已有规则：${preview}${suffix}。覆盖后旧规则会被导入文件中的同名规则替换。`,
+              confirmLabel: "覆盖并导入",
+              tone: "warning",
+            }).catch(() => false);
+            setImportPending(false);
             if (!confirmed) return;
+          }
+
+          const latestConfig = useConfigStore.getState().config;
+          if (!latestConfig) {
+            toast.error("配置尚未加载，无法导入规则");
+            return;
+          }
+
+          const { merged, importedCount, replacedCount, skippedCount } =
+            buildRuleImportPlan(latestConfig.websites, parsed);
+
+          if (importedCount === 0 && replacedCount === 0 && skippedCount > 0) {
+            toast.error("没有可导入的新规则，当前配置可能已在确认期间发生变化");
+            return;
           }
 
           await saveConfig(
             {
-              ...config,
+              ...latestConfig,
               websites: merged,
             },
             true,
@@ -271,6 +332,7 @@ export function useRulesPageActions() {
           if (skippedCount > 0) parts.push(`跳过 ${skippedCount} 个无效或重复域名规则`);
           toast.success(parts.join("，"));
         } catch (err) {
+          setImportPending(false);
           toast.error(`导入失败：${err instanceof Error ? err.message : String(err)}`);
         }
       };
@@ -285,6 +347,9 @@ export function useRulesPageActions() {
     editingKey,
     setEditingKey,
     recentlySavedKey,
+    confirmDialog,
+    deletingKey,
+    importPending,
     handleNewSite,
     handleWizardApply,
     handleWizardClose,
@@ -295,6 +360,7 @@ export function useRulesPageActions() {
     duplicateSite,
     reorderSites,
     exportSites,
+    exportStarterTemplate,
     importSites,
   };
 }

@@ -17,6 +17,7 @@ interface RateLimitRuleCardProps {
 
 export function RateLimitRuleCard({
   index,
+  fieldId,
   isOpen,
   onToggle,
   onRemove,
@@ -25,6 +26,7 @@ export function RateLimitRuleCard({
   const { register, watch } = useFormContext<SettingsForm>();
   const ruleName = watch(`rate_limit_rules.${index}.name`) as string | undefined;
   const ruleDomains = watch(`rate_limit_rules.${index}.domains`) as string | undefined;
+  const idPrefix = `rate-limit-${fieldId}`;
 
   return (
     <div
@@ -33,42 +35,53 @@ export function RateLimitRuleCard({
     >
       {/* Header */}
       <div
-        className="flex cursor-pointer items-center gap-2 px-3 py-2 select-none"
+        className="flex items-center gap-2"
         style={{ background: "var(--color-surface-1)" }}
-        onClick={onToggle}
       >
-        <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
-        <span
-          className="flex-1 truncate text-xs font-medium"
-          style={{ color: "var(--color-text)" }}
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-3 py-2 text-left select-none"
+          onClick={onToggle}
+          aria-expanded={isOpen}
+          aria-controls={`${idPrefix}-panel`}
         >
-          {ruleName || `规则 ${index + 1}`}
-        </span>
-        <span className="max-w-48 truncate text-xs" style={{ color: "var(--color-text-subtle)" }}>
-          {ruleDomains
-            ? ruleDomains.split("\n").filter(Boolean).slice(0, 3).join(", ")
-            : "（无域名）"}
-        </span>
-        {isOpen ? (
-          <ChevronUp
-            className="h-3.5 w-3.5 shrink-0"
-            style={{ color: "var(--color-text-muted)" }}
-          />
-        ) : (
-          <ChevronDown
-            className="h-3.5 w-3.5 shrink-0"
-            style={{ color: "var(--color-text-muted)" }}
-          />
-        )}
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-accent)" }} />
+          <span
+            className="flex-1 truncate text-xs font-medium"
+            style={{ color: "var(--color-text)" }}
+          >
+            {ruleName || `规则 ${index + 1}`}
+          </span>
+          <span
+            className="max-w-48 truncate text-xs"
+            style={{ color: "var(--color-text-subtle)" }}
+          >
+            {ruleDomains
+              ? ruleDomains.split("\n").filter(Boolean).slice(0, 3).join(", ")
+              : "（无域名）"}
+          </span>
+          {isOpen ? (
+            <ChevronUp
+              className="h-3.5 w-3.5 shrink-0"
+              style={{ color: "var(--color-text-muted)" }}
+            />
+          ) : (
+            <ChevronDown
+              className="h-3.5 w-3.5 shrink-0"
+              style={{ color: "var(--color-text-muted)" }}
+            />
+          )}
+        </button>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
-          className="shrink-0 rounded-md p-1 hover:opacity-70"
+          className="mr-2 shrink-0 rounded-md p-1 hover:opacity-70"
           style={{ color: "var(--color-danger)" }}
           title="删除规则"
+          aria-label={`删除限速规则 ${ruleName || `规则 ${index + 1}`}`}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -77,15 +90,21 @@ export function RateLimitRuleCard({
       {/* Expanded body */}
       {isOpen && (
         <div
+          id={`${idPrefix}-panel`}
           className="flex flex-col gap-3 border-t p-3"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface)" }}
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor={`${idPrefix}-name`}
+              className="text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               规则名称
             </label>
             <input
               {...register(`rate_limit_rules.${index}.name`)}
+              id={`${idPrefix}-name`}
               className="w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none"
               style={{
                 background: "var(--color-surface-2)",
@@ -98,11 +117,16 @@ export function RateLimitRuleCard({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor={`${idPrefix}-domains`}
+              className="text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               匹配域名（每行一条，URL 包含任意一条即命中）
             </label>
             <textarea
               {...register(`rate_limit_rules.${index}.domains`)}
+              id={`${idPrefix}-domains`}
               rows={3}
               className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs focus:outline-none"
               style={{
@@ -118,6 +142,7 @@ export function RateLimitRuleCard({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Input
+                id={`${idPrefix}-delay-min-ms`}
                 label="最小延迟（毫秒）"
                 type="number"
                 {...register(`rate_limit_rules.${index}.delay_min_ms`)}
@@ -126,6 +151,7 @@ export function RateLimitRuleCard({
             </div>
             <div>
               <Input
+                id={`${idPrefix}-delay-max-ms`}
                 label="最大延迟（毫秒）"
                 type="number"
                 {...register(`rate_limit_rules.${index}.delay_max_ms`)}
@@ -136,6 +162,7 @@ export function RateLimitRuleCard({
 
           <div className="flex flex-col gap-1">
             <Input
+              id={`${idPrefix}-requests-per-second`}
               label="每秒最大请求数（0 = 使用随机延迟）"
               type="number"
               {...register(`rate_limit_rules.${index}.requests_per_second`)}
@@ -144,11 +171,16 @@ export function RateLimitRuleCard({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor={`${idPrefix}-ua-pool`}
+              className="text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               User-Agent 池（每行一条，随机轮换；空 = 使用全局 UA）
             </label>
             <textarea
               {...register(`rate_limit_rules.${index}.ua_pool`)}
+              id={`${idPrefix}-ua-pool`}
               rows={4}
               className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs focus:outline-none"
               style={{

@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import type { TaskRecord } from "@/types";
 
 import {
+  buildBulkTaskActionState,
   buildTaskListSummary,
+  buildVisibleTaskWindow,
   deriveTaskListViewState,
   filterAndSortTasks,
 } from "./taskListUtils.ts";
@@ -155,4 +157,79 @@ test("deriveTaskListViewState distinguishes empty, filtered, and refresh-needed 
       showRefresh: true,
     },
   );
+});
+
+test("buildBulkTaskActionState only targets finished disposable tasks", () => {
+  const tasks = [
+    makeTask({ id: "done", status: "done" }),
+    makeTask({ id: "failed", status: "failed", source_url: "https://example.com/failed" }),
+    makeTask({ id: "cancelled", status: "cancelled" }),
+    makeTask({ id: "paused", status: "paused", source_url: "https://example.com/paused" }),
+    makeTask({ id: "downloading", status: "downloading" }),
+    makeTask({ id: "preview", status: "preview" }),
+  ];
+
+  const result = buildBulkTaskActionState(tasks);
+
+  assert.deepEqual(result.disposableTaskIds, ["done", "failed", "cancelled"]);
+  assert.deepEqual(result.recoverableTaskIds, ["failed", "paused"]);
+  assert.equal(result.canDeleteFinished, true);
+  assert.equal(result.canRecoverFailed, true);
+  assert.equal(result.deleteFinishedLabel, "清理 3 个已结束任务");
+  assert.equal(result.recoverFailedLabel, "恢复 2 个失败/暂停任务");
+});
+
+test("buildBulkTaskActionState handles empty disposable list", () => {
+  const result = buildBulkTaskActionState([
+    makeTask({ id: "paused", status: "paused" }),
+    makeTask({ id: "downloading", status: "downloading" }),
+  ]);
+
+  assert.deepEqual(result.disposableTaskIds, []);
+  assert.deepEqual(result.recoverableTaskIds, []);
+  assert.equal(result.canDeleteFinished, false);
+  assert.equal(result.canRecoverFailed, false);
+  assert.equal(result.deleteFinishedLabel, "没有可清理任务");
+  assert.equal(result.recoverFailedLabel, "没有可恢复任务");
+});
+
+test("buildBulkTaskActionState only recovers tasks with replayable source context", () => {
+  const result = buildBulkTaskActionState([
+    makeTask({ id: "failed-single", status: "failed", kind: "single_download", source_url: "https://example.com/a" }),
+    makeTask({ id: "missing-single", status: "failed", kind: "single_download", source_url: null, scan_items: [] }),
+    makeTask({
+      id: "selected",
+      status: "paused",
+      kind: "selected_download",
+      retry_context: { selected_items: [{ title: "书", author: "作者", url: "https://example.com/b", site: "站点" }], scan_options: null },
+    }),
+    makeTask({ id: "missing-selected", status: "paused", kind: "selected_download", retry_context: null }),
+    makeTask({ id: "scan", status: "failed", kind: "full_scan" }),
+    makeTask({ id: "batch", status: "paused", kind: "batch_download" }),
+    makeTask({ id: "done", status: "done", kind: "single_download", source_url: "https://example.com/done" }),
+  ]);
+
+  assert.deepEqual(result.recoverableTaskIds, ["failed-single", "selected", "scan", "batch"]);
+  assert.equal(result.recoverFailedLabel, "恢复 4 个失败/暂停任务");
+});
+
+test("buildVisibleTaskWindow limits rendered tasks and computes the next batch", () => {
+  const tasks = Array.from({ length: 12 }, (_, index) => makeTask({ id: String(index + 1) }));
+  const firstWindow = buildVisibleTaskWindow(tasks, 5, 5);
+  const nextWindow = buildVisibleTaskWindow(tasks, firstWindow.nextVisibleCount, 5);
+
+  assert.deepEqual(firstWindow.tasks.map((task) => task.id), ["1", "2", "3", "4", "5"]);
+  assert.equal(firstWindow.hasMore, true);
+  assert.equal(firstWindow.nextVisibleCount, 10);
+  assert.equal(nextWindow.tasks.length, 10);
+  assert.equal(nextWindow.nextVisibleCount, 12);
+});
+
+test("buildVisibleTaskWindow clamps invalid counts", () => {
+  const tasks = Array.from({ length: 3 }, (_, index) => makeTask({ id: String(index + 1) }));
+  const result = buildVisibleTaskWindow(tasks, -10, 0);
+
+  assert.equal(result.tasks.length, 1);
+  assert.equal(result.visibleCount, 1);
+  assert.equal(result.hasMore, true);
 });

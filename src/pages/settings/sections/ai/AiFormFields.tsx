@@ -35,10 +35,16 @@ export function ApiKeyInput({
   value,
   onChange,
   placeholder,
+  id,
+  name,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  id?: string;
+  name?: string;
+  "aria-label"?: string;
 }) {
   const [show, setShow] = useState(false);
   const base = {
@@ -49,6 +55,9 @@ export function ApiKeyInput({
   return (
     <div className="flex gap-1.5">
       <input
+        id={id}
+        name={name ?? id}
+        aria-label={ariaLabel}
         type={show ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -67,6 +76,8 @@ export function ApiKeyInput({
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
+        aria-label={show ? "隐藏 API Key" : "显示 API Key"}
+        title={show ? "隐藏 API Key" : "显示 API Key"}
         className="rounded-[10px] border px-2.5 transition-colors hover:opacity-70"
         style={{
           borderColor: "var(--color-border)",
@@ -86,18 +97,34 @@ export function ModelSelect({
   value,
   onChange,
   options,
+  id,
+  name,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
+  id?: string;
+  name?: string;
+  "aria-label"?: string;
 }) {
   if (options.length === 0) {
     return (
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="输入模型名称" />
+      <Input
+        id={id}
+        name={name}
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="输入模型名称"
+      />
     );
   }
   return (
     <select
+      id={id}
+      name={name ?? id}
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-[10px] border px-3 py-2 text-sm focus:outline-none"
@@ -122,9 +149,15 @@ export function ModelSelect({
 export function ModelListEditor({
   value,
   onChange,
+  inputId,
+  inputName,
+  inputAriaLabel,
 }: {
   value: string[];
   onChange: (v: string[]) => void;
+  inputId?: string;
+  inputName?: string;
+  inputAriaLabel?: string;
 }) {
   const [input, setInput] = useState("");
 
@@ -160,6 +193,8 @@ export function ModelListEditor({
             <button
               type="button"
               onClick={() => onChange(value.filter((x) => x !== m))}
+              aria-label={`删除模型 ${m}`}
+              title={`删除模型 ${m}`}
               className="opacity-50 transition-opacity hover:opacity-100"
             >
               <Trash2 className="h-2.5 w-2.5" />
@@ -169,6 +204,9 @@ export function ModelListEditor({
       </div>
       <div className="flex gap-1.5">
         <textarea
+          id={inputId}
+          name={inputName ?? inputId}
+          aria-label={inputAriaLabel}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -198,6 +236,8 @@ export function ModelListEditor({
           type="button"
           onClick={add}
           disabled={!input.trim()}
+          aria-label="添加可用模型"
+          title="添加可用模型"
           className="rounded-[10px] border px-2.5 text-xs transition-colors hover:opacity-70 disabled:opacity-40"
           style={{
             borderColor: "var(--color-border)",

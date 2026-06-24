@@ -32,11 +32,13 @@ export const ScanRow = memo(function ScanRow({
     >
       <td className="px-3 py-2">
         <input
+          name="scan-preview-item"
           type="checkbox"
           checked={checked}
           onChange={onToggle}
           className="rounded focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           style={{ accentColor: "var(--color-accent)" }}
+          aria-label={`选择下载：${item.name}`}
         />
       </td>
       <td className="max-w-xs px-3 py-2 font-medium" style={{ color: "var(--color-text)" }}>
@@ -56,6 +58,7 @@ export const ScanRow = memo(function ScanRow({
               <button
                 onClick={onForceAdd}
                 title="强制加入下载"
+                aria-label={`强制加入下载：${item.name}`}
                 className="opacity-0 transition-opacity group-hover:opacity-100"
                 style={{ color: "var(--color-accent)" }}
               >

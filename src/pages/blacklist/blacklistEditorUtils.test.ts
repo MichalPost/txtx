@@ -6,6 +6,7 @@ import type { BlacklistConfig } from "../../types/index.ts";
 import {
   buildBlacklistSummary,
   buildDraftListFeedback,
+  filterDraftValuesByQuery,
   formatDraftFeedback,
   isValidRegexPattern,
   serializeBlacklistDraft,
@@ -25,6 +26,14 @@ test("buildDraftListFeedback reports accepted, duplicate, empty, and invalid val
   assert.deepEqual(result.duplicateValues, ["已有", "新增"]);
   assert.equal(result.emptyCount, 1);
   assert.deepEqual(result.invalidEntries, ["["]);
+});
+
+test("filterDraftValuesByQuery filters case-insensitively", () => {
+  const values = ["AdRule", "正文", "footer-nav"];
+
+  assert.equal(filterDraftValuesByQuery(values, ""), values);
+  assert.deepEqual(filterDraftValuesByQuery(values, "ad"), ["AdRule"]);
+  assert.deepEqual(filterDraftValuesByQuery(values, "NAV"), ["footer-nav"]);
 });
 
 test("isValidRegexPattern validates regex syntax", () => {

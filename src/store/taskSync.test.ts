@@ -56,6 +56,17 @@ test("hasTaskChanged detects retry context changes", () => {
   assert.equal(hasTaskChanged(existing, server), true);
 });
 
+test("hasTaskChanged detects scan item content changes even when count is unchanged", () => {
+  const existing = makeTask({
+    scan_items: [{ name: "Old", url: "https://example.com/a", site: "example", date: "2026-01-01" }],
+  });
+  const server = makeTask({
+    scan_items: [{ name: "New", url: "https://example.com/a", site: "example", date: "2026-01-01" }],
+  });
+
+  assert.equal(hasTaskChanged(existing, server), true);
+});
+
 test("hasTaskChanged ignores identical task snapshots", () => {
   const existing = makeTask({ stats: { total: 10, completed: 2, success: 1, failed: 0 } });
   const server = makeTask({ stats: { total: 10, completed: 2, success: 1, failed: 0 } });

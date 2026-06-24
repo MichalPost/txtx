@@ -91,10 +91,16 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
       bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       actions={
         <div className="flex items-center gap-2">
+          <label htmlFor="keyword-import-file" className="sr-only">
+            导入关键词文本文件
+          </label>
           <input
+            id="keyword-import-file"
             ref={fileInputRef}
             type="file"
             accept=".txt"
+            name="keyword-import-file"
+            aria-label="导入关键词文本文件"
             className="hidden"
             onChange={handleImport}
           />
@@ -137,9 +143,15 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
               className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
               style={{ color: "var(--color-text-muted)" }}
             />
+            <label htmlFor="keyword-search" className="sr-only">
+              搜索关键词
+            </label>
             <input
+              id="keyword-search"
               className={`w-40 py-1 pr-3 pl-7 text-xs ${inlineInputClass}`}
               style={inlineInputStyle}
+              name="keyword-search"
+              aria-label="搜索关键词"
               placeholder="搜索关键词..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -160,6 +172,8 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
           <textarea
             rows={4}
             className="w-full resize-y rounded-lg border px-3 py-2 text-xs focus:outline-none"
+            name="keyword-bulk-input"
+            aria-label="批量添加关键词"
             style={{
               background: "var(--color-surface-2)",
               borderColor: "var(--color-border)",
@@ -200,17 +214,23 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
 
       <div className="mb-3 flex flex-col gap-2">
         <div className="flex gap-2">
+          <label htmlFor="new-keyword" className="sr-only">
+            新增关键词
+          </label>
           <input
+            id="new-keyword"
             ref={inputRef}
             className={`flex-1 ${inlineInputClass}`}
             style={inlineInputStyle}
+            name="new-keyword"
+            aria-label="新增关键词"
             placeholder="输入关键词后按 Enter 添加"
             value={newKeyword}
             onChange={(e) => setNewKeyword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addKeyword()}
             {...inputFocusHandlers}
           />
-          <Button size="sm" onClick={addKeyword}>
+          <Button size="sm" onClick={addKeyword} aria-label="添加关键词" title="添加关键词">
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>

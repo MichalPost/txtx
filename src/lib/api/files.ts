@@ -65,10 +65,16 @@ export async function apiConvertFile(path: string): Promise<string> {
 
 /** Save text content as a file download. In dev mode uses browser download; in Tauri uses save dialog. */
 export async function apiSaveTextFile(filename: string, content: string): Promise<void> {
+  const extension = filename.split(".").pop()?.toLowerCase() || "txt";
+  const fileType =
+    extension === "json"
+      ? { name: "JSON", extensions: ["json"], mime: "application/json" }
+      : { name: "Text", extensions: [extension], mime: "text/plain;charset=utf-8" };
+
   if (IS_TAURI) {
     const path = await saveNativeDialog({
       defaultPath: filename,
-      filters: [{ name: "JSON", extensions: ["json"] }],
+      filters: [{ name: fileType.name, extensions: fileType.extensions }],
     });
     const plan = resolveSaveTextFilePlan({
       isTauri: true,
@@ -86,12 +92,12 @@ export async function apiSaveTextFile(filename: string, content: string): Promis
     selectedPath: null,
   });
   if (plan.action === "browser-download") {
-    _browserDownload(filename, content);
+    _browserDownload(filename, content, fileType.mime);
   }
 }
 
-function _browserDownload(filename: string, content: string): void {
-  const blob = new Blob([content], { type: "application/json" });
+function _browserDownload(filename: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -17,6 +17,14 @@ export interface BookshelfSummary {
   filteredBytes: number;
 }
 
+export interface BookshelfSelectionSummary {
+  selectedCount: number;
+  selectedBytes: number;
+  visibleCount: number;
+  allVisibleSelected: boolean;
+  partiallyVisibleSelected: boolean;
+}
+
 function normalizeExtension(extension: string): string {
   return extension.trim().replace(/^\./, "").toLowerCase();
 }
@@ -78,5 +86,49 @@ export function buildBookshelfSummary(
     filteredCount: filteredBooks.length,
     totalBytes: books.reduce((sum, book) => sum + book.size, 0),
     filteredBytes: filteredBooks.reduce((sum, book) => sum + book.size, 0),
+  };
+}
+
+export function reconcileBookshelfSelection(
+  selectedPaths: ReadonlySet<string>,
+  visibleBooks: BookFile[],
+): Set<string> {
+  const visiblePaths = new Set(visibleBooks.map((book) => book.path));
+  return new Set([...selectedPaths].filter((path) => visiblePaths.has(path)));
+}
+
+export function toggleBookshelfPathSelection(
+  selectedPaths: ReadonlySet<string>,
+  path: string,
+): Set<string> {
+  const next = new Set(selectedPaths);
+  if (next.has(path)) {
+    next.delete(path);
+  } else {
+    next.add(path);
+  }
+  return next;
+}
+
+export function setVisibleBookshelfSelection(
+  visibleBooks: BookFile[],
+  shouldSelect: boolean,
+): Set<string> {
+  return shouldSelect ? new Set(visibleBooks.map((book) => book.path)) : new Set();
+}
+
+export function buildBookshelfSelectionSummary(
+  selectedPaths: ReadonlySet<string>,
+  visibleBooks: BookFile[],
+): BookshelfSelectionSummary {
+  const visibleSelectedBooks = visibleBooks.filter((book) => selectedPaths.has(book.path));
+  const selectedCount = visibleSelectedBooks.length;
+
+  return {
+    selectedCount,
+    selectedBytes: visibleSelectedBooks.reduce((sum, book) => sum + book.size, 0),
+    visibleCount: visibleBooks.length,
+    allVisibleSelected: visibleBooks.length > 0 && selectedCount === visibleBooks.length,
+    partiallyVisibleSelected: selectedCount > 0 && selectedCount < visibleBooks.length,
   };
 }

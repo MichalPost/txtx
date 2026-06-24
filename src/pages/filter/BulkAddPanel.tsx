@@ -30,6 +30,8 @@ export function BulkAddPanel({
       <textarea
         rows={5}
         className="w-full resize-y rounded-lg border px-3 py-2 font-mono text-xs focus:outline-none"
+        name="ad-pattern-bulk"
+        aria-label="批量添加广告过滤规则"
         style={{
           background: "var(--color-surface-2)",
           borderColor: "var(--color-border)",

@@ -1,5 +1,12 @@
 import type { LogEntry, TaskRecord } from "@/types";
 
+export interface TaskRetryAction {
+  canRun: boolean;
+  idleLabel: string;
+  pendingLabel: string;
+  unavailableReason: string;
+}
+
 export function getRecentFailureMessages(logs: LogEntry[], limit = 5): string[] {
   const seen = new Set<string>();
   const messages: string[] = [];
@@ -49,4 +56,33 @@ export function buildFailedLogReport(task: TaskRecord, failedMessages: string[])
   }
 
   return lines.join("\n");
+}
+
+export function getTaskRetryAction(task: TaskRecord): TaskRetryAction {
+  const isPaused = task.status === "paused";
+  const labels = isPaused
+    ? { idleLabel: "继续任务", pendingLabel: "继续中..." }
+    : { idleLabel: "重试", pendingLabel: "重试中..." };
+
+  const unavailable = (reason: string): TaskRetryAction => ({
+    ...labels,
+    canRun: false,
+    unavailableReason: reason,
+  });
+
+  if (task.kind === "single_download") {
+    const url = task.source_url ?? task.scan_items[0]?.url ?? "";
+    if (!url) return unavailable("当前任务缺少来源链接，请重新创建任务。");
+    return { ...labels, canRun: true, unavailableReason: "" };
+  }
+
+  if (task.kind === "selected_download") {
+    const selected = task.retry_context?.selected_items ?? [];
+    if (selected.length === 0) {
+      return unavailable("当前任务缺少可继续的下载列表，请重新创建任务。");
+    }
+    return { ...labels, canRun: true, unavailableReason: "" };
+  }
+
+  return { ...labels, canRun: true, unavailableReason: "" };
 }

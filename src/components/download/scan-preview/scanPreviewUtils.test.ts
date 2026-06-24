@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  applyScanSelectionBatch,
   buildScanPreviewSummary,
   filterAndSortScanItems,
+  getVisibleGroupedScanItems,
   groupScanItemsBySite,
 } from "./scanPreviewUtils.ts";
 
@@ -107,4 +109,54 @@ test("groupScanItemsBySite keeps pending selection counts for grouped tables", (
       },
     ],
   );
+});
+
+test("applyScanSelectionBatch selects and deselects urls without mutating previous selection", () => {
+  const previous = new Set(["https://a.example/book-1", "https://b.example/book-4"]);
+
+  const selected = applyScanSelectionBatch(previous, {
+    urls: ["https://a.example/book-2", "https://b.example/book-4"],
+    selected: true,
+  });
+  assert.deepEqual([...selected].sort(), [
+    "https://a.example/book-1",
+    "https://a.example/book-2",
+    "https://b.example/book-4",
+  ]);
+  assert.deepEqual([...previous].sort(), ["https://a.example/book-1", "https://b.example/book-4"]);
+
+  const deselected = applyScanSelectionBatch(selected, {
+    urls: ["https://a.example/book-1", "https://missing.example/book"],
+    selected: false,
+  });
+  assert.deepEqual([...deselected].sort(), [
+    "https://a.example/book-2",
+    "https://b.example/book-4",
+  ]);
+});
+
+test("getVisibleGroupedScanItems limits large groups until expanded", () => {
+  const items = Array.from({ length: 5 }, (_, index) => ({
+    url: `https://a.example/book-${index}`,
+    name: `Book ${index}`,
+    site: "https://a.example",
+    date: "2026-06-20",
+    excluded_reason: undefined,
+  }));
+
+  const collapsed = getVisibleGroupedScanItems(items, {
+    expanded: false,
+    limit: 3,
+  });
+  assert.equal(collapsed.visibleItems.length, 3);
+  assert.equal(collapsed.hiddenCount, 2);
+  assert.equal(collapsed.canExpand, true);
+
+  const expanded = getVisibleGroupedScanItems(items, {
+    expanded: true,
+    limit: 3,
+  });
+  assert.equal(expanded.visibleItems.length, 5);
+  assert.equal(expanded.hiddenCount, 0);
+  assert.equal(expanded.canExpand, false);
 });

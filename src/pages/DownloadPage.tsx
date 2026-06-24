@@ -102,8 +102,8 @@ export function DownloadPage() {
         variant="ghost"
         size="sm"
         onClick={() => setShowPreflight((v) => !v)}
-        disabled={submittingTask}
-        title="下载前检测站点可达性"
+        disabled={submittingTask || Boolean(configError) || !config}
+        title={configError || !config ? "请先恢复站点配置后再做下载前预检" : "下载前检测站点可达性"}
       >
         <Activity className="h-3.5 w-3.5" /> 预检站点
       </Button>
@@ -268,7 +268,7 @@ export function DownloadPage() {
             <ImportUrlPanel
               taskMode
               onClose={() => setShowImport(false)}
-              onImport={async (urls) => {
+              onImport={async (urls, importSummary) => {
                 await runTaskSubmission(async () => {
                   let latestTaskId: string | null = null;
                   const requestedCount = urls.length;
@@ -290,8 +290,8 @@ export function DownloadPage() {
                         requestedCount,
                         successCount: result.successCount,
                         failureCount: result.failures.length,
-                        duplicateCount: 0,
-                        invalidCount: 0,
+                        duplicateCount: importSummary.duplicateCount,
+                        invalidCount: importSummary.invalidCount,
                       }),
                     );
                     if (result.successCount === 0) {
@@ -303,8 +303,8 @@ export function DownloadPage() {
                         requestedCount,
                         successCount: result.successCount,
                         failureCount: 0,
-                        duplicateCount: 0,
-                        invalidCount: 0,
+                        duplicateCount: importSummary.duplicateCount,
+                        invalidCount: importSummary.invalidCount,
                       }) || formatTaskCreateSuccess("multi_single", result.successCount),
                     );
                   }

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Sparkles } from "lucide-react";
 
 import { Button } from "@/components/Button";
@@ -42,18 +43,27 @@ export function FieldRuleEditor({
   aiLoading = false,
   html,
 }: FieldRuleEditorProps) {
+  const fieldId = useId();
   const finalXpath = buildXPathFromRule(rule).trim();
   const hasHtml = Boolean(html?.trim());
+  const modeId = `${fieldId}-mode`;
+  const extractLabelId = `${fieldId}-extract-label`;
 
   return (
     <WizardSection title={label} color="var(--color-text)">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="min-w-40 flex-1">
-            <label className="mb-1 block text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <label
+              htmlFor={modeId}
+              className="mb-1 block text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               规则类型
             </label>
             <select
+              id={modeId}
+              name="field-rule-mode"
               value={rule.mode}
               onChange={(event) => onChange(patchRule(rule, { mode: event.target.value as RuleMode }))}
               className="w-full rounded-[10px] border px-3 py-2 text-sm focus:outline-none"
@@ -123,16 +133,21 @@ export function FieldRuleEditor({
 
         {["tag_name", "attr_name", "attr_value", "tag_attr_value", "text_keyword"].includes(rule.mode) && (
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <span
+              id={extractLabelId}
+              className="text-xs font-medium"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               提取内容
-            </label>
-            <div className="flex flex-wrap gap-2">
+            </span>
+            <div className="flex flex-wrap gap-2" role="group" aria-labelledby={extractLabelId}>
               {EXTRACT_OPTIONS.map((option) => {
                 const active = rule.extract === option.value;
                 return (
                   <button
                     key={option.value}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => onChange(patchRule(rule, { extract: option.value }))}
                     className="rounded-full border px-2.5 py-1 text-xs transition-colors"
                     style={{

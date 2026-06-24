@@ -48,6 +48,8 @@ export function RuleQuickTools({
       </Button>
 
       <select
+        name={`${autoLabel}-common-rule`}
+        aria-label={`选择${autoLabel}常用规则`}
         className="rounded-lg border px-2 py-1.5 text-xs focus:outline-none"
         style={{
           background: "var(--color-surface-1)",

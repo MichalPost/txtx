@@ -9,7 +9,12 @@ import type { ContentFilterConfig } from "@/types";
 import { AdPatternPanel } from "./AdPatternPanel";
 import { ContentCleanTestPanel } from "./ContentCleanTestPanel";
 import { FilterParamsCard } from "./FilterParamsCard";
-import { buildImportSummary, mergeUniqueStrings, serializeFilterDraft } from "./filterPageUtils";
+import {
+  buildContentFilterImportPlan,
+  buildImportSummary,
+  mergeUniqueStrings,
+  serializeFilterDraft,
+} from "./filterPageUtils";
 import { NavKeywordPanel } from "./NavKeywordPanel";
 
 interface ContentCleanTabProps {
@@ -67,33 +72,33 @@ export function ContentCleanTab({
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const parsed = JSON.parse(ev.target?.result as string) as {
-          ad_patterns?: string[];
-          nav_keywords?: string[];
-        };
-        const ad_patterns = Array.isArray(parsed.ad_patterns)
-          ? parsed.ad_patterns.map((item) => String(item).trim()).filter(Boolean)
-          : [];
-        const nav_keywords = Array.isArray(parsed.nav_keywords)
-          ? parsed.nav_keywords.map((item) => String(item).trim()).filter(Boolean)
-          : [];
-        const nextPatterns = mergeUniqueStrings(cf.ad_patterns, ad_patterns);
-        const nextKeywords = mergeUniqueStrings(cf.nav_keywords, nav_keywords);
+        const parsed = JSON.parse(ev.target?.result as string);
+        const plan = buildContentFilterImportPlan(parsed, cf, (pattern) => {
+          try {
+            new RegExp(pattern);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        const nextPatterns = mergeUniqueStrings(cf.ad_patterns, plan.adPatterns.accepted);
+        const nextKeywords = mergeUniqueStrings(cf.nav_keywords, plan.navKeywords.accepted);
         update({
           ad_patterns: nextPatterns,
           nav_keywords: nextKeywords,
         });
         const feedback = [
           buildImportSummary(
-            nextPatterns.length - cf.ad_patterns.length,
-            ad_patterns.length - (nextPatterns.length - cf.ad_patterns.length),
-            0,
+            plan.adPatterns.accepted.length,
+            plan.adPatterns.duplicateCount,
+            plan.adPatterns.emptyCount,
             "广告规则",
+            plan.adPatterns.invalidCount,
           ),
           buildImportSummary(
-            nextKeywords.length - cf.nav_keywords.length,
-            nav_keywords.length - (nextKeywords.length - cf.nav_keywords.length),
-            0,
+            plan.navKeywords.accepted.length,
+            plan.navKeywords.duplicateCount,
+            plan.navKeywords.emptyCount,
             "导航词",
           ),
         ]
@@ -148,10 +153,16 @@ export function ContentCleanTab({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="content-filter-import-file" className="sr-only">
+            导入内容清洗 JSON 文件
+          </label>
           <input
+            id="content-filter-import-file"
             ref={fileInputRef}
             type="file"
             accept=".json"
+            name="content-filter-import-file"
+            aria-label="导入内容清洗 JSON 文件"
             className="hidden"
             onChange={handleImport}
           />

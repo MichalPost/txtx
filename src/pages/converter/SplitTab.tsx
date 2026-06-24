@@ -8,12 +8,15 @@ import { Input } from "@/components/Input";
 import { apiPickFile, apiSplitFile } from "@/lib/api";
 import { formatToolActionError } from "@/lib/toolActionError";
 
+import { getRegexValidationError } from "./converterUtils";
+
 export function SplitTab() {
   const [path, setPath] = useState("");
   const [pattern, setPattern] = useState("");
   const [results, setResults] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
+  const patternError = getRegexValidationError(pattern);
 
   const pickFile = async () => {
     try {
@@ -25,7 +28,7 @@ export function SplitTab() {
   };
 
   const handleSplit = async () => {
-    if (!path.trim()) return;
+    if (!path.trim() || patternError) return;
     setRunning(true);
     setResults([]);
     setError("");
@@ -45,6 +48,7 @@ export function SplitTab() {
         <div className="flex items-end gap-2">
           <Input
             label="源文件"
+            name="split-source-path"
             className="flex-1"
             placeholder="D:/books/novel.txt"
             value={path}
@@ -59,21 +63,33 @@ export function SplitTab() {
         <div className="flex flex-col gap-1">
           <Input
             label="分割规则（正则，留空使用默认）"
+            name="split-pattern"
             placeholder="^第[零一二三四五六七八九十百千\d]+[章节]"
             value={pattern}
-            onChange={(e) => setPattern(e.target.value)}
+            onChange={(e) => {
+              setPattern(e.target.value);
+              setError("");
+              setResults([]);
+            }}
             disabled={running}
+            aria-invalid={!!patternError}
           />
-          <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            默认匹配：第X章、第X节、第X回等常见格式，支持自动识别 UTF-8 / GBK / Big5，并输出到源文件同目录
-          </p>
+          {patternError ? (
+            <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+              正则无效：{patternError}
+            </p>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+              默认匹配：第X章、第X节、第X回等常见格式，支持自动识别 UTF-8 / GBK / Big5，并输出到源文件同目录
+            </p>
+          )}
         </div>
 
         <Button
           size="sm"
           className="self-start"
           onClick={() => void handleSplit()}
-          disabled={running || !path.trim()}
+          disabled={running || !path.trim() || !!patternError}
         >
           <Scissors className="h-3.5 w-3.5" />
           {running ? "分割中..." : "开始分割"}

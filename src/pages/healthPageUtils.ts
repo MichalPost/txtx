@@ -26,6 +26,11 @@ export interface HealthViewStateInput {
   visibleResults: number;
 }
 
+export interface HealthReportInput {
+  results: SiteHealth[];
+  checkedAt: Date | null;
+}
+
 function normalizeDomain(domain: string): string {
   return domain.replace(/^https?:\/\//, "").trim();
 }
@@ -112,4 +117,31 @@ export function deriveHealthViewState(input: HealthViewStateInput): HealthViewSt
 
 export function formatHealthDomain(domain: string): string {
   return normalizeDomain(domain);
+}
+
+export function buildHealthReport({ results, checkedAt }: HealthReportInput): string {
+  const summary = buildHealthSummary(results);
+  const lines = [
+    "站点健康检查报告",
+    `检查时间：${checkedAt ? checkedAt.toLocaleString("zh-CN") : "未记录"}`,
+    "",
+    `站点总数：${summary.total}`,
+    `可达站点：${summary.reachable}`,
+    `不可达站点：${summary.unreachable}`,
+    `平均延迟：${summary.averageLatency == null ? "暂无" : `${summary.averageLatency} ms`}`,
+    summary.fastestSite
+      ? `最快站点：${summary.fastestSite} (${summary.fastestLatency ?? "暂无"} ms)`
+      : "最快站点：暂无",
+    "",
+    "明细：",
+  ];
+
+  for (const item of filterAndSortSiteHealth(results, { query: "", status: "all", sort: "status" })) {
+    const latency = item.latency_ms == null ? "暂无" : `${item.latency_ms} ms`;
+    const status = item.reachable ? "可达" : "不可达";
+    const error = item.error ? `；错误：${item.error}` : "";
+    lines.push(`- ${formatHealthDomain(item.domain)}：${status}；延迟：${latency}${error}`);
+  }
+
+  return lines.join("\n");
 }

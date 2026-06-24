@@ -1,5 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from "react";
-import { AlertCircle, ChevronLeft, FileDown, Filter, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { AlertCircle, ChevronLeft, FileDown, Filter, ListFilter, Plus, RefreshCw, Search, Upload } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
@@ -11,6 +11,7 @@ import { SiteList } from "./components/SiteList";
 import { DEFAULT_SITE } from "./rulesPageUtils";
 import {
   buildRulesSummary,
+  buildVisibleRuleWindow,
   filterAndSortRules,
   type RulesFilterStatus,
 } from "./rulesListUtils";
@@ -21,6 +22,8 @@ const RuleWizard = lazy(() =>
     default: module.RuleWizard,
   })),
 );
+
+const RULE_LIST_BATCH_SIZE = 24;
 
 export function RulesPage() {
   const { error: configError, loading: configLoading, loadConfig } = useConfigStore();
@@ -40,10 +43,15 @@ export function RulesPage() {
     duplicateSite,
     reorderSites,
     exportSites,
+    exportStarterTemplate,
     importSites,
+    importPending,
+    confirmDialog,
   } = useRulesPageActions();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<RulesFilterStatus>("all");
+  const [listMode, setListMode] = useState<"browse" | "sort">("browse");
+  const [visibleRuleCount, setVisibleRuleCount] = useState(RULE_LIST_BATCH_SIZE);
   const websites = useMemo(() => config?.websites ?? {}, [config?.websites]);
   const summary = useMemo(() => buildRulesSummary(websites), [websites]);
   const siteKeys = useMemo(
@@ -56,11 +64,29 @@ export function RulesPage() {
       }),
     [config?.filtering.site_priority, search, statusFilter, websites],
   );
+  const ruleWindow = useMemo(
+    () => buildVisibleRuleWindow(siteKeys, visibleRuleCount, RULE_LIST_BATCH_SIZE),
+    [siteKeys, visibleRuleCount],
+  );
   const hasActiveFilters = search.trim().length > 0 || statusFilter !== "all";
+
+  useEffect(() => {
+    setVisibleRuleCount(RULE_LIST_BATCH_SIZE);
+    setListMode("browse");
+  }, [search, statusFilter]);
 
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
+  };
+
+  const handleToggleSortMode = () => {
+    if (listMode === "sort") {
+      setListMode("browse");
+      return;
+    }
+    if (hasActiveFilters) return;
+    setListMode("sort");
   };
 
   if (configError) {
@@ -144,9 +170,9 @@ export function RulesPage() {
               </Button>
             ) : (
               <>
-                <Button variant="secondary" size="sm" onClick={importSites}>
+                <Button variant="secondary" size="sm" onClick={importSites} disabled={importPending}>
                   <Upload className="h-3.5 w-3.5" />
-                  导入
+                  {importPending ? "确认中..." : "导入"}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={exportSites}>
                   <FileDown className="h-3.5 w-3.5" />
@@ -215,6 +241,17 @@ export function RulesPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Button
+                  variant={listMode === "sort" ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={handleToggleSortMode}
+                  disabled={siteKeys.length <= 1 || hasActiveFilters}
+                  aria-pressed={listMode === "sort"}
+                  title={hasActiveFilters ? "清空筛选后才能调整全局优先级" : undefined}
+                >
+                  <ListFilter className="h-3.5 w-3.5" />
+                  {listMode === "sort" ? "完成排序" : "排序模式"}
+                </Button>
                 <span
                   className="rounded-full px-2.5 py-1"
                   style={{
@@ -247,7 +284,13 @@ export function RulesPage() {
           </div>
         )}
 
-        {summary.total === 0 && editingKey === null && <EmptyState onNew={handleNewSite} />}
+        {summary.total === 0 && editingKey === null && (
+          <EmptyState
+            onImport={importSites}
+            onNew={handleNewSite}
+            onTemplate={exportStarterTemplate}
+          />
+        )}
 
         {editingKey && (
           <Suspense
@@ -318,22 +361,38 @@ export function RulesPage() {
                 </div>
               </div>
             ) : (
-              <SiteList
-                siteKeys={siteKeys}
-                websites={websites}
-                getRuleStatus={getRuleStatus}
-                recentlySavedKey={recentlySavedKey}
-                onEdit={(key) => setEditingKey(key)}
-                onToggle={toggleEnabled}
-                onDelete={deleteSite}
-                onQuickSave={quickSave}
-                onReorder={reorderSites}
-                onDuplicate={duplicateSite}
-              />
+              <>
+                <SiteList
+                  siteKeys={siteKeys}
+                  visibleSiteKeys={ruleWindow.visibleKeys}
+                  mode={listMode}
+                  websites={websites}
+                  getRuleStatus={getRuleStatus}
+                  recentlySavedKey={recentlySavedKey}
+                  onEdit={(key) => setEditingKey(key)}
+                  onToggle={toggleEnabled}
+                  onDelete={deleteSite}
+                  onQuickSave={quickSave}
+                  onReorder={reorderSites}
+                  onDuplicate={duplicateSite}
+                />
+                {listMode === "browse" && ruleWindow.hasMore && (
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setVisibleRuleCount(ruleWindow.nextVisibleCount)}
+                    >
+                      加载更多规则（{ruleWindow.visibleCount}/{ruleWindow.totalCount}）
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }
