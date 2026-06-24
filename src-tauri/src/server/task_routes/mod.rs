@@ -3,13 +3,13 @@
 //! Mirrors the Tauri invoke commands in lib.rs so the frontend works
 //! identically in both environments.
 
-mod scan;
 mod download;
 mod manage;
+mod scan;
 
-pub use scan::*;
 pub use download::*;
 pub use manage::*;
+pub use scan::*;
 
 use crate::server::state::AppState;
 

@@ -1,17 +1,16 @@
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use anyhow::Result;
 use backon::{ExponentialBuilder, Retryable};
-use tokio::sync::{Semaphore, mpsc};
 use futures::FutureExt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::{mpsc, Semaphore};
 
-use crate::models::{
-    EbookConversionConfig, NetworkConfig, ProgressEvent,
-    TextConversionConfig, WebsiteConfig,
-};
 use crate::crawler::download_chapter_paged;
-use crate::text_converter;
 use crate::ebook_converter;
+use crate::models::{
+    EbookConversionConfig, NetworkConfig, ProgressEvent, TextConversionConfig, WebsiteConfig,
+};
+use crate::text_converter;
 
 // ─── First pass: download all chapters concurrently ──────────────────────────
 
@@ -32,89 +31,130 @@ pub(super) async fn run_first_pass(
     content_filter: &crate::models::ContentFilterConfig,
     xpath_fallbacks: &[String],
 ) -> Vec<Result<Result<(), anyhow::Error>, tokio::task::JoinError>> {
-    let tasks: Vec<_> = chapter_urls.iter().enumerate().map(|(idx, url)| {
-        let client = client.clone();
-        let url = url.clone();
-        let xpath = site_cfg.novel_content.clone();
-        let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
-        let enc = net_cfg.encoding_map.clone();
-        let rc = net_cfg.retry_count;
-        let rd = net_cfg.retry_delay;
-        let proxy = net_cfg.proxy.clone();
-        let timeout = net_cfg.timeout;
-        let temp_dir = temp_dir.to_path_buf();
-        let sem = chapter_sem.clone();
-        let cancel = cancel.clone();
-        let tx = tx.clone();
-        let novel = novel_name.to_string();
-        let ctr = counter.clone();
-        let tc = text_conv.clone();
-        let rate_limit_cfg = rate_limit_cfg.clone();
-        let content_filter = content_filter.clone();
-        let xpath_fallbacks = xpath_fallbacks.to_vec();
+    let tasks: Vec<_> = chapter_urls
+        .iter()
+        .enumerate()
+        .map(|(idx, url)| {
+            let client = client.clone();
+            let url = url.clone();
+            let xpath = site_cfg.novel_content.clone();
+            let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
+            let enc = net_cfg.encoding_map.clone();
+            let rc = net_cfg.retry_count;
+            let rd = net_cfg.retry_delay;
+            let proxy = net_cfg.proxy.clone();
+            let timeout = net_cfg.timeout;
+            let temp_dir = temp_dir.to_path_buf();
+            let sem = chapter_sem.clone();
+            let cancel = cancel.clone();
+            let tx = tx.clone();
+            let novel = novel_name.to_string();
+            let ctr = counter.clone();
+            let tc = text_conv.clone();
+            let rate_limit_cfg = rate_limit_cfg.clone();
+            let content_filter = content_filter.clone();
+            let xpath_fallbacks = xpath_fallbacks.to_vec();
 
-        tokio::spawn(async move {
-            let _p = sem.acquire().await.unwrap();
-            if cancel.notified().now_or_never().is_some() {
-                return Ok::<_, anyhow::Error>(());
-            }
+            tokio::spawn(async move {
+                let _p = sem.acquire().await.unwrap();
+                if cancel.notified().now_or_never().is_some() {
+                    return Ok::<_, anyhow::Error>(());
+                }
 
-            let temp_file = temp_dir.join(format!("{:04}.txt", idx));
+                let temp_file = temp_dir.join(format!("{:04}.txt", idx));
 
-            // Resume: skip already-good files
-            if temp_file.exists() {
-                if let Ok(m) = tokio::fs::metadata(&temp_file).await {
-                    if m.len() >= 1024 {
-                        let done = ctr.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                        let _ = tx.send(ProgressEvent::ChapterDone {
-                            novel, current: done, total: total_chapters,
-                        }).await;
-                        return Ok(());
+                // Resume: skip already-good files
+                if temp_file.exists() {
+                    if let Ok(m) = tokio::fs::metadata(&temp_file).await {
+                        if m.len() >= 1024 {
+                            let done = ctr.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                            let _ = tx
+                                .send(ProgressEvent::ChapterDone {
+                                    novel,
+                                    current: done,
+                                    total: total_chapters,
+                                })
+                                .await;
+                            return Ok(());
+                        }
                     }
                 }
-            }
 
-            let text = if let Some(rule) = crate::rate_limited_downloader::find_rate_limit_rule(&url, &rate_limit_cfg) {
-                let rule = rule.clone();
-                let proxy_opt = proxy.as_deref().filter(|p| !p.is_empty());
-                match crate::rate_limited_downloader::build_rate_limited_client(proxy_opt, timeout, &rule) {
-                    Ok(rl_client) => {
-                        let domain = url.split('/').take(3).collect::<Vec<_>>().join("/");
-                        crate::rate_limited_downloader::fetch_rate_limited_chapter(
-                            &rl_client, &url, &domain,
-                            &xpath, &xpath_fallbacks, &enc, rc, rd, &rule, &content_filter,
-                        ).await?
+                let text = if let Some(rule) =
+                    crate::rate_limited_downloader::find_rate_limit_rule(&url, &rate_limit_cfg)
+                {
+                    let rule = rule.clone();
+                    let proxy_opt = proxy.as_deref().filter(|p| !p.is_empty());
+                    match crate::rate_limited_downloader::build_rate_limited_client(
+                        proxy_opt, timeout, &rule,
+                    ) {
+                        Ok(rl_client) => {
+                            let domain = url.split('/').take(3).collect::<Vec<_>>().join("/");
+                            crate::rate_limited_downloader::fetch_rate_limited_chapter(
+                                &rl_client,
+                                &url,
+                                &domain,
+                                &xpath,
+                                &xpath_fallbacks,
+                                &enc,
+                                rc,
+                                rd,
+                                &rule,
+                                &content_filter,
+                            )
+                            .await?
+                        }
+                        Err(_) => {
+                            download_chapter_paged(
+                                &client,
+                                &url,
+                                &xpath,
+                                &xpath_fallbacks,
+                                &enc,
+                                rc,
+                                rd,
+                                &content_filter,
+                                &next_page_xpath,
+                            )
+                            .await?
+                        }
                     }
-                    Err(_) => {
-                        download_chapter_paged(
-                            &client, &url, &xpath, &xpath_fallbacks,
-                            &enc, rc, rd, &content_filter, &next_page_xpath,
-                        ).await?
-                    }
-                }
-            } else {
-                download_chapter_paged(
-                    &client, &url, &xpath, &xpath_fallbacks,
-                    &enc, rc, rd, &content_filter, &next_page_xpath,
-                ).await?
-            };
-
-            if !text.is_empty() {
-                let out = if tc.enabled && tc.traditional_to_simplified {
-                    text_converter::detect_and_convert(&text, tc.auto_detect).0
                 } else {
-                    text
+                    download_chapter_paged(
+                        &client,
+                        &url,
+                        &xpath,
+                        &xpath_fallbacks,
+                        &enc,
+                        rc,
+                        rd,
+                        &content_filter,
+                        &next_page_xpath,
+                    )
+                    .await?
                 };
-                tokio::fs::write(&temp_file, out.as_bytes()).await?;
-            }
 
-            let done = ctr.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-            let _ = tx.send(ProgressEvent::ChapterDone {
-                novel, current: done, total: total_chapters,
-            }).await;
-            Ok(())
+                if !text.is_empty() {
+                    let out = if tc.enabled && tc.traditional_to_simplified {
+                        text_converter::detect_and_convert(&text, tc.auto_detect).0
+                    } else {
+                        text
+                    };
+                    tokio::fs::write(&temp_file, out.as_bytes()).await?;
+                }
+
+                let done = ctr.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                let _ = tx
+                    .send(ProgressEvent::ChapterDone {
+                        novel,
+                        current: done,
+                        total: total_chapters,
+                    })
+                    .await;
+                Ok(())
+            })
         })
-    }).collect();
+        .collect();
 
     futures::future::join_all(tasks).await
 }
@@ -156,71 +196,89 @@ pub(super) async fn run_repair_pass(
     repair_set.sort_unstable();
 
     if !repair_set.is_empty() {
-        let _ = tx.send(ProgressEvent::Log {
-            message: format!("{}: 修复 {} 个问题章节...", novel_name, repair_set.len()),
-            level: "warn".into(),
-        }).await;
+        let _ = tx
+            .send(ProgressEvent::Log {
+                message: format!("{}: 修复 {} 个问题章节...", novel_name, repair_set.len()),
+                level: "warn".into(),
+            })
+            .await;
 
         let repair_sem = Arc::new(Semaphore::new(3));
-        let repair_tasks: Vec<_> = repair_set.iter().map(|&idx| {
-            let client = client.clone();
-            let url = chapter_urls[idx].clone();
-            let xpath = site_cfg.novel_content.clone();
-            let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
-            let enc = net_cfg.encoding_map.clone();
-            let rc = net_cfg.retry_count;
-            let rd = net_cfg.retry_delay;
-            let temp_dir = temp_dir.to_path_buf();
-            let sem = repair_sem.clone();
-            let content_filter = content_filter.clone();
-            let fallbacks = xpath_fallbacks.to_vec();
+        let repair_tasks: Vec<_> = repair_set
+            .iter()
+            .map(|&idx| {
+                let client = client.clone();
+                let url = chapter_urls[idx].clone();
+                let xpath = site_cfg.novel_content.clone();
+                let next_page_xpath = site_cfg.chapter_next_page_xpath.clone();
+                let enc = net_cfg.encoding_map.clone();
+                let rc = net_cfg.retry_count;
+                let rd = net_cfg.retry_delay;
+                let temp_dir = temp_dir.to_path_buf();
+                let sem = repair_sem.clone();
+                let content_filter = content_filter.clone();
+                let fallbacks = xpath_fallbacks.to_vec();
 
-            tokio::spawn(async move {
-                let _p = sem.acquire().await.unwrap();
-                let result = (|| async {
-                    let text = download_chapter_paged(
-                        &client, &url, &xpath, &fallbacks,
-                        &enc, rc, rd,
-                        &content_filter,
-                        &next_page_xpath,
-                    ).await?;
-                    if text.is_empty() {
-                        return Err(anyhow::anyhow!("empty chapter"));
-                    }
-                    let f = temp_dir.join(format!("{:04}.txt", idx));
-                    tokio::fs::write(&f, text.as_bytes()).await?;
-                    Ok::<_, anyhow::Error>(())
+                tokio::spawn(async move {
+                    let _p = sem.acquire().await.unwrap();
+                    let result = (|| async {
+                        let text = download_chapter_paged(
+                            &client,
+                            &url,
+                            &xpath,
+                            &fallbacks,
+                            &enc,
+                            rc,
+                            rd,
+                            &content_filter,
+                            &next_page_xpath,
+                        )
+                        .await?;
+                        if text.is_empty() {
+                            return Err(anyhow::anyhow!("empty chapter"));
+                        }
+                        let f = temp_dir.join(format!("{:04}.txt", idx));
+                        tokio::fs::write(&f, text.as_bytes()).await?;
+                        Ok::<_, anyhow::Error>(())
+                    })
+                    .retry(
+                        ExponentialBuilder::default()
+                            .with_max_times(3)
+                            .with_min_delay(std::time::Duration::from_secs(2)),
+                    )
+                    .await;
+                    (idx, result.is_ok())
                 })
-                .retry(
-                    ExponentialBuilder::default()
-                        .with_max_times(3)
-                        .with_min_delay(std::time::Duration::from_secs(2)),
-                )
-                .await;
-                (idx, result.is_ok())
             })
-        }).collect();
+            .collect();
 
         let repair_results = futures::future::join_all(repair_tasks).await;
-        let still_failed: Vec<usize> = repair_results.into_iter()
+        let still_failed: Vec<usize> = repair_results
+            .into_iter()
             .filter_map(|r| r.ok())
             .filter(|(_, ok)| !ok)
             .map(|(i, _)| i)
             .collect();
 
         if !still_failed.is_empty() {
-            let _ = tx.send(ProgressEvent::Log {
-                message: format!("{}: {} 个章节修复失败，将跳过",
-                    novel_name, still_failed.len()),
-                level: "warn".into(),
-            }).await;
+            let _ = tx
+                .send(ProgressEvent::Log {
+                    message: format!(
+                        "{}: {} 个章节修复失败，将跳过",
+                        novel_name,
+                        still_failed.len()
+                    ),
+                    level: "warn".into(),
+                })
+                .await;
         }
 
         let threshold = (total_chapters as f64 * 0.05).max(2.0) as usize;
         if still_failed.len() > threshold {
             return Err(anyhow::anyhow!(
                 "章节下载失败过多: {}/{} (修复后仍失败)",
-                still_failed.len(), total_chapters
+                still_failed.len(),
+                total_chapters
             ));
         }
     } else {
@@ -228,7 +286,8 @@ pub(super) async fn run_repair_pass(
         if failed_indices.len() > threshold {
             return Err(anyhow::anyhow!(
                 "章节下载失败过多: {}/{}",
-                failed_indices.len(), total_chapters
+                failed_indices.len(),
+                total_chapters
             ));
         }
     }
@@ -247,16 +306,20 @@ pub(super) async fn convert_ebook(
         let calibre = ebook_conv.calibre_path.as_ref().map(PathBuf::from);
         match ebook_converter::convert(final_path.to_path_buf(), fmt, calibre).await {
             Ok(out) => {
-                let _ = tx.send(ProgressEvent::Log {
-                    message: format!("电子书转换完成: {}", out.display()),
-                    level: "info".into(),
-                }).await;
+                let _ = tx
+                    .send(ProgressEvent::Log {
+                        message: format!("电子书转换完成: {}", out.display()),
+                        level: "info".into(),
+                    })
+                    .await;
             }
             Err(e) => {
-                let _ = tx.send(ProgressEvent::Log {
-                    message: format!("电子书转换失败 ({}): {}", fmt, e),
-                    level: "warn".into(),
-                }).await;
+                let _ = tx
+                    .send(ProgressEvent::Log {
+                        message: format!("电子书转换失败 ({}): {}", fmt, e),
+                        level: "warn".into(),
+                    })
+                    .await;
             }
         }
     }

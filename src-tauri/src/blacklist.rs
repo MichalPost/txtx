@@ -1,5 +1,5 @@
-use regex::Regex;
 use crate::models::BlacklistConfig;
+use regex::Regex;
 
 pub struct Blacklist {
     keywords: Vec<String>,
@@ -57,16 +57,16 @@ impl Blacklist {
             vec![]
         };
 
-        let (grading_strict, grading_moderate, grading_mild) =
-            if let Some(gr) = &cfg.grading_rules {
-                (
-                    maybe_lower(&gr.strict, ci),
-                    maybe_lower(&gr.moderate, ci),
-                    maybe_lower(&gr.mild, ci),
-                )
-            } else {
-                (vec![], vec![], vec![])
-            };
+        let (grading_strict, grading_moderate, grading_mild) = if let Some(gr) = &cfg.grading_rules
+        {
+            (
+                maybe_lower(&gr.strict, ci),
+                maybe_lower(&gr.moderate, ci),
+                maybe_lower(&gr.mild, ci),
+            )
+        } else {
+            (vec![], vec![], vec![])
+        };
 
         Self {
             keywords,
@@ -150,7 +150,9 @@ impl Blacklist {
     pub fn is_blocked_with_tags(&self, name: &str, tags: &[String]) -> (bool, String) {
         // 先做名称检查
         let (blocked, reason) = self.is_blocked(name);
-        if blocked { return (blocked, reason); }
+        if blocked {
+            return (blocked, reason);
+        }
 
         // 标签过滤
         if self.tag_filter && !self.filtered_tags.is_empty() && !tags.is_empty() {

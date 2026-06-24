@@ -1,9 +1,12 @@
-use axum::{Json, extract::{Query, State}};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::crawler::http_client::{build_client, fetch_page};
 use super::error::AppError;
 use super::state::AppState;
+use crate::crawler::http_client::{build_client, fetch_page};
 
 #[derive(Deserialize)]
 pub struct SourceQuery {
@@ -23,6 +26,13 @@ pub async fn get_source(
 ) -> Result<Json<SourceResponse>, AppError> {
     let cfg = crate::config_db::load_config(&state.base_dir)?;
     let client = build_client(&cfg.network)?;
-    let html = fetch_page(&client, &q.url, &cfg.network.encoding_map, cfg.network.retry_count, cfg.network.retry_delay).await?;
+    let html = fetch_page(
+        &client,
+        &q.url,
+        &cfg.network.encoding_map,
+        cfg.network.retry_count,
+        cfg.network.retry_delay,
+    )
+    .await?;
     Ok(Json(SourceResponse { html }))
 }

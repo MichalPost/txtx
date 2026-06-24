@@ -23,8 +23,6 @@ import type { WebsiteConfig } from "@/types";
 
 import { SiteRuleCard } from "./SiteRuleCard";
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
 interface SiteListProps {
   siteKeys: string[];
   websites: Record<string, WebsiteConfig>;
@@ -37,8 +35,6 @@ interface SiteListProps {
   onReorder: (orderedKeys: string[]) => void;
   onDuplicate: (key: string) => void;
 }
-
-// ─── SortableSiteRow ──────────────────────────────────────────────────────────
 
 function SortableSiteRow({
   id,
@@ -86,13 +82,28 @@ function SortableSiteRow({
         onDelete={onDelete}
         onQuickSave={onQuickSave}
         onDuplicate={onDuplicate}
-        dragHandle={<GripVertical className="h-4 w-4" {...attributes} {...listeners} />}
+        dragHandle={
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border transition-colors focus:outline-none focus-visible:ring-2"
+            style={{
+              color: "var(--color-text-subtle)",
+              background: "var(--color-surface-2)",
+              borderColor: "var(--color-border)",
+              cursor: "grab",
+            }}
+            title={`拖拽排序 ${siteKey}`}
+            aria-label={`拖拽排序规则 ${siteKey}。按空格键开始键盘拖拽，再用方向键调整顺序。`}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        }
       />
     </div>
   );
 }
-
-// ─── SiteList ─────────────────────────────────────────────────────────────────
 
 export function SiteList({
   siteKeys,
@@ -107,27 +118,22 @@ export function SiteList({
   onDuplicate,
 }: SiteListProps) {
   const listRef = useRef<HTMLDivElement>(null);
-
-  // Internal ordered keys — keeps drag order independent of prop order
   const [localKeys, setLocalKeys] = useState<string[]>(() => siteKeys);
 
-  // Sync when external siteKeys change: preserve existing order, append new, drop removed
   useEffect(() => {
     setLocalKeys((prev) => {
-      const synced = prev.filter((k) => siteKeys.includes(k));
-      const added = siteKeys.filter((k) => !prev.includes(k));
+      const synced = prev.filter((key) => siteKeys.includes(key));
+      const added = siteKeys.filter((key) => !prev.includes(key));
       return [...synced, ...added];
     });
   }, [siteKeys]);
 
-  // Stagger animation when count changes (skip during drag to avoid conflicts)
   useEffect(() => {
     if (!listRef.current) return;
     const rows = listRef.current.querySelectorAll<HTMLElement>("[data-row]");
     if (rows.length) animateStagger(rows, 50);
   }, [siteKeys.length]);
 
-  // dnd-kit sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -136,23 +142,27 @@ export function SiteList({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIdx = localKeys.indexOf(String(active.id));
-    const newIdx = localKeys.indexOf(String(over.id));
-    const reordered = arrayMove(localKeys, oldIdx, newIdx);
+    const oldIndex = localKeys.indexOf(String(active.id));
+    const newIndex = localKeys.indexOf(String(over.id));
+    const reordered = arrayMove(localKeys, oldIndex, newIndex);
     setLocalKeys(reordered);
     onReorder(reordered);
   };
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Section header */}
       <div className="flex items-center justify-between">
-        <span
-          className="text-xs font-semibold tracking-wide uppercase"
-          style={{ color: "var(--color-text-subtle)", letterSpacing: "0.06em" }}
-        >
-          已配置站点
-        </span>
+        <div className="flex flex-col gap-1">
+          <span
+            className="text-xs font-semibold tracking-wide uppercase"
+            style={{ color: "var(--color-text-subtle)", letterSpacing: "0.06em" }}
+          >
+            已保存规则
+          </span>
+          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            可拖拽左侧手柄调整优先级，也支持键盘：聚焦手柄后按空格开始，再用方向键排序。
+          </span>
+        </div>
         <span
           className="rounded-full px-2 py-0.5 text-xs"
           style={{
@@ -165,7 +175,6 @@ export function SiteList({
         </span>
       </div>
 
-      {/* Sortable rows */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={localKeys} strategy={verticalListSortingStrategy}>
           <div ref={listRef} className="flex flex-col gap-2">

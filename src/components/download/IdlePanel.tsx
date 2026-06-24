@@ -1,15 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Calendar, Globe, ScanSearch } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { DateRangePicker } from "@/components/DateRangePicker";
-import { SiteHealthChecker } from "@/components/download/SiteHealthChecker";
 import { SiteSelector } from "@/components/download/SiteSelector";
 import { animateFadeInUp } from "@/lib/animations";
 import { useAppNavigate } from "@/router";
 import { useConfigStore } from "@/store/configStore";
 import { useDownloadStore } from "@/store/downloadStore";
 import type { SiteHealth } from "@/types";
+
+type IdleScheduleHandle =
+  | { kind: "idle"; value: number }
+  | { kind: "timeout"; value: ReturnType<typeof window.setTimeout> };
+
+const SiteHealthChecker = lazy(async () => {
+  const module = await import("@/components/download/SiteHealthChecker");
+  return { default: module.SiteHealthChecker };
+});
 
 interface IdlePanelProps {
   onScan: () => void | Promise<void>;
@@ -74,6 +82,7 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
   const { config } = useConfigStore();
   const { scanOptions, setScanOptions } = useDownloadStore();
   const [healthMap, setHealthMap] = useState<Record<string, SiteHealth>>({});
+  const [shouldLoadHealthChecker, setShouldLoadHealthChecker] = useState(false);
 
   const allSites = useMemo(() => {
     if (!config) return [];
@@ -89,6 +98,32 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
     if (iconRef.current) animateFadeInUp(iconRef.current, 100);
     if (panelRef.current) animateFadeInUp(panelRef.current, 200);
   }, []);
+
+  useEffect(() => {
+    if (shouldLoadHealthChecker) return;
+    if (typeof window === "undefined") return;
+
+    const schedule: IdleScheduleHandle =
+      "requestIdleCallback" in window
+        ? {
+            kind: "idle",
+            value: window.requestIdleCallback(() => setShouldLoadHealthChecker(true), {
+              timeout: 1200,
+            }),
+          }
+        : {
+            kind: "timeout",
+            value: globalThis.setTimeout(() => setShouldLoadHealthChecker(true), 250),
+          };
+
+    return () => {
+      if (schedule.kind === "timeout") {
+        globalThis.clearTimeout(schedule.value);
+        return;
+      }
+      window.cancelIdleCallback(schedule.value);
+    };
+  }, [shouldLoadHealthChecker]);
 
   // No sites configured yet — show onboarding nudge
   if (config && allSites.length === 0) {
@@ -162,7 +197,11 @@ export function IdlePanel({ onScan, disabled, taskMode = false }: IdlePanelProps
               onChange={(sites) => setScanOptions({ enabled_sites: sites })}
               healthMap={healthMap}
             />
-            <SiteHealthChecker onHealthMap={setHealthMap} />
+            {shouldLoadHealthChecker ? (
+              <Suspense fallback={null}>
+                <SiteHealthChecker onHealthMap={setHealthMap} />
+              </Suspense>
+            ) : null}
           </div>
         </div>
       </div>

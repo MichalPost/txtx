@@ -24,7 +24,7 @@ interface ConfigState {
   loading: boolean;
   saving: boolean;
   error: string | null;
-  loadConfig: () => Promise<void>;
+  loadConfig: (options?: { force?: boolean }) => Promise<void>;
   /** silent=true 时不弹 toast，用于自动保存（拖拽、删除、切换等） */
   saveConfig: (config: AppConfig, silent?: boolean) => Promise<void>;
   updateConfig: (updater: (c: AppConfig) => AppConfig) => void;
@@ -36,9 +36,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   saving: false,
   error: null,
 
-  loadConfig: async () => {
+  loadConfig: async (options) => {
     // 已加载过或正在加载则跳过，避免并发重复请求
-    if (get().config !== null || get().loading) return;
+    if (!options?.force && (get().config !== null || get().loading)) return;
+    if (get().loading) return;
     set({ loading: true, error: null });
     try {
       const config = await loadConfigWithRetry();

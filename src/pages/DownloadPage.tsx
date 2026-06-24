@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
-import { Activity, ArrowRight, FileUp, Globe, ListTodo, ScanSearch } from "lucide-react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  FileUp,
+  Globe,
+  ListTodo,
+  Loader2,
+  RefreshCw,
+  ScanSearch,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
+import { formatBatchImportResult } from "@/components/download/downloadTaskFeedback";
 import { IdlePanel } from "@/components/download/IdlePanel";
-import { ImportUrlPanel } from "@/components/download/ImportUrlPanel";
-import { PreflightPanel } from "@/components/download/PreflightPanel";
 import { QueueResumePanel } from "@/components/download/QueueResumePanel";
 import { SingleDownloadInput } from "@/components/download/SingleDownloadInput";
 import { PageHeader } from "@/components/PageHeader";
+import { buildDownloadOverview } from "@/pages/downloadPageUtils";
 import { formatTaskCreateError, formatTaskCreateSuccess } from "@/lib/taskCreateFeedback";
 import { formatTaskInitError } from "@/lib/taskInitError";
 import { createTasksFromUrls } from "@/lib/taskSubmission";
@@ -16,15 +26,24 @@ import { useAppNavigate } from "@/router";
 import { useConfigStore } from "@/store/configStore";
 import { useDownloadStore } from "@/store/downloadStore";
 import { useTaskStore } from "@/store/taskStore";
+import { hasManagedTask, hasRunningTask } from "@/store/taskStoreUtils";
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+const ImportUrlPanel = lazy(async () => {
+  const mod = await import("@/components/download/ImportUrlPanel");
+  return { default: mod.ImportUrlPanel };
+});
+
+const PreflightPanel = lazy(async () => {
+  const mod = await import("@/components/download/PreflightPanel");
+  return { default: mod.PreflightPanel };
+});
 
 export function DownloadPage() {
-  const { config } = useConfigStore();
-  const { phase } = useDownloadStore();
-  const { init: initTasks, createSingleTask, createScanTask, setActive } = useTaskStore();
+  const { config, error: configError, loading: configLoading, loadConfig } = useConfigStore();
+  const { init: initTasks, createSingleTask, createScanTask, tasks, setActive } = useTaskStore();
   const [showImport, setShowImport] = useState(false);
   const [showPreflight, setShowPreflight] = useState(false);
+  const [submittingTask, setSubmittingTask] = useState(false);
   const navigate = useAppNavigate();
 
   useEffect(() => {
@@ -33,22 +52,47 @@ export function DownloadPage() {
     });
   }, [initTasks]);
 
-  const isRunning = phase === "scanning" || phase === "downloading";
+  const isRunning = hasRunningTask(tasks);
+  const hasOpenManagedTask = hasManagedTask(tasks);
+  const overview = buildDownloadOverview({ tasks, config, configError });
+  const enabledSiteDomains = config
+    ? Object.values(config.websites)
+        .filter((site) => site.enabled)
+        .map((site) => site.domain_name)
+    : [];
+  const selectedSiteDomains = useDownloadStore.getState().scanOptions.enabled_sites ?? null;
 
-  const handleCreateScanTask = async () => {
+  const runTaskSubmission = async <T,>(action: () => Promise<T>) => {
+    if (submittingTask) return null;
+    setSubmittingTask(true);
     try {
-      const opts = useDownloadStore.getState().scanOptions;
-      const taskId = await createScanTask(Object.keys(opts).length > 0 ? opts : undefined);
-      setActive(taskId);
-      toast.success(formatTaskCreateSuccess("scan"));
-      navigate("/tasks");
-    } catch (error) {
-      toast.error(formatTaskCreateError("scan", error));
-      throw error;
+      return await action();
+    } finally {
+      setSubmittingTask(false);
     }
   };
 
-  // Header right-side controls
+  const focusTaskAndOpenManager = (taskId: string | null) => {
+    if (!taskId) return;
+    setActive(taskId);
+    navigate("/tasks");
+  };
+
+  const handleCreateScanTask = async () => {
+    return runTaskSubmission(async () => {
+      try {
+        const opts = useDownloadStore.getState().scanOptions;
+        const taskId = await createScanTask(Object.keys(opts).length > 0 ? opts : undefined);
+        focusTaskAndOpenManager(taskId);
+        toast.success(formatTaskCreateSuccess("scan"));
+        return taskId;
+      } catch (error) {
+        toast.error(formatTaskCreateError("scan", error));
+        throw error;
+      }
+    });
+  };
+
   const headerActions = (
     <>
       <Button variant="secondary" size="sm" onClick={() => navigate("/tasks")}>
@@ -58,17 +102,19 @@ export function DownloadPage() {
         variant="ghost"
         size="sm"
         onClick={() => setShowPreflight((v) => !v)}
+        disabled={submittingTask}
         title="下载前检测站点可达性"
       >
         <Activity className="h-3.5 w-3.5" /> 预检站点
       </Button>
-      {!isRunning && (
-        <Button
-          size="sm"
-          onClick={handleCreateScanTask}
-          disabled={!config}
-        >
-          <ScanSearch className="h-3.5 w-3.5" /> 新建扫描任务
+      {!hasOpenManagedTask && (
+        <Button size="sm" onClick={() => void handleCreateScanTask()} disabled={!config || submittingTask}>
+          {submittingTask ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ScanSearch className="h-3.5 w-3.5" />
+          )}{" "}
+          {submittingTask ? "创建中..." : "新建扫描任务"}
         </Button>
       )}
     </>
@@ -76,7 +122,6 @@ export function DownloadPage() {
 
   return (
     <div className="flex h-full flex-col gap-0 overflow-hidden">
-      {/* ── Header region ────────────────────────────────────────────── */}
       <div className="shrink-0 px-5 pt-5">
         <PageHeader
           title="任务发起台"
@@ -89,34 +134,107 @@ export function DownloadPage() {
         />
       </div>
 
-      {/* ── Resume queue (idle only) ─────────────────────────────────── */}
-      {phase === "idle" && (
+      {!hasOpenManagedTask && (
         <div className="mt-4 shrink-0 px-5">
           <QueueResumePanel />
         </div>
       )}
 
-      {/* ── Preflight panel ──────────────────────────────────────────── */}
       {showPreflight && (
         <div className="mt-3 shrink-0 px-5">
-          <PreflightPanel
-            onDismiss={() => setShowPreflight(false)}
-            onConfirm={async () => {
-              setShowPreflight(false);
-              await handleCreateScanTask();
-            }}
-          />
+          <Suspense
+            fallback={
+              <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{
+                  background: "var(--color-surface)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                正在加载预检面板...
+              </div>
+            }
+          >
+            <PreflightPanel
+              onDismiss={() => setShowPreflight(false)}
+              selectedSites={selectedSiteDomains}
+              enabledSites={enabledSiteDomains}
+              onConfirm={async () => {
+                setShowPreflight(false);
+                await handleCreateScanTask();
+              }}
+            />
+          </Suspense>
         </div>
       )}
 
       <div className="mt-4 flex shrink-0 flex-col gap-2 px-5">
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
+        <div
+          className="grid gap-3 rounded-2xl border p-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: "var(--color-border)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+              {overview.primaryMessage}
+            </p>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+              {overview.secondaryMessage}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {overview.stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-full px-2.5 py-1 text-xs"
+                  style={{
+                    background:
+                      stat.tone === "danger"
+                        ? "var(--color-danger-bg)"
+                        : stat.tone === "accent"
+                          ? "var(--color-accent-muted)"
+                          : stat.tone === "warning"
+                            ? "var(--color-warning-bg)"
+                            : "var(--color-surface-2)",
+                    color:
+                      stat.tone === "danger"
+                        ? "var(--color-danger)"
+                        : stat.tone === "accent"
+                          ? "var(--color-accent)"
+                          : stat.tone === "warning"
+                            ? "var(--color-warning)"
+                            : "var(--color-text-muted)",
+                  }}
+                >
+                  {stat.label} {stat.value}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end justify-start md:justify-end">
+            <Button
+              variant={configError ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => navigate(configError || !config ? "/rules" : "/tasks")}
+            >
+              <ListTodo className="h-3.5 w-3.5" />
+              {overview.ctaLabel}
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex-1 min-w-0">
             <SingleDownloadInput
-              disabled={isRunning}
+              disabled={isRunning || submittingTask}
               onSubmit={async (url) => {
-                await createSingleTask(url);
-                toast.success(formatTaskCreateSuccess("single"));
+                await runTaskSubmission(async () => {
+                  const taskId = await createSingleTask(url);
+                  toast.success(formatTaskCreateSuccess("single"));
+                  focusTaskAndOpenManager(taskId);
+                });
               }}
             />
           </div>
@@ -124,43 +242,128 @@ export function DownloadPage() {
             variant="secondary"
             size="md"
             onClick={() => setShowImport((v) => !v)}
-            disabled={isRunning}
+            disabled={isRunning || submittingTask}
             title="批量导入 URL"
+            className="w-full sm:w-auto"
           >
             <FileUp className="h-4 w-4" />
             批量导入
           </Button>
         </div>
         {showImport && (
-          <ImportUrlPanel
-            onClose={() => setShowImport(false)}
-            onImport={async (urls) => {
-              if (urls.length === 1) {
-                await createSingleTask(urls[0]);
-                toast.success(formatTaskCreateSuccess("single"));
-                return;
-              } else {
-                const result = await createTasksFromUrls(urls, createSingleTask);
-                if (result.failures.length > 0) {
-                  toast.error(
-                    `${result.failures.length} 个任务创建失败，已成功创建 ${result.successCount} 个`,
-                  );
-                  if (result.successCount === 0) {
-                    throw new Error("所有任务创建都失败了，请检查 URL 或后端状态后重试");
+          <Suspense
+            fallback={
+              <div
+                className="rounded-xl border px-4 py-3 text-sm"
+                style={{
+                  background: "var(--color-surface)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                正在加载导入面板...
+              </div>
+            }
+          >
+            <ImportUrlPanel
+              taskMode
+              onClose={() => setShowImport(false)}
+              onImport={async (urls) => {
+                await runTaskSubmission(async () => {
+                  let latestTaskId: string | null = null;
+                  const requestedCount = urls.length;
+                  if (urls.length === 1) {
+                    latestTaskId = await createSingleTask(urls[0]);
+                    toast.success(formatTaskCreateSuccess("single"));
+                    focusTaskAndOpenManager(latestTaskId);
+                    return;
                   }
-                } else {
-                  toast.success(formatTaskCreateSuccess("multi_single", result.successCount));
-                }
-              }
-            }}
-          />
+
+                  const beforeIds = new Set(tasks.map((task) => task.id));
+                  const result = await createTasksFromUrls(urls, async (nextUrl) => {
+                    const taskId = await createSingleTask(nextUrl);
+                    latestTaskId = taskId;
+                  });
+                  if (result.failures.length > 0) {
+                    toast.error(
+                      formatBatchImportResult({
+                        requestedCount,
+                        successCount: result.successCount,
+                        failureCount: result.failures.length,
+                        duplicateCount: 0,
+                        invalidCount: 0,
+                      }),
+                    );
+                    if (result.successCount === 0) {
+                      throw new Error("所有任务创建都失败了，请检查 URL 或后端状态后重试");
+                    }
+                  } else {
+                    toast.success(
+                      formatBatchImportResult({
+                        requestedCount,
+                        successCount: result.successCount,
+                        failureCount: 0,
+                        duplicateCount: 0,
+                        invalidCount: 0,
+                      }) || formatTaskCreateSuccess("multi_single", result.successCount),
+                    );
+                  }
+                  if (!latestTaskId) {
+                    latestTaskId =
+                      useTaskStore
+                        .getState()
+                        .tasks.find((task) => !beforeIds.has(task.id) && task.kind === "single_download")
+                        ?.id ?? null;
+                  }
+                  focusTaskAndOpenManager(latestTaskId);
+                });
+              }}
+            />
+          </Suspense>
         )}
       </div>
 
-      {/* ── Main content area ────────────────────────────────────────── */}
       <div className="mt-4 flex min-h-0 flex-1 gap-4 px-5 pb-5">
-        {phase === "idle" && config && Object.keys(config.websites).length === 0 ? (
-          /* No sites configured yet — show onboarding nudge */
+        {configError ? (
+          <div
+            className="flex flex-1 flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-12 text-center"
+            style={{
+              background: "var(--color-surface)",
+              borderColor: "var(--color-border)",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-2xl"
+              style={{
+                background: "var(--color-danger-bg)",
+                border: "1px solid color-mix(in srgb, var(--color-danger) 25%, transparent)",
+              }}
+            >
+              <AlertCircle className="h-8 w-8" style={{ color: "var(--color-danger)" }} />
+            </div>
+            <div className="flex max-w-md flex-col gap-2">
+              <p className="text-base font-semibold" style={{ color: "var(--color-text)" }}>
+                站点配置暂时没有加载成功
+              </p>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                当前无法判断可用站点，也不能安全地发起扫描任务。请先重试加载配置；如果问题持续，再检查后端服务或配置文件状态。
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--color-danger)" }}>
+                {configError}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button size="md" onClick={() => void loadConfig({ force: true })} disabled={configLoading}>
+                <RefreshCw className={`h-4 w-4${configLoading ? " animate-spin" : ""}`} />
+                {configLoading ? "重试中..." : "重新加载配置"}
+              </Button>
+              <Button variant="secondary" size="md" onClick={() => navigate("/rules")}>
+                <Globe className="h-4 w-4" /> 去规则管理检查
+              </Button>
+            </div>
+          </div>
+        ) : !hasOpenManagedTask && config && Object.keys(config.websites).length === 0 ? (
           <div
             className="flex flex-1 flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-12 text-center"
             style={{
@@ -191,8 +394,8 @@ export function DownloadPage() {
               <Globe className="h-4 w-4" /> 去配置站点
             </Button>
           </div>
-        ) : phase === "idle" ? (
-          <IdlePanel onScan={handleCreateScanTask} disabled={!config} taskMode />
+        ) : !hasOpenManagedTask ? (
+          <IdlePanel onScan={() => void handleCreateScanTask()} disabled={!config || submittingTask} taskMode />
         ) : (
           <div
             className="flex flex-1 flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-8 text-center"

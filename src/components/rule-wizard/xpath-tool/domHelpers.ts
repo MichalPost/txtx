@@ -16,7 +16,7 @@ export function hasAncestorTag(el: Element, tags: Set<string>): boolean {
 
 export function countSameTags(parent: Element, tagName: string): number {
   let count = 0;
-  for (const child of parent.children) {
+  for (const child of Array.from(parent.children)) {
     if (child.tagName === tagName) count++;
   }
   return count;

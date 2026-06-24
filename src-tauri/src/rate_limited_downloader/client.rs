@@ -3,10 +3,10 @@
 //! `pick_emulation`, `get_rate_limiter`, and the `DirectRl` type alias.
 
 use anyhow::Result;
-use std::time::Duration;
 use governor::{Quota, RateLimiter};
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
+use std::time::Duration;
 use tokio::time::sleep;
 
 // ─── TLS 指纹客户端抽象 ────────────────────────────────────────────────────────
@@ -32,11 +32,7 @@ pub(super) mod stealth_client {
     }
 
     /// 构造 wreq::Client，携带 Chrome TLS 指纹
-    pub fn build(
-        ua: &str,
-        proxy: Option<&str>,
-        timeout: u64,
-    ) -> Result<Client> {
+    pub fn build(ua: &str, proxy: Option<&str>, timeout: u64) -> Result<Client> {
         let emulation = pick_emulation(ua);
 
         let mut builder = Client::builder()
@@ -76,34 +72,30 @@ impl RateLimitedClient {
         loop {
             let result: Result<bytes::Bytes, anyhow::Error> = match self {
                 #[cfg(feature = "stealth")]
-                RateLimitedClient::Stealth(client) => {
-                    client
-                        .get(url)
-                        .header("Referer", referer)
-                        .header("Sec-Fetch-Dest", "document")
-                        .header("Sec-Fetch-Mode", "navigate")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .send()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("{}", e))?
-                        .bytes()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("{}", e))
-                }
-                RateLimitedClient::Standard(client) => {
-                    client
-                        .get(url)
-                        .header("Referer", referer)
-                        .header("Sec-Fetch-Dest", "document")
-                        .header("Sec-Fetch-Mode", "navigate")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .send()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("{}", e))?
-                        .bytes()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("{}", e))
-                }
+                RateLimitedClient::Stealth(client) => client
+                    .get(url)
+                    .header("Referer", referer)
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "same-origin")
+                    .send()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?
+                    .bytes()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e)),
+                RateLimitedClient::Standard(client) => client
+                    .get(url)
+                    .header("Referer", referer)
+                    .header("Sec-Fetch-Dest", "document")
+                    .header("Sec-Fetch-Mode", "navigate")
+                    .header("Sec-Fetch-Site", "same-origin")
+                    .send()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?
+                    .bytes()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e)),
             };
             match result {
                 Ok(b) => return Ok(b),
@@ -128,8 +120,12 @@ pub type DirectRl = RateLimiter<
 /// 返回 per-rps 共享限速器（懒初始化，线程安全）。
 /// rps = 0 时返回 None，调用方使用随机延迟。
 pub fn get_rate_limiter(rps: u32) -> Option<std::sync::Arc<DirectRl>> {
-    static LIMITERS: OnceLock<std::sync::RwLock<std::collections::HashMap<u32, std::sync::Arc<DirectRl>>>> = OnceLock::new();
-    if rps == 0 { return None; }
+    static LIMITERS: OnceLock<
+        std::sync::RwLock<std::collections::HashMap<u32, std::sync::Arc<DirectRl>>>,
+    > = OnceLock::new();
+    if rps == 0 {
+        return None;
+    }
     let map = LIMITERS.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
     // fast path
     {

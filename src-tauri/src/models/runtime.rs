@@ -118,6 +118,8 @@ pub struct TaskRecord {
     pub status: TaskStatus,
     pub label: String,
     pub source_url: Option<String>,
+    pub retry_context: Option<TaskRetryContext>,
+    pub preview_draft: Option<TaskPreviewDraft>,
     pub created_at: String,
     pub finished_at: Option<String>,
     pub total: usize,
@@ -128,6 +130,20 @@ pub struct TaskRecord {
     pub scan_stats: Option<DownloadStats>,
     pub stats: Option<DownloadStats>,
     pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TaskRetryContext {
+    pub scan_options: Option<crate::downloader::ScanOptions>,
+    pub selected_items: Option<Vec<BookCandidate>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TaskPreviewDraft {
+    pub deselected_urls: Vec<String>,
+    pub site_filter: String,
+    pub scan_sort: String,
+    pub visible_count: usize,
 }
 
 /// Wraps any ProgressEvent with its owning task_id for frontend fan-out

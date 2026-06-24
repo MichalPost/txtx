@@ -1,6 +1,7 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { CheckCircle, Download, XCircle } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Download, XCircle } from "lucide-react";
 
+import type { HistorySortField, HistorySortOrder } from "@/lib/api";
 import type { HistoryEntry } from "@/types";
 
 const columnHelper = createColumnHelper<HistoryEntry>();
@@ -8,12 +9,46 @@ const columnHelper = createColumnHelper<HistoryEntry>();
 interface ColumnOptions {
   isRunning: boolean;
   onRedownload: (url: string, name: string) => void;
+  sortBy: HistorySortField;
+  sortOrder: HistorySortOrder;
+  onSortChange: (field: HistorySortField) => void;
 }
 
-export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) {
+function buildSortableHeader(
+  label: string,
+  field: HistorySortField,
+  activeSort: { sortBy: HistorySortField; sortOrder: HistorySortOrder },
+  onSortChange: (field: HistorySortField) => void,
+) {
+  const isActive = activeSort.sortBy === field;
+  const Icon = !isActive ? ArrowUpDown : activeSort.sortOrder === "asc" ? ArrowUp : ArrowDown;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSortChange(field)}
+      className="inline-flex items-center gap-1 transition-colors hover:opacity-80"
+      style={{ color: isActive ? "var(--color-text)" : "var(--color-text-muted)" }}
+      aria-label={`按${label}排序`}
+    >
+      <span>{label}</span>
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+export function buildHistoryColumns({
+  isRunning,
+  onRedownload,
+  sortBy,
+  sortOrder,
+  onSortChange,
+}: ColumnOptions) {
+  const activeSort = { sortBy, sortOrder };
+
   return [
     columnHelper.accessor("status", {
-      header: "状态",
+      header: () => buildSortableHeader("状态", "status", activeSort, onSortChange),
       size: 48,
       cell: (info) =>
         info.getValue() === "success" ? (
@@ -23,7 +58,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
         ),
     }),
     columnHelper.accessor("name", {
-      header: "书名",
+      header: () => buildSortableHeader("书名", "name", activeSort, onSortChange),
       cell: (info) => (
         <span
           className="block max-w-[200px] truncate font-medium"
@@ -35,7 +70,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
       ),
     }),
     columnHelper.accessor("site", {
-      header: "来源站点",
+      header: () => buildSortableHeader("来源站点", "site", activeSort, onSortChange),
       size: 140,
       cell: (info) => (
         <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
@@ -44,7 +79,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
       ),
     }),
     columnHelper.accessor("downloaded_at", {
-      header: "下载时间",
+      header: () => buildSortableHeader("下载时间", "downloaded_at", activeSort, onSortChange),
       size: 140,
       cell: (info) => (
         <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
@@ -75,7 +110,7 @@ export function buildHistoryColumns({ isRunning, onRedownload }: ColumnOptions) 
           <button
             onClick={() => onRedownload(e.url, e.name)}
             disabled={isRunning}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
             style={{
               background:
                 e.status === "error"

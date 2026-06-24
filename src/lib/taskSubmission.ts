@@ -8,12 +8,31 @@ export interface TaskCreationBatchResult {
   successCount: number;
 }
 
+let activeSubmission: Promise<unknown> | null = null;
+
 export async function submitTaskAndThen<TResult>(
   createTask: () => Promise<TResult>,
   afterSubmit: () => void,
 ): Promise<void> {
-  await createTask();
-  afterSubmit();
+  if (activeSubmission) {
+    await activeSubmission;
+    return;
+  }
+
+  const submission = (async () => {
+    await createTask();
+    afterSubmit();
+  })();
+
+  activeSubmission = submission;
+
+  try {
+    await submission;
+  } finally {
+    if (activeSubmission === submission) {
+      activeSubmission = null;
+    }
+  }
 }
 
 export async function createTasksFromUrls<TResult>(

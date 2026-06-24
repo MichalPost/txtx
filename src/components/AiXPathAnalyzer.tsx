@@ -1,5 +1,14 @@
-import { useState } from "react";
-import { AlertCircle, Check, ChevronRight, Code2, Loader2, Sparkles, Wand2, X } from "lucide-react";
+import { useState, type ComponentType } from "react";
+import {
+  AlertCircle,
+  Check,
+  ChevronRight,
+  Code2,
+  Loader2,
+  Sparkles,
+  Wand2,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { parseAiXPathAnalysis } from "@/components/aiXPathAnalysis";
@@ -8,8 +17,6 @@ import { aiComplete, aiExtract, extractJson, preprocessHtml, validateXPath } fro
 import { apiFetchSource } from "@/lib/api/files";
 import { useAiStore } from "@/store/aiStore";
 import type { WebsiteConfig } from "@/types";
-
-// ─── Field definitions ─────────────────────────────────────────────────────────
 
 const XPATH_FIELD_LABELS: Array<{
   key: keyof Pick<
@@ -23,53 +30,46 @@ const XPATH_FIELD_LABELS: Array<{
   >;
   label: string;
 }> = [
-  { key: "list_novel_name", label: "列表页书名" },
+  { key: "list_novel_name", label: "目录页书名" },
   { key: "release_date", label: "更新日期" },
-  { key: "release_url", label: "书目链接" },
-  { key: "novel_name_x", label: "详情页书名" },
+  { key: "release_url", label: "详情页链接" },
+  { key: "novel_name_x", label: "章节页书名" },
   { key: "chapter_url_x", label: "章节链接" },
   { key: "novel_content", label: "正文内容" },
 ];
 
 type FieldKey = (typeof XPATH_FIELD_LABELS)[number]["key"];
-
-// ─── Analysis mode ─────────────────────────────────────────────────────────────
-
 type AnalysisMode = "xpath" | "extract";
+type ValidationState = { count: number; samples: string[]; error?: string } | null;
 
 const MODE_CONFIG: Record<
   AnalysisMode,
-  { label: string; icon: React.FC<{ className?: string }>; desc: string }
+  { label: string; icon: ComponentType<{ className?: string }>; desc: string }
 > = {
   xpath: {
     label: "XPath 模式",
-    icon: ({ className }) => <Code2 className={className} />,
-    desc: "让 AI 生成 XPath 选择器，本地验证命中数。适合需要精确复用选择器的场景。",
+    icon: Code2,
+    desc: "让 AI 直接生成 XPath，并在本地校验语法和命中情况，适合需要可复用规则的场景。",
   },
   extract: {
-    label: "直接提取模式",
-    icon: ({ className }) => <Wand2 className={className} />,
-    desc: "kumo LlmClient 直接从 HTML 提取结构化内容，无需 XPath，更宽容但不可复用。",
+    label: "提取模式",
+    icon: Wand2,
+    desc: "让 AI 直接从 HTML 中提取候选结果；若结果看起来像 XPath，也会同时校验其有效性。",
   },
 };
 
-// ─── Extract mode schema ───────────────────────────────────────────────────────
-
-// JSON Schema 告诉 kumo LlmClient 要提取哪些字段（文本内容，不是选择器）
 const EXTRACT_SCHEMA = {
   type: "object",
   properties: {
-    list_novel_name: { type: "string", description: "列表页中第一本书的书名（纯文本）" },
-    release_date: { type: "string", description: "第一本书的最新更新日期" },
-    release_url: { type: "string", description: "第一本书详情页的完整 URL" },
-    novel_name_x: { type: "string", description: "详情页书名的 XPath（如能推断）" },
-    chapter_url_x: { type: "string", description: "章节列表链接的 XPath（如能推断）" },
-    novel_content: { type: "string", description: "正文内容区域的 XPath（如能推断）" },
+    list_novel_name: { type: "string", description: "目录页第一条书名或书名对应的 XPath" },
+    release_date: { type: "string", description: "最新章节的更新时间或对应 XPath" },
+    release_url: { type: "string", description: "最新章节详情页链接或对应 XPath" },
+    novel_name_x: { type: "string", description: "章节页书名或对应 XPath" },
+    chapter_url_x: { type: "string", description: "章节列表链接或对应 XPath" },
+    novel_content: { type: "string", description: "正文内容区域或对应 XPath" },
   },
   required: [],
 };
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface FieldResult {
   key: FieldKey;
@@ -77,7 +77,7 @@ interface FieldResult {
   currentValue: string;
   suggested: string;
   explanation: string;
-  validation: { count: number; samples: string[]; error?: string } | null;
+  validation: ValidationState;
   adopted: boolean;
 }
 
@@ -87,10 +87,8 @@ interface AiXPathAnalyzerProps {
   onClose: () => void;
 }
 
-// ─── System prompt (XPath mode) ───────────────────────────────────────────────
-
-const AI_BATCH_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专家。
-一次性分析给定字段，输出严格 JSON，不含其他内容：
+const AI_BATCH_SYSTEM = `你是专门分析小说网站 HTML 结构的专家。
+请一次性分析下面这些字段，并仅返回严格 JSON：
 {
   "list_novel_name": {"xpath":"...","explanation":"..."},
   "release_date":    {"xpath":"...","explanation":"..."},
@@ -99,10 +97,32 @@ const AI_BATCH_SYSTEM = `你是专门分析中文小说网站 HTML 结构的专�
   "chapter_url_x":   {"xpath":"...","explanation":"..."},
   "novel_content":   {"xpath":"...","explanation":"..."}
 }
-规则：优先用 id/class 属性，文本加 /text()，链接加 /@href，用 // 全局路径。
-无把握的字段 xpath 留空字符串。`;
+优先使用稳定的 id/class、文本、/text()、链接 /@href 和 // 相对路径。
+无法判断的字段请返回空字符串。`;
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+function isValidationInvalid(validation: ValidationState): boolean {
+  return !!validation && (!!validation.error || validation.count <= 0);
+}
+
+function canAdoptSuggestion(suggested: string, validation: ValidationState): boolean {
+  if (!suggested.trim()) return false;
+  if (!validation) return true;
+  return !isValidationInvalid(validation);
+}
+
+function buildFieldResult(args: {
+  key: FieldKey;
+  label: string;
+  currentValue: string;
+  suggested: string;
+  explanation: string;
+  validation: ValidationState;
+}): FieldResult {
+  return {
+    ...args,
+    adopted: canAdoptSuggestion(args.suggested, args.validation),
+  };
+}
 
 export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps) {
   const aiEnabled = useAiStore((s) => s.config.enabled);
@@ -112,7 +132,6 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
   const [errorMsg, setErrorMsg] = useState("");
   const [results, setResults] = useState<FieldResult[]>([]);
 
-  // reset results when mode changes so stale data doesn't show
   const handleModeChange = (next: AnalysisMode) => {
     if (next === mode) return;
     setMode(next);
@@ -121,32 +140,26 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
     setErrorMsg("");
   };
 
-  // ── XPath mode analysis ────────────────────────────────────────────────────
-
   const runXpathAnalysis = async (rawHtml: string) => {
     const processed = preprocessHtml(rawHtml);
-    const userPrompt = `网站：${site.domain_name}\n\n分析以下 HTML，为 6 个字段生成 XPath：\n${processed}`;
+    const userPrompt = `站点：${site.domain_name}\n\n请根据下面的 HTML，为 6 个字段分别生成 XPath：\n${processed}`;
     const reply = await aiComplete(userPrompt, AI_BATCH_SYSTEM, aiConfig);
     const analysis = parseAiXPathAnalysis(extractJson(reply), null);
 
     return XPATH_FIELD_LABELS.map(({ key, label }) => {
       const item = analysis.find((entry) => entry.key === key);
-      const xpath = item?.suggested ?? "";
-      const explanation = item?.explanation ?? "";
-      const validation = xpath && rawHtml ? validateXPath(rawHtml, xpath) : null;
-      return {
+      const suggested = item?.suggested ?? "";
+      const validation = suggested && rawHtml ? validateXPath(rawHtml, suggested) : null;
+      return buildFieldResult({
         key,
         label,
         currentValue: (site[key] as string) ?? "",
-        suggested: xpath,
-        explanation,
+        suggested,
+        explanation: item?.explanation ?? "",
         validation,
-        adopted: !!xpath,
-      };
+      });
     });
   };
-
-  // ── Extract mode analysis ──────────────────────────────────────────────────
 
   const runExtractAnalysis = async (rawHtml: string) => {
     const extracted = await aiExtract<Record<string, unknown>>(rawHtml, EXTRACT_SCHEMA, aiConfig);
@@ -154,23 +167,19 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
 
     return XPATH_FIELD_LABELS.map(({ key, label }) => {
       const item = analysis.find((entry) => entry.key === key);
-      const value = item?.suggested ?? "";
-      // In extract mode the "suggested" value is the extracted text/xpath — still validate if it looks like xpath
-      const looksLikeXpath = value.startsWith("//") || value.startsWith("(//");
-      const validation = looksLikeXpath && rawHtml ? validateXPath(rawHtml, value) : null;
-      return {
+      const suggested = item?.suggested ?? "";
+      const looksLikeXpath = suggested.startsWith("//") || suggested.startsWith("(//");
+      const validation = looksLikeXpath && rawHtml ? validateXPath(rawHtml, suggested) : null;
+      return buildFieldResult({
         key,
         label,
         currentValue: (site[key] as string) ?? "",
-        suggested: value,
+        suggested,
         explanation: item?.explanation ?? "",
         validation,
-        adopted: !!value,
-      };
+      });
     });
   };
-
-  // ── Shared start ───────────────────────────────────────────────────────────
 
   const startAnalysis = async () => {
     if (!site.domain_name || !aiConfig.enabled) return;
@@ -190,20 +199,28 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
   };
 
   const toggleAdopt = (key: FieldKey) => {
-    setResults((prev) => prev.map((r) => (r.key === key ? { ...r, adopted: !r.adopted } : r)));
+    setResults((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        if (!canAdoptSuggestion(r.suggested, r.validation)) return r;
+        return { ...r, adopted: !r.adopted };
+      }),
+    );
   };
 
   const applySelected = async () => {
     const patch: Partial<WebsiteConfig> = {};
     for (const r of results) {
-      if (r.adopted && r.suggested) {
+      if (r.adopted && canAdoptSuggestion(r.suggested, r.validation)) {
         (patch as Record<string, string>)[r.key] = r.suggested;
       }
     }
     await applyAndClose(() => onApply(patch), onClose);
   };
 
-  const adoptedCount = results.filter((r) => r.adopted && r.suggested).length;
+  const adoptedCount = results.filter(
+    (r) => r.adopted && canAdoptSuggestion(r.suggested, r.validation),
+  ).length;
   const ModeIcon = MODE_CONFIG[mode].icon;
 
   return (
@@ -211,22 +228,21 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
       className="flex flex-col gap-3 rounded-xl border p-4"
       style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
     >
-      {/* Header */}
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 shrink-0" style={{ color: "var(--color-accent)" }} />
         <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-          AI 批量分析 XPath
+          AI XPath 分析器
         </span>
         <button
           className="flex h-6 w-6 items-center justify-center rounded-lg transition-opacity hover:opacity-70"
           style={{ color: "var(--color-text-muted)" }}
           onClick={onClose}
+          aria-label="关闭 AI XPath 分析器"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Mode switcher */}
       <div className="flex gap-0.5 rounded-lg p-0.5" style={{ background: "var(--color-surface)" }}>
         {(Object.keys(MODE_CONFIG) as AnalysisMode[]).map((m) => {
           const Icon = MODE_CONFIG[m].icon;
@@ -249,17 +265,15 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
         })}
       </div>
 
-      {/* Mode description */}
       <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
         <ModeIcon className="-mt-0.5 mr-1 inline h-3 w-3" />
         {MODE_CONFIG[mode].desc}
       </p>
 
       <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-        目标：<code style={{ color: "var(--color-accent)" }}>{site.domain_name}</code>
+        目标站点：<code style={{ color: "var(--color-accent)" }}>{site.domain_name}</code>
       </p>
 
-      {/* Idle / Error */}
       {(phase === "idle" || phase === "error") && (
         <div className="flex flex-col gap-2">
           {phase === "error" && (
@@ -278,7 +292,6 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
         </div>
       )}
 
-      {/* Fetching / Analyzing */}
       {(phase === "fetching" || phase === "analyzing") && (
         <div className="flex items-center gap-2 py-2">
           <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--color-accent)" }} />
@@ -286,139 +299,161 @@ export function AiXPathAnalyzer({ site, onApply, onClose }: AiXPathAnalyzerProps
             {phase === "fetching"
               ? "正在获取页面源码..."
               : mode === "xpath"
-                ? "AI 正在分析结构，请稍候..."
-                : "kumo 正在提取结构化内容..."}
+                ? "AI 正在分析页面结构并生成 XPath..."
+                : "AI 正在提取结构化候选结果..."}
           </span>
         </div>
       )}
 
-      {/* Results */}
       {phase === "done" && results.length > 0 && (
         <>
           <div className="flex flex-col gap-2">
-            {results.map((r) => (
-              <div
-                key={r.key}
-                className="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-all"
-                style={{
-                  background: r.adopted
-                    ? "color-mix(in srgb, var(--color-accent) 5%, var(--color-surface))"
-                    : "var(--color-surface)",
-                  borderColor: r.adopted
-                    ? "color-mix(in srgb, var(--color-accent) 40%, transparent)"
-                    : "var(--color-border)",
-                  cursor: r.suggested ? "pointer" : "default",
-                }}
-                onClick={() => r.suggested && toggleAdopt(r.key)}
-              >
-                {/* Field name + check */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
-                    {r.label}
-                  </span>
-                  {r.suggested ? (
-                    <div
-                      className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors"
-                      style={{
-                        background: r.adopted ? "var(--color-accent)" : "var(--color-border)",
-                        color: r.adopted ? "#fff" : "transparent",
-                      }}
-                    >
-                      <Check className="h-2.5 w-2.5" />
-                    </div>
-                  ) : (
-                    <span
-                      className="ml-auto rounded px-1.5 py-0.5 text-xs"
-                      style={{
-                        background: "var(--color-warning-bg)",
-                        color: "var(--color-warning)",
-                      }}
-                    >
-                      无法生成
+            {results.map((r) => {
+              const canAdopt = canAdoptSuggestion(r.suggested, r.validation);
+              const invalidReason = !r.suggested
+                ? "未生成候选结果"
+                : r.validation?.error
+                  ? "XPath 语法错误，不能应用"
+                  : r.validation && r.validation.count <= 0
+                    ? "XPath 未命中任何节点，不能应用"
+                    : "";
+
+              return (
+                <div
+                  key={r.key}
+                  className="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-all"
+                  style={{
+                    background: r.adopted
+                      ? "color-mix(in srgb, var(--color-accent) 5%, var(--color-surface))"
+                      : "var(--color-surface)",
+                    borderColor: r.adopted
+                      ? "color-mix(in srgb, var(--color-accent) 40%, transparent)"
+                      : "var(--color-border)",
+                    cursor: canAdopt ? "pointer" : "default",
+                    opacity: canAdopt || r.suggested ? 1 : 0.7,
+                  }}
+                  onClick={() => canAdopt && toggleAdopt(r.key)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium" style={{ color: "var(--color-text)" }}>
+                      {r.label}
                     </span>
-                  )}
-                </div>
-
-                {/* Current vs Suggested */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
-                      当前
-                    </div>
-                    <code
-                      className="block truncate font-mono text-xs"
-                      style={{
-                        color: r.currentValue
-                          ? "var(--color-text-muted)"
-                          : "var(--color-text-subtle)",
-                      }}
-                    >
-                      {r.currentValue || "未设置"}
-                    </code>
-                  </div>
-                  <div>
-                    <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
-                      {mode === "xpath" ? "AI 建议 XPath" : "提取结果"}
-                    </div>
-                    <code
-                      className="block truncate font-mono text-xs"
-                      style={{
-                        color: r.suggested ? "var(--color-accent)" : "var(--color-text-subtle)",
-                      }}
-                    >
-                      {r.suggested || "—"}
-                    </code>
-                  </div>
-                </div>
-
-                {/* Validation (only when value looks like xpath) */}
-                {r.validation && r.suggested && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {r.validation.error ? (
-                      <span className="text-xs" style={{ color: "var(--color-danger)" }}>
-                        XPath 语法错误
-                      </span>
+                    {canAdopt ? (
+                      <button
+                        type="button"
+                        aria-pressed={r.adopted}
+                        aria-label={r.adopted ? `取消应用${r.label}` : `应用${r.label}`}
+                        className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors"
+                        style={{
+                          background: r.adopted ? "var(--color-accent)" : "var(--color-border)",
+                          color: r.adopted ? "#fff" : "transparent",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleAdopt(r.key);
+                        }}
+                        title={r.adopted ? "取消应用此字段" : "应用此字段"}
+                      >
+                        <Check className="h-2.5 w-2.5" />
+                      </button>
                     ) : (
-                      <>
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-xs"
-                          style={{
-                            background:
-                              r.validation.count > 0
-                                ? "var(--color-success-bg)"
-                                : "var(--color-warning-bg)",
-                            color:
-                              r.validation.count > 0
-                                ? "var(--color-success)"
-                                : "var(--color-warning)",
-                          }}
-                        >
-                          命中 {r.validation.count} 个
-                        </span>
-                        {r.validation.samples.length > 0 && (
-                          <span
-                            className="truncate text-xs"
-                            style={{ color: "var(--color-text-muted)" }}
-                          >
-                            {r.validation.samples.slice(0, 2).join("、")}
-                          </span>
-                        )}
-                      </>
+                      <span
+                        className="ml-auto rounded px-1.5 py-0.5 text-xs"
+                        style={{
+                          background: r.suggested
+                            ? "var(--color-warning-bg)"
+                            : "var(--color-danger-bg)",
+                          color: r.suggested ? "var(--color-warning)" : "var(--color-danger)",
+                        }}
+                      >
+                        {r.suggested ? "不可应用" : "未生成"}
+                      </span>
                     )}
                   </div>
-                )}
 
-                {/* Explanation */}
-                {r.explanation && (
-                  <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-                    {r.explanation}
-                  </p>
-                )}
-              </div>
-            ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
+                        当前值
+                      </div>
+                      <code
+                        className="block truncate font-mono text-xs"
+                        style={{
+                          color: r.currentValue
+                            ? "var(--color-text-muted)"
+                            : "var(--color-text-subtle)",
+                        }}
+                      >
+                        {r.currentValue || "未设置"}
+                      </code>
+                    </div>
+                    <div>
+                      <div className="mb-0.5 text-xs" style={{ color: "var(--color-text-subtle)" }}>
+                        {mode === "xpath" ? "AI 建议 XPath" : "提取结果"}
+                      </div>
+                      <code
+                        className="block truncate font-mono text-xs"
+                        style={{
+                          color: r.suggested ? "var(--color-accent)" : "var(--color-text-subtle)",
+                        }}
+                      >
+                        {r.suggested || "无"}
+                      </code>
+                    </div>
+                  </div>
+
+                  {r.validation && r.suggested && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {r.validation.error ? (
+                        <span className="text-xs" style={{ color: "var(--color-danger)" }}>
+                          XPath 语法错误
+                        </span>
+                      ) : (
+                        <>
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-xs"
+                            style={{
+                              background:
+                                r.validation.count > 0
+                                  ? "var(--color-success-bg)"
+                                  : "var(--color-warning-bg)",
+                              color:
+                                r.validation.count > 0
+                                  ? "var(--color-success)"
+                                  : "var(--color-warning)",
+                            }}
+                          >
+                            命中 {r.validation.count} 个
+                          </span>
+                          {r.validation.samples.length > 0 && (
+                            <span
+                              className="truncate text-xs"
+                              style={{ color: "var(--color-text-muted)" }}
+                            >
+                              {r.validation.samples.slice(0, 2).join("；")}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {!canAdopt && invalidReason && (
+                    <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+                      {invalidReason}
+                    </p>
+                  )}
+
+                  {r.explanation && (
+                    <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+                      {r.explanation}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Apply button */}
           <div className="flex items-center gap-2 pt-1">
             <Button size="sm" onClick={() => void applySelected()} disabled={adoptedCount === 0}>
               <ChevronRight className="h-3.5 w-3.5" />

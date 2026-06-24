@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::config::default_true;
+use serde::{Deserialize, Serialize};
 
 // ─── Text conversion config ───────────────────────────────────────────────────
 

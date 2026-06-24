@@ -11,8 +11,6 @@ import { useAiXPathAnalysis } from "./source-viewer/useAiXPathAnalysis";
 import { useSourceFetch } from "./source-viewer/useSourceFetch";
 import { XPathStatusBar } from "./source-viewer/XPathStatusBar";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface SourceViewerProps {
   defaultUrl?: string;
   onXPathSelect?: (
@@ -29,8 +27,6 @@ interface SourceViewerProps {
   ) => void;
   onClose: () => void;
 }
-
-// ─── SourceViewer ─────────────────────────────────────────────────────────────
 
 export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewerProps) {
   const { url, setUrl, html, loading, error, fetchSource } = useSourceFetch(defaultUrl);
@@ -56,8 +52,10 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
 
   const matchCount = useMemo(() => {
     if (!search || !lines.length) return 0;
-    const s = search.toLowerCase();
-    return lines.reduce((acc, l) => acc + (l.toLowerCase().includes(s) ? 1 : 0), 0);
+    const normalized = search.toLowerCase();
+    return lines.reduce((count, line) => {
+      return count + (line.toLowerCase().includes(normalized) ? 1 : 0);
+    }, 0);
   }, [search, lines]);
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -76,8 +74,8 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
 
   useEffect(() => {
     if (!search || !lines.length) return;
-    const idx = lines.findIndex((l) => l.toLowerCase().includes(search.toLowerCase()));
-    if (idx !== -1) virtualizer.scrollToIndex(idx, { align: "center" });
+    const index = lines.findIndex((line) => line.toLowerCase().includes(search.toLowerCase()));
+    if (index !== -1) virtualizer.scrollToIndex(index, { align: "center" });
   }, [search, lines, virtualizer]);
 
   return (
@@ -98,30 +96,28 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Title bar ─────────────────────────────── */}
         <div
           className="flex shrink-0 items-center gap-3 border-b px-5 py-3.5"
           style={{ background: "var(--color-surface-2)", borderColor: "var(--color-border)" }}
         >
           <Code2 className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
           <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-            源代码查看器
+            页面源码查看器
           </span>
           <button
             className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:opacity-80"
             style={{ background: "var(--color-surface)", color: "var(--color-text-muted)" }}
             onClick={onClose}
+            aria-label="关闭源码查看器"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* ── Toolbar ───────────────────────────────── */}
         <div
           className="flex shrink-0 flex-col gap-2 border-b px-4 py-3"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-1)" }}
         >
-          {/* URL row */}
           <div className="flex gap-2">
             <input
               type="url"
@@ -155,17 +151,16 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
               disabled={loading || !url.trim()}
             >
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              {loading ? "获取中..." : "获取源码"}
+              {loading ? "加载中..." : "获取源码"}
             </button>
           </div>
 
-          {/* Search row */}
           <div className="flex items-center gap-2">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索关键词…"
+              placeholder="搜索源码内容..."
               className="flex-1 rounded-lg border px-3 py-1.5 text-sm focus:outline-none"
               style={{
                 background: "var(--color-surface)",
@@ -186,12 +181,11 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
                 className="shrink-0 text-xs tabular-nums"
                 style={{ color: "var(--color-text-muted)" }}
               >
-                {matchCount} 处匹配
+                共 {matchCount} 处匹配
               </span>
             )}
           </div>
 
-          {/* AI panel */}
           {aiEnabled ? (
             <AiAnalysisPanel
               html={html}
@@ -216,13 +210,12 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
                 style={{ color: "var(--color-text-subtle)" }}
               />
               <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-                在设置页启用 AI 助手可自动生成 XPath
+                启用 AI 配置后，可直接分析当前 HTML 并生成 XPath 建议
               </span>
             </div>
           ) : null}
         </div>
 
-        {/* ── Main content ──────────────────────────── */}
         <div className="relative flex-1 overflow-hidden">
           {!html && !loading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
@@ -231,7 +224,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
                 style={{ color: "var(--color-text-subtle)" }}
               />
               <p className="text-sm" style={{ color: "var(--color-text-subtle)" }}>
-                输入 URL 并点击「获取源码」查看页面 HTML
+                输入页面 URL 后获取源码，这里会展示解析出的 HTML 内容
               </p>
             </div>
           )}
@@ -239,7 +232,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-8">
               <p className="text-sm font-medium" style={{ color: "var(--color-danger)" }}>
-                获取失败
+                获取源码失败
               </p>
               <p className="text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
                 {error}
@@ -251,7 +244,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
             <div className="absolute inset-0 flex items-center justify-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--color-accent)" }} />
               <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                正在获取页面源码…
+                正在加载页面源码...
               </span>
             </div>
           )}
@@ -274,6 +267,7 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
                   const line = lines[lineIndex];
                   const isSelected = selectedLine === lineIndex;
                   const isHovered = hoveredLine === lineIndex;
+
                   return (
                     <div
                       key={virtualRow.key}
@@ -330,7 +324,6 @@ export function SourceViewer({ defaultUrl, onXPathSelect, onClose }: SourceViewe
           )}
         </div>
 
-        {/* ── Status bar ────────────────────────────── */}
         <XPathStatusBar
           xpath={generatedXPath}
           html={html}

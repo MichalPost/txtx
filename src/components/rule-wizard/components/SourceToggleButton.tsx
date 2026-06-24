@@ -9,7 +9,10 @@ interface SourceToggleButtonProps {
 export function SourceToggleButton({ active, label, onClick }: SourceToggleButtonProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${active ? "隐藏" : "显示"}${label}`}
       className="flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
       style={{
         background: active ? "var(--color-accent-muted)" : "var(--color-surface-1)",

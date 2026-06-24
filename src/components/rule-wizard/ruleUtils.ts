@@ -4,45 +4,38 @@ import {
   type AdCleanupRules,
 } from "./adCleanupUtils";
 
-// ─── Rule mode types ───────────────────────────────────────────────────────────
-
 export type RuleMode =
-  | "tag_name" // 按标签名称        → //tag/text()
-  | "attr_name" // 按属性名称        → //*[@attr]/text()
-  | "attr_value" // 按属性及值        → //*[@attr="val"]/text()
-  | "tag_attr_value" // 标签名+属性+值    → //tag[@attr="val"]/text()
-  | "link_keyword" // 按链接关键字      → //a[contains(@href,"kw")]/@href
-  | "text_keyword" // 按文本关键字      → //*[contains(text(),"kw")]/text()
-  | "xpath" // XPath 路径        → 直接填写
-  | "ai"; // AI 辅助           → 运行后写入 xpath
+  | "tag_name"
+  | "attr_name"
+  | "attr_value"
+  | "tag_attr_value"
+  | "link_keyword"
+  | "text_keyword"
+  | "xpath"
+  | "ai";
 
 export type ExtractAs = "text" | "href" | "src" | "custom";
 
 export interface FieldRule {
   mode: RuleMode;
-  // tag 模式
   tag_name: string;
-  // attr 模式
   attr_name: string;
   attr_val: string;
-  // keyword 模式
   keyword: string;
-  // extract target
   extract: ExtractAs;
-  custom_attr: string; // when extract === "custom"
-  // final xpath (direct input or converted / AI-generated)
+  custom_attr: string;
   xpath: string;
 }
 
 export const RULE_MODES: { value: RuleMode; label: string }[] = [
-  { value: "tag_name", label: "按标签名称" },
-  { value: "attr_name", label: "按属性名称" },
-  { value: "attr_value", label: "按属性及值" },
-  { value: "tag_attr_value", label: "标签名+属性+值" },
-  { value: "link_keyword", label: "按链接关键字" },
-  { value: "text_keyword", label: "按文本关键字" },
-  { value: "xpath", label: "XPath 路径" },
-  { value: "ai", label: "AI 辅助生成" },
+  { value: "tag_name", label: "按标签名匹配" },
+  { value: "attr_name", label: "按属性名匹配" },
+  { value: "attr_value", label: "按属性值匹配" },
+  { value: "tag_attr_value", label: "标签 + 属性值匹配" },
+  { value: "link_keyword", label: "按链接关键词匹配" },
+  { value: "text_keyword", label: "按文本关键词匹配" },
+  { value: "xpath", label: "直接填写 XPath" },
+  { value: "ai", label: "使用 AI 结果" },
 ];
 
 export function emptyFieldRule(mode: RuleMode = "xpath"): FieldRule {
@@ -58,9 +51,6 @@ export function emptyFieldRule(mode: RuleMode = "xpath"): FieldRule {
   };
 }
 
-// ─── XPath builder ─────────────────────────────────────────────────────────────
-
-/** Convert a FieldRule to the final XPath expression string */
 export function buildXPathFromRule(rule: FieldRule): string {
   const suffix = extractSuffix(rule);
 
@@ -120,8 +110,6 @@ function extractSuffix(rule: FieldRule): string {
   }
 }
 
-// ─── Which inputs are visible per mode ────────────────────────────────────────
-
 export interface VisibleInputs {
   tag_name: boolean;
   attr_name: boolean;
@@ -144,13 +132,10 @@ export function getVisibleInputs(mode: RuleMode): VisibleInputs {
   };
 }
 
-// ─── Wizard data ───────────────────────────────────────────────────────────────
-
-/** A single book entry parsed from the recent-update list page */
 export interface UpdateListBookItem {
   name: string;
-  url: string; // book catalog/detail page URL
-  date?: string; // update date if available
+  url: string;
+  date?: string;
 }
 
 export interface ChapterListItem {
@@ -160,60 +145,41 @@ export interface ChapterListItem {
 }
 
 export interface WizardData {
-  // ── Step 1: 最近更新列表页 ────────────────────────────────────────────────
-  update_list_url: string; // the recent-update list page URL
-  update_list_html: string; // fetched HTML cache
+  update_list_url: string;
+  update_list_html: string;
 
-  // Step 1 — list page rules (书名 / 书籍链接 / 更新日期)
   list_novel_name: FieldRule;
   list_release_date: FieldRule;
   list_release_url: FieldRule;
 
-  // Step 1 — pagination
   has_pagination: boolean;
   page_url_mode: "suffix" | "insert";
   page_total: number;
   page_insert_part: string;
-
-  // Step 1 — parsed book list (derived from rules + HTML)
   update_books: UpdateListBookItem[];
 
-  // ── Step 2: 选书 → 填入目录 URL ──────────────────────────────────────────
   selected_book_name: string;
-  selected_book_url: string; // auto-fills catalog_url
-  catalog_url: string; // the catalog / chapter-list page URL
+  selected_book_url: string;
+  catalog_url: string;
 
-  // ── Step 3: 目录规则 ──────────────────────────────────────────────────────
-  // (chapter list rules — reuses catalog_html)
-
-  // Step 3 — book name helper (optional)
   book_name_use_xpath: boolean;
   book_name_tag: string;
   book_name_attr: string;
   book_name_val: string;
 
-  // ── Step 3: 目录规则（可选扩展）─────────────────────────────────────────────
-  /** 书籍简介 XPath（可选，从目录页提取） */
   chap_intro: FieldRule;
-
-  // ── Step 5: 章节页规则 ────────────────────────────────────────────────────
   chap_novel_name: FieldRule;
   chap_chapter_url: FieldRule;
   chap_content: FieldRule;
   chap_content_fallbacks: string[];
-  /** XPath for "next page" link inside a chapter page. Empty = single-page. */
   chapter_next_page_xpath: string;
-  /** Per-site ad cleanup rules applied after content extraction. */
   site_ad_rules: AdCleanupRules;
 
-  // ── 编码 ──────────────────────────────────────────────────────────────────
-  /** Per-site response encoding, e.g. "gbk". Empty = auto. */
   encoding: string;
 
-  // ── Caches ────────────────────────────────────────────────────────────────
-  catalog_html: string; // fetched catalog page HTML
-  chapter_html: string; // fetched sample chapter HTML
-  chapter_test_url: string; // chapter URL extracted in step 4 for testing
+  catalog_html: string;
+  chapter_html: string;
+  chapter_test_url: string;
   chapter_items: ChapterListItem[];
   selected_chapter_title: string;
 }
@@ -262,7 +228,6 @@ export function emptyWizardData(domain_name = "", encoding = ""): WizardData {
     page_url_mode: "suffix",
     page_total: 1,
     page_insert_part: "_2",
-
     update_books: [],
 
     selected_book_name: "",
@@ -324,46 +289,36 @@ export function wizardDataFromSite(site: {
   };
 }
 
-// ─── Charset detection ────────────────────────────────────────────────────────
-
 /**
  * Detect the declared charset from HTML source.
  *
- * Priority order (mirrors browser behavior):
+ * Priority order:
  * 1. <meta charset="...">
  * 2. <meta http-equiv="Content-Type" content="text/html; charset=...">
  * 3. <?xml version="1.0" encoding="..."?>
  *
- * Returns a normalised lowercase name (e.g. "gbk", "utf-8", "big5"),
- * or empty string when nothing is found or the result is a UTF-8 variant
- * (no override needed for those).
+ * Returns a normalized lowercase name, or an empty string when no override is needed.
  */
 export function detectCharset(html: string): string {
   if (!html) return "";
 
-  // Only scan the first 4 KB — charset declarations always appear in <head>
   const head = html.slice(0, 4096);
 
-  // 1. <meta charset="gbk" />
   const m1 = head.match(/<meta[^>]+charset\s*=\s*["']?\s*([a-zA-Z0-9\-_]+)\s*["']?/i);
-  // 2. content="text/html; charset=gbk"
   const m2 = head.match(/charset\s*=\s*["']?\s*([a-zA-Z0-9\-_]+)/i);
-  // 3. <?xml ... encoding="gbk"?>
   const m3 = head.match(/encoding\s*=\s*["']\s*([a-zA-Z0-9\-_]+)\s*["']/i);
 
   const raw = (m1?.[1] ?? m2?.[1] ?? m3?.[1] ?? "").toLowerCase().trim();
   if (!raw) return "";
 
-  // Normalise common aliases
-  const normalised = raw
+  const normalized = raw
     .replace(/^utf[-_]?8$/i, "utf-8")
     .replace(/^gbk$/i, "gbk")
-    .replace(/^gb[-_]?2312$/i, "gbk") // gb2312 is a subset of gbk; treat same
+    .replace(/^gb[-_]?2312$/i, "gbk")
     .replace(/^big[-_]?5$/i, "big5")
     .replace(/^windows[-_]?1252$/i, "windows-1252");
 
-  // No override needed for UTF-8 variants
-  if (normalised === "utf-8" || normalised === "utf8") return "";
+  if (normalized === "utf-8" || normalized === "utf8") return "";
 
-  return normalised;
+  return normalized;
 }

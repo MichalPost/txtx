@@ -1,3 +1,4 @@
+use crate::models::AiCallConfig;
 /// AI module — wraps async-openai for non-streaming and streaming completions.
 /// Supports any OpenAI-compatible endpoint (OpenAI, DeepSeek, Ollama, custom).
 ///
@@ -7,19 +8,17 @@ use anyhow::{Context, Result};
 use async_openai::{
     config::OpenAIConfig,
     types::{
-        ChatCompletionRequestSystemMessageArgs,
-        ChatCompletionRequestUserMessageArgs,
+        ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
         CreateChatCompletionRequestArgs,
     },
     Client,
 };
 use futures::StreamExt;
-use std::pin::Pin;
-use std::future::Future;
-use kumo::llm::{LlmClient, TokenUsage};
 use kumo::error::KumoError;
+use kumo::llm::{LlmClient, TokenUsage};
 use serde_json::Value;
-use crate::models::AiCallConfig;
+use std::future::Future;
+use std::pin::Pin;
 
 /// Build an async-openai client from our config struct.
 ///
@@ -147,10 +146,8 @@ impl LlmClient for KumoLlmBridge {
     {
         // kumo's built-in helpers: strip scripts/styles, then render the prompt
         let cleaned = kumo::llm::prompt::strip_scripts_and_styles(html);
-        let user_prompt = kumo::llm::prompt::render_user_prompt(
-            kumo::llm::prompt::DEFAULT_USER_PROMPT,
-            &cleaned,
-        );
+        let user_prompt =
+            kumo::llm::prompt::render_user_prompt(kumo::llm::prompt::DEFAULT_USER_PROMPT, &cleaned);
         let system_prompt = format!(
             "{}\nRespond ONLY with a valid JSON object that matches this schema (no markdown, no explanation):\n{}",
             kumo::llm::prompt::DEFAULT_SYSTEM_PROMPT,
@@ -184,7 +181,10 @@ fn parse_json_response(text: &str) -> Result<Value, serde_json::Error> {
         let after_fence = &text[start + 3..];
         let content_start = after_fence.find('\n').map(|i| i + 1).unwrap_or(0);
         let content = &after_fence[content_start..];
-        content.rfind("```").map(|i| content[..i].trim()).unwrap_or(content.trim())
+        content
+            .rfind("```")
+            .map(|i| content[..i].trim())
+            .unwrap_or(content.trim())
     } else {
         text.trim()
     };
@@ -197,11 +197,7 @@ fn parse_json_response(text: &str) -> Result<Value, serde_json::Error> {
 /// `html`    — raw page HTML (will be cleaned internally)  
 ///
 /// Returns the extracted JSON value, or an error string.
-pub async fn extract_fields(
-    cfg: &AiCallConfig,
-    schema: &Value,
-    html: &str,
-) -> Result<Value> {
+pub async fn extract_fields(cfg: &AiCallConfig, schema: &Value, html: &str) -> Result<Value> {
     let bridge = KumoLlmBridge { cfg: cfg.clone() };
     let (data, _usage) = bridge
         .extract_json(schema, html)

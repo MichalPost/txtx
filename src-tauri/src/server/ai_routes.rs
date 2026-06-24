@@ -14,15 +14,13 @@ use axum::{
 use futures::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::models::{AiCompleteRequest, AiCompleteResponse, AiExtractRequest, AiExtractResponse};
-use crate::ai_config_db::AiMultiConfig;
 use super::error::AppError;
 use super::state::AppState;
+use crate::ai_config_db::AiMultiConfig;
+use crate::models::{AiCompleteRequest, AiCompleteResponse, AiExtractRequest, AiExtractResponse};
 
 /// Load AI config from SQLite.
-pub async fn get_ai_config(
-    State(state): State<AppState>,
-) -> Result<Json<AiMultiConfig>, AppError> {
+pub async fn get_ai_config(State(state): State<AppState>) -> Result<Json<AiMultiConfig>, AppError> {
     let cfg = crate::ai_config_db::load(&state.base_dir).await?;
     Ok(Json(cfg))
 }
@@ -48,9 +46,7 @@ pub async fn post_ai_complete(
 /// Each token: `data: {token}\n\n`
 /// End of stream: `data: [DONE]\n\n`
 /// Error: `data: [ERROR] {message}\n\n`
-pub async fn post_ai_stream(
-    Json(req): Json<AiCompleteRequest>,
-) -> impl IntoResponse {
+pub async fn post_ai_stream(Json(req): Json<AiCompleteRequest>) -> impl IntoResponse {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, String>>(256);
 
     tokio::spawn(async move {
@@ -64,7 +60,8 @@ pub async fn post_ai_stream(
                 let escaped = token.replace('\n', "\\n");
                 let _ = tx_stream.try_send(Ok(format!("data: {escaped}\n\n")));
             },
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(()) => {
@@ -76,10 +73,8 @@ pub async fn post_ai_stream(
         }
     });
 
-    let stream = ReceiverStream::new(rx).map(|item| {
-        match item {
-            Ok(s) | Err(s) => Ok::<_, std::convert::Infallible>(s),
-        }
+    let stream = ReceiverStream::new(rx).map(|item| match item {
+        Ok(s) | Err(s) => Ok::<_, std::convert::Infallible>(s),
     });
 
     Response::builder()

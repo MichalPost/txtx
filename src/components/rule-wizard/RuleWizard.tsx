@@ -1,18 +1,8 @@
 /**
- * RuleWizard — 规则配置向导主容器
- * 8步 Tab 式向导（目录链接+规则合并为一步）
- *
- * 步骤：
- * 1. 更新列表页  — 输入 URL，拉取 HTML，配置书名/链接/日期规则 + 分页，实时预览书籍列表
- * 2. 选择书籍    — 从解析列表选一本，自动填入目录页 URL
- * 3. 目录规则    — 输入目录 URL，获取 HTML，配置章节列表规则，实时预览章节列表
- * 4. 目录测试    — 命中预览
- * 5. 章节规则    — 配置章节页规则（带 XPath 工具）
- * 6. 章节测试    — 命中预览
- * 7. 合并清理    — 基于章节正文预览合并站点独有广告/导航清理规则
- * 8. 保存确认    — 汇总并应用到 WebsiteConfig
+ * RuleWizard 规则向导主容器。
+ * 使用 7 步分页式流程，将更新列表、目录规则、正文规则和保存配置串联起来。
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BookMarked,
@@ -31,7 +21,6 @@ import { Button } from "@/components/Button";
 import type { WebsiteConfig } from "@/types";
 
 import {
-  buildXPathFromRule,
   emptyFieldRule,
   emptyWizardData,
   wizardDataFromSite,
@@ -44,19 +33,22 @@ import { WizardStep4ChapRules } from "./WizardStep4ChapRules";
 import { WizardStep6Save } from "./WizardStep6Save";
 import { WizardStepChapTestAndCleanup } from "./WizardStepChapTestAndCleanup";
 import { WizardStepCatalog } from "./WizardStepCatalog";
+import { canEnterWizardStep, getCompletedWizardSteps, type WizardStepId } from "./wizardFlowUtils";
 import type { TargetField } from "./xpathTool";
-import { XPathToolPanel } from "./XPathToolPanel";
 
-// ─── Step metadata ─────────────────────────────────────────────────────────────
+const XPathToolPanel = lazy(async () => {
+  const mod = await import("./XPathToolPanel");
+  return { default: mod.XPathToolPanel };
+});
 
 const STEPS = [
-  { id: 1, label: "更新列表页面获取", icon: RefreshCw },
-  { id: 2, label: "更新列表书籍获取", icon: BookMarked },
-  { id: 3, label: "目录规则", icon: ListTree },
-  { id: 4, label: "目录测试", icon: FlaskConical },
-  { id: 5, label: "章节规则", icon: BookOpen },
-  { id: 6, label: "测试与清理", icon: TestTube2 },
-  { id: 7, label: "保存规则", icon: Save },
+  { id: 1, label: "更新列表抓取", icon: RefreshCw },
+  { id: 2, label: "选择目标书籍", icon: BookMarked },
+  { id: 3, label: "目录页抓取", icon: ListTree },
+  { id: 4, label: "目录规则测试", icon: FlaskConical },
+  { id: 5, label: "正文规则配置", icon: BookOpen },
+  { id: 6, label: "正文提取测试", icon: TestTube2 },
+  { id: 7, label: "保存站点规则", icon: Save },
 ] as const;
 
 interface RuleWizardProps {
@@ -70,10 +62,10 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   const initialData = useMemo(() => {
     const hasExistingRules = Boolean(
       site.list_novel_name ||
-      site.release_url ||
-      site.novel_content ||
-      site.novel_name_x ||
-      site.chapter_url_x,
+        site.release_url ||
+        site.novel_content ||
+        site.novel_name_x ||
+        site.chapter_url_x,
     );
     return hasExistingRules
       ? wizardDataFromSite(site)
@@ -82,6 +74,8 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
   const [data, setData] = useState<WizardData>(initialData);
   const [showXPathTool, setShowXPathTool] = useState(false);
   const hasSavedRef = useRef(false);
+  const xpathDialogRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setData(initialData);
@@ -90,49 +84,87 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
     hasSavedRef.current = false;
   }, [initialData]);
 
-  const canEnterStep = (targetStep: number) => {
-    switch (targetStep) {
-      case 2:
-        return Boolean(data.update_books.length || data.catalog_url.trim());
-      case 3:
-        return Boolean(data.catalog_url.trim());
-      case 4:
-        return Boolean(
-          buildXPathFromRule(data.list_novel_name) && buildXPathFromRule(data.list_release_url),
-        );
-      case 5:
-        return Boolean(data.chapter_test_url || data.selected_chapter_title || data.chapter_html);
-      case 6:
-        return Boolean(buildXPathFromRule(data.chap_content));
-      case 7:
-        return Boolean(
-          data.catalog_url.trim() &&
-          buildXPathFromRule(data.list_novel_name) &&
-          buildXPathFromRule(data.list_release_url) &&
-          buildXPathFromRule(data.chap_content),
-        );
-      default:
-        return true;
-    }
-  };
+  useEffect(() => {
+    if (!showXPathTool) return;
 
-  const goTo = (n: number) => {
-    if (!canEnterStep(n) && n > step) return;
+    lastFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const focusDialog = () => {
+      const container = xpathDialogRef.current;
+      if (!container) return;
+
+      const firstFocusable = container.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      (firstFocusable ?? container).focus();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowXPathTool(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const container = xpathDialogRef.current;
+      if (!container) return;
+
+      const focusables = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("disabled"));
+
+      if (focusables.length === 0) {
+        event.preventDefault();
+        container.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    focusDialog();
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      lastFocusedRef.current?.focus();
+    };
+  }, [showXPathTool]);
+
+  const canEnterStep = (targetStep: number) => canEnterWizardStep(data, targetStep as WizardStepId);
+
+  const goTo = (targetStep: number) => {
+    if (!canEnterStep(targetStep) && targetStep > step) return;
     setShowXPathTool(false);
-    // 进入 Step3（目录规则）时，如果目录页尚未抓取（新建或切换书籍），
-    // 清空列表规则字段，避免保留 Step1 更新列表规则的旧值
-    if (n === 3 && !data.catalog_html) {
-      setData((d) => ({
-        ...d,
+
+    if (targetStep === 3 && !data.catalog_html) {
+      setData((current) => ({
+        ...current,
         list_novel_name: emptyFieldRule("xpath"),
         list_release_url: emptyFieldRule("link_keyword"),
         list_release_date: emptyFieldRule("xpath"),
       }));
     }
-    setStep(n);
+
+    setStep(targetStep);
   };
+
   const goNext = () => goTo(Math.min(step + 1, STEPS.length));
   const goPrev = () => goTo(Math.max(step - 1, 1));
+
   const hasUnsavedChanges = useMemo(
     () => JSON.stringify(data) !== JSON.stringify(initialData),
     [data, initialData],
@@ -140,89 +172,96 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
 
   const handleCloseAttempt = () => {
     if (!hasSavedRef.current && hasUnsavedChanges) {
-      const confirmed = confirm("当前规则向导还有未保存内容，确认要退出吗？");
+      const confirmed = confirm("当前向导还有未保存的数据，确定要退出吗？");
       if (!confirmed) return;
     }
     onClose();
   };
 
-  // Step 1 XPath tool → update list page
-  // Step 3 XPath tool → catalog page
-  // Step 5 XPath tool → chapter page
-  const xpathHtml: string =
+  const xpathHtml =
     step === 1 ? data.update_list_html : step <= 4 ? data.catalog_html : data.chapter_html;
 
   const xpathPage: "catalog" | "chapter" | "update_list" =
     step === 1 ? "update_list" : step === 5 ? "chapter" : "catalog";
 
-  const handleXPathToolApply = (res: Partial<Record<TargetField, string>>) => {
+  const handleXPathToolApply = (result: Partial<Record<TargetField, string>>) => {
     const patch: Partial<WizardData> = {};
+
     if (step === 1) {
-      if (res.update_book_name)
+      if (result.update_book_name) {
         patch.list_novel_name = {
           ...data.list_novel_name,
           mode: "xpath",
-          xpath: res.update_book_name,
+          xpath: result.update_book_name,
         };
-      if (res.update_book_url)
+      }
+      if (result.update_book_url) {
         patch.list_release_url = {
           ...data.list_release_url,
           mode: "xpath",
-          xpath: res.update_book_url,
+          xpath: result.update_book_url,
         };
-      if (res.update_book_date)
+      }
+      if (result.update_book_date) {
         patch.list_release_date = {
           ...data.list_release_date,
           mode: "xpath",
-          xpath: res.update_book_date,
+          xpath: result.update_book_date,
         };
+      }
     } else if (xpathPage === "catalog") {
-      if (res.chapter_name)
-        patch.list_novel_name = { ...data.list_novel_name, mode: "xpath", xpath: res.chapter_name };
-      if (res.chapter_url)
+      if (result.chapter_name) {
+        patch.list_novel_name = {
+          ...data.list_novel_name,
+          mode: "xpath",
+          xpath: result.chapter_name,
+        };
+      }
+      if (result.chapter_url) {
         patch.list_release_url = {
           ...data.list_release_url,
           mode: "xpath",
-          xpath: res.chapter_url,
+          xpath: result.chapter_url,
         };
-      if (res.book_name)
+      }
+      if (result.book_name) {
         patch.list_release_date = {
           ...data.list_release_date,
           mode: "xpath",
-          xpath: res.book_name,
+          xpath: result.book_name,
         };
-      if (res.book_intro)
-        patch.chap_intro = { ...data.chap_intro, mode: "xpath", xpath: res.book_intro };
+      }
+      if (result.book_intro) {
+        patch.chap_intro = {
+          ...data.chap_intro,
+          mode: "xpath",
+          xpath: result.book_intro,
+        };
+      }
     } else {
-      if (res.novel_content)
-        patch.chap_content = { ...data.chap_content, mode: "xpath", xpath: res.novel_content };
-      if (res.book_name)
-        patch.chap_novel_name = { ...data.chap_novel_name, mode: "xpath", xpath: res.book_name };
+      if (result.novel_content) {
+        patch.chap_content = {
+          ...data.chap_content,
+          mode: "xpath",
+          xpath: result.novel_content,
+        };
+      }
+      if (result.book_name) {
+        patch.chap_novel_name = {
+          ...data.chap_novel_name,
+          mode: "xpath",
+          xpath: result.book_name,
+        };
+      }
     }
-    setData((d) => ({ ...d, ...patch }));
+
+    setData((current) => ({ ...current, ...patch }));
     setShowXPathTool(false);
   };
 
-  // XPath tool button is available on steps 1, 3, 5
   const showXPathBtn = step === 1 || step === 3 || step === 5;
 
-  const completedSteps = useMemo(
-    () => ({
-      1: Boolean(data.update_list_url.trim() && data.update_list_html),
-      2: Boolean(data.selected_book_url || data.catalog_url.trim()),
-      3: Boolean(
-        data.catalog_url.trim() &&
-        data.catalog_html &&
-        buildXPathFromRule(data.list_novel_name) &&
-        buildXPathFromRule(data.list_release_url),
-      ),
-      4: Boolean(data.chapter_test_url),
-      5: Boolean(buildXPathFromRule(data.chap_content)),
-      6: Boolean(data.chapter_html),
-      7: false,
-    }),
-    [data],
-  );
+  const completedSteps = useMemo(() => getCompletedWizardSteps(data), [data]);
 
   return (
     <div
@@ -233,20 +272,18 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         boxShadow: "var(--shadow-md)",
       }}
     >
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div
         className="flex shrink-0 items-center gap-3 border-b px-4 py-3"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
         <span className="flex-1 text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-          规则配置向导
+          规则向导
         </span>
         <span className="max-w-xs truncate text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {site.domain_name}
         </span>
       </div>
 
-      {/* ── Step tabs ──────────────────────────────────────────────────────── */}
       <div
         className="flex shrink-0 items-stretch overflow-x-auto border-b"
         style={{ borderColor: "var(--color-border)", background: "var(--color-surface-2)" }}
@@ -255,11 +292,15 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
           const active = step === id;
           const done = step > id || completedSteps[id as keyof typeof completedSteps];
           const locked = id > step && !canEnterStep(id);
+
           return (
             <button
               key={id}
+              type="button"
               onClick={() => goTo(id)}
               disabled={locked}
+              aria-current={active ? "step" : undefined}
+              aria-label={`${active ? "当前步骤" : "步骤"} ${id}：${label}${locked ? "，暂不可进入" : ""}`}
               className="relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-all"
               style={{
                 color: active
@@ -295,14 +336,19 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         })}
       </div>
 
-      {/* ── Step content ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 520 }}>
         {step === 1 && <WizardStep1UpdateList data={data} onChange={setData} />}
         {step === 2 && <WizardStep2SelectBook data={data} onChange={setData} />}
         {step === 3 && <WizardStepCatalog data={data} onChange={setData} />}
         {step === 4 && <WizardStep3ListTest data={data} onChange={setData} />}
         {step === 5 && <WizardStep4ChapRules data={data} onChange={setData} />}
-        {step === 6 && <WizardStepChapTestAndCleanup data={data} onChange={setData} />}
+        {step === 6 && (
+          <WizardStepChapTestAndCleanup
+            data={data}
+            onChange={setData}
+            onGoToChapterRules={() => goTo(5)}
+          />
+        )}
         {step === 7 && (
           <WizardStep6Save
             data={data}
@@ -315,7 +361,6 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
         )}
       </div>
 
-      {/* ── XPath tool modal (portal to body, no parent clipping) ──────────── */}
       {showXPathTool &&
         createPortal(
           <div
@@ -324,6 +369,11 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
             onClick={() => setShowXPathTool(false)}
           >
             <div
+              ref={xpathDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="XPath 生成工具"
+              tabIndex={-1}
               className="relative mx-4 w-full overflow-hidden rounded-xl"
               style={{
                 maxWidth: 860,
@@ -331,20 +381,34 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
                 display: "flex",
                 flexDirection: "column",
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
             >
-              <XPathToolPanel
-                html={xpathHtml}
-                page={xpathPage}
-                onApply={handleXPathToolApply}
-                onClose={() => setShowXPathTool(false)}
-              />
+              <Suspense
+                fallback={
+                  <div
+                    className="rounded-xl border px-4 py-4 text-sm"
+                    style={{
+                      background: "var(--color-surface)",
+                      borderColor: "var(--color-border)",
+                      color: "var(--color-text-muted)",
+                    }}
+                  >
+                    正在加载 XPath 工具...
+                  </div>
+                }
+              >
+                <XPathToolPanel
+                  html={xpathHtml}
+                  page={xpathPage}
+                  onApply={handleXPathToolApply}
+                  onClose={() => setShowXPathTool(false)}
+                />
+              </Suspense>
             </div>
           </div>,
           document.body,
         )}
 
-      {/* ── Footer navigation ──────────────────────────────────────────────── */}
       <div
         className="flex shrink-0 items-center gap-2 border-t px-4 py-3"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
@@ -353,9 +417,13 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
           <ChevronLeft className="h-3.5 w-3.5" />
           上一步
         </Button>
+
         {showXPathBtn && (
           <button
-            onClick={() => setShowXPathTool((v) => !v)}
+            type="button"
+            onClick={() => setShowXPathTool((value) => !value)}
+            aria-pressed={showXPathTool}
+            aria-label={showXPathTool ? "关闭 XPath 工具" : "打开 XPath 工具"}
             className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
             style={{
               background: showXPathTool
@@ -372,20 +440,23 @@ export function RuleWizard({ site, onApply, onClose }: RuleWizardProps) {
             XPath 工具
           </button>
         )}
+
         <span className="flex-1 text-center text-xs" style={{ color: "var(--color-text-subtle)" }}>
           {step} / {STEPS.length}
         </span>
+
         {step < STEPS.length && (
           <Button size="sm" onClick={goNext} disabled={!canEnterStep(step + 1)}>
             下一步
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         )}
+
         {step === STEPS.length && (
           <Button variant="ghost" size="sm" onClick={handleCloseAttempt}>
             关闭向导
           </Button>
-        )}{" "}
+        )}
       </div>
     </div>
   );

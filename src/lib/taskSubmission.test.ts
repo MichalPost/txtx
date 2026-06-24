@@ -31,6 +31,43 @@ test("submitTaskAndThen only runs side effects after task creation succeeds", as
   assert.equal(afterSubmitCalls, 1);
 });
 
+test("submitTaskAndThen collapses repeated in-flight submissions", async () => {
+  let createCalls = 0;
+  let afterSubmitCalls = 0;
+  let release: (() => void) | null = null;
+
+  const first = submitTaskAndThen(
+    async () => {
+      createCalls += 1;
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    },
+    () => {
+      afterSubmitCalls += 1;
+    },
+  );
+
+  const second = submitTaskAndThen(
+    async () => {
+      createCalls += 1;
+    },
+    () => {
+      afterSubmitCalls += 1;
+    },
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(createCalls, 1);
+  assert.equal(afterSubmitCalls, 0);
+
+  release?.();
+  await Promise.all([first, second]);
+
+  assert.equal(createCalls, 1);
+  assert.equal(afterSubmitCalls, 1);
+});
+
 test("createTasksFromUrls reports per-url failures without stopping later tasks", async () => {
   const created: string[] = [];
 

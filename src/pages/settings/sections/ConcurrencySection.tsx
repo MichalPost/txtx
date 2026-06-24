@@ -14,7 +14,7 @@ export function ConcurrencySection() {
 
   return (
     <Card title="并发配置">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Input label="并行下载数（任务并发上限）" type="number" {...register("novel_threads")} />
           <FieldError msg={errors.novel_threads?.message} />

@@ -1,7 +1,7 @@
-use tokio::sync::mpsc;
-use tauri::{AppHandle, Emitter, Manager};
-use crate::models::{ProgressEvent, TaskId, TaskEvent, TaskStatus};
+use crate::models::{ProgressEvent, TaskEvent, TaskId, TaskStatus};
 use crate::task_manager::SharedTaskManager;
+use tauri::{AppHandle, Emitter};
+use tokio::sync::mpsc;
 
 pub(super) fn app_data_dir(app: &AppHandle) -> std::path::PathBuf {
     get_app_data_dir(app)
@@ -14,15 +14,14 @@ pub fn get_app_data_dir(app: &AppHandle) -> std::path::PathBuf {
     {
         let _ = app; // 避免 unused 警告
         let manifest_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let data_dir = manifest_dir.parent()
-            .unwrap_or(&manifest_dir)
-            .join("data");
+        let data_dir = manifest_dir.parent().unwrap_or(&manifest_dir).join("data");
         std::fs::create_dir_all(&data_dir).ok();
         return data_dir;
     }
     // 生产模式：使用系统 AppData 目录
     #[cfg(not(debug_assertions))]
-    app.path().app_data_dir()
+    app.path()
+        .app_data_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
 }
 
@@ -43,6 +42,7 @@ pub(super) async fn spawn_task_worker<F, Fut>(
 
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
+            let mut persist_snapshot = None;
             {
                 let mut mgr = tm_rx.lock().await;
                 match &event {
@@ -66,6 +66,7 @@ pub(super) async fn spawn_task_worker<F, Fut>(
                             r.stats = Some(s);
                             r.status = TaskStatus::Downloading;
                         });
+                        persist_snapshot = mgr.get_record(&tid).cloned();
                     }
                     ProgressEvent::ScanComplete { items, stats } => {
                         let items2 = items.clone();
@@ -75,6 +76,7 @@ pub(super) async fn spawn_task_worker<F, Fut>(
                             r.scan_stats = Some(stats2);
                             r.status = TaskStatus::Preview;
                         });
+                        persist_snapshot = mgr.get_record(&tid).cloned();
                     }
                     ProgressEvent::ScanStart { .. } => {
                         mgr.update_record(&tid, |r| {
@@ -82,21 +84,23 @@ pub(super) async fn spawn_task_worker<F, Fut>(
                         });
                     }
                     ProgressEvent::OverallDone => {
-                        let base_dir = mgr.base_dir.clone();
                         mgr.update_record(&tid, |r| {
                             r.status = TaskStatus::Done;
-                            r.finished_at = Some(
-                                chrono::Local::now()
-                                    .format("%Y-%m-%d %H:%M:%S")
-                                    .to_string(),
-                            );
+                            r.finished_at =
+                                Some(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+                            r.error_message = None;
                         });
-                        if let Some(rec) = mgr.get_record(&tid).cloned() {
-                            let _ = crate::task_manager::db::save_task(&base_dir, &rec).await;
-                        }
+                        persist_snapshot = mgr.get_record(&tid).cloned();
                     }
                     _ => {}
                 }
+            }
+            if let Some(record) = persist_snapshot {
+                let base_dir = {
+                    let mgr = tm_rx.lock().await;
+                    mgr.base_dir.clone()
+                };
+                let _ = crate::task_manager::db::save_task(&base_dir, &record).await;
             }
             let task_event = TaskEvent {
                 task_id: tid.clone(),
@@ -111,20 +115,19 @@ pub(super) async fn spawn_task_worker<F, Fut>(
     tokio::spawn(async move {
         let result = future_factory(tx).await;
         if let Err(e) = result {
-            let mut mgr = tm_done.lock().await;
             let err_str = e.to_string();
-            mgr.update_record(&tid2, |r| {
-                r.status = TaskStatus::Failed;
-                r.error_message = Some(err_str);
-                r.finished_at = Some(
-                    chrono::Local::now()
-                        .format("%Y-%m-%d %H:%M:%S")
-                        .to_string(),
-                );
-            });
-            let base_dir = mgr.base_dir.clone();
-            if let Some(rec) = mgr.get_record(&tid2).cloned() {
-                let _ = crate::task_manager::db::save_task(&base_dir, &rec).await;
+            let (base_dir, snapshot) = {
+                let mut mgr = tm_done.lock().await;
+                mgr.update_record(&tid2, |r| {
+                    r.status = TaskStatus::Failed;
+                    r.error_message = Some(err_str);
+                    r.finished_at =
+                        Some(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+                });
+                (mgr.base_dir.clone(), mgr.get_record(&tid2).cloned())
+            };
+            if let Some(record) = snapshot {
+                let _ = crate::task_manager::db::save_task(&base_dir, &record).await;
             }
         }
     });

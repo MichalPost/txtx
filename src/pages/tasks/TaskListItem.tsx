@@ -5,6 +5,7 @@ import type { TaskRecord } from "@/types";
 interface Props {
   task: TaskRecord;
   isActive: boolean;
+  pendingAction?: "cancel" | "pause" | "delete" | "retry" | null;
   onSelect: () => void;
   onCancel: () => void;
   onPause: () => void;
@@ -60,6 +61,7 @@ function ProgressRing({ pct, color }: { pct: number; color: string }) {
 export function TaskListItem({
   task,
   isActive,
+  pendingAction = null,
   onSelect,
   onCancel,
   onPause,
@@ -71,17 +73,29 @@ export function TaskListItem({
   const isRunning = task.status === "scanning" || task.status === "downloading";
   const isScanning = task.status === "scanning";
   const isDone = task.status === "done" || task.status === "failed" || task.status === "cancelled";
+  const isBusy = pendingAction !== null;
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       className="group flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 transition-all"
       style={{
         background: isActive ? "var(--color-accent-muted)" : "var(--color-surface)",
         borderColor: isActive
           ? "color-mix(in srgb, var(--color-accent) 40%, transparent)"
           : "var(--color-border)",
+        opacity: isBusy ? 0.78 : 1,
       }}
+      aria-pressed={isActive}
+      aria-label={`${task.label}，${STATUS_LABEL[task.status] ?? task.status}`}
     >
       {/* Scanning: spinning arc instead of progress ring */}
       {isScanning ? (
@@ -133,41 +147,54 @@ export function TaskListItem({
       </div>
 
       <div
-        className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+        className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         {isRunning && task.status === "downloading" && (
           <button
+            type="button"
             onClick={onPause}
+            disabled={isBusy}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title="暂停"
+            title={pendingAction === "pause" ? "暂停中..." : "暂停"}
+            aria-label={pendingAction === "pause" ? "暂停中" : "暂停任务"}
           >
             <Pause className="h-3 w-3" style={{ color: "var(--color-text-muted)" }} />
           </button>
         )}
         {isRunning && (
           <button
+            type="button"
             onClick={onCancel}
+            disabled={isBusy}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title="取消"
+            title={pendingAction === "cancel" ? "取消中..." : "取消"}
+            aria-label={pendingAction === "cancel" ? "取消中" : "取消任务"}
           >
             <Square className="h-3 w-3" style={{ color: "var(--color-danger)" }} />
           </button>
         )}
         {isDone && (
           <button
+            type="button"
             onClick={onRetry}
+            disabled={isBusy}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title="重试"
+            title={pendingAction === "retry" ? "重试中..." : "重试"}
+            aria-label={pendingAction === "retry" ? "重试中" : "重试任务"}
           >
             <RotateCcw className="h-3 w-3" style={{ color: "var(--color-accent)" }} />
           </button>
         )}
         {(isDone || task.status === "paused") && (
           <button
+            type="button"
             onClick={onDelete}
+            disabled={isBusy}
             className="rounded p-1 hover:bg-[var(--color-surface-2)]"
-            title="删除"
+            title={pendingAction === "delete" ? "删除中..." : "删除"}
+            aria-label={pendingAction === "delete" ? "删除中" : "删除任务"}
           >
             <Trash2 className="h-3 w-3" style={{ color: "var(--color-text-muted)" }} />
           </button>

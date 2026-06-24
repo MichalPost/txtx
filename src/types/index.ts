@@ -289,6 +289,8 @@ export interface TaskRecord {
   status: TaskStatus;
   label: string;
   source_url?: string | null;
+  retry_context?: TaskRetryContext | null;
+  preview_draft?: TaskPreviewDraft | null;
   created_at: string;
   finished_at: string | null;
   total: number;
@@ -323,6 +325,18 @@ export interface ScanTaskOptions {
   enabled_sites?: string[] | null;
   /** Download mode: smart (default), multi (force multi-thread), single (stable single-thread) */
   download_mode?: DownloadMode | null;
+}
+
+export interface TaskRetryContext {
+  scan_options?: ScanTaskOptions | null;
+  selected_items?: BookCandidate[] | null;
+}
+
+export interface TaskPreviewDraft {
+  deselected_urls: string[];
+  site_filter: string;
+  scan_sort: "name" | "site" | "date";
+  visible_count: number;
 }
 
 // ─── Bookshelf ────────────────────────────────────────────────────────────────

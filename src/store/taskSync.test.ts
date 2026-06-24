@@ -12,6 +12,7 @@ function makeTask(overrides: Partial<TaskRecord> = {}): TaskRecord {
     status: "downloading",
     label: "task",
     source_url: null,
+    retry_context: null,
     created_at: "2026-01-01 10:00:00",
     finished_at: null,
     total: 10,
@@ -38,6 +39,18 @@ test("hasTaskChanged detects total and stats changes", () => {
   const server = makeTask({
     total: 12,
     stats: { total: 12, completed: 3, success: 2, failed: 1 },
+  });
+
+  assert.equal(hasTaskChanged(existing, server), true);
+});
+
+test("hasTaskChanged detects retry context changes", () => {
+  const existing = makeTask({ retry_context: null });
+  const server = makeTask({
+    retry_context: {
+      scan_options: { enabled_sites: ["https://example.com"], download_mode: "smart" },
+      selected_items: null,
+    },
   });
 
   assert.equal(hasTaskChanged(existing, server), true);

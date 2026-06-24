@@ -1,17 +1,8 @@
-/**
- * Step 6 — 章节预览 + 广告清理（合并步骤）
- *
- * 直接使用第五步已抓取的 chapter_html，无需再输入 URL 或点测试按钮。
- * 若配置了章节内分页（chapter_next_page_xpath），会自动跟踪并合并多页正文作为预览。
- *
- * 布局：
- * - 顶部：正文预览（单页 / 多页合并），右侧清理后对比
- * - 下方：广告清理规则编辑区（可折叠），支持快速推荐 + AI 分析
- */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -44,32 +35,28 @@ import { buildXPathFromRule, type WizardData } from "./ruleUtils";
 import { getAiNumber, getAiObject, getAiStringArray } from "./utils/aiResponse";
 import { formatWizardActionError } from "./utils/wizardActionError";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
 type RuleKind = "xpath_rules" | "regex_rules" | "nav_keywords";
 
 const KIND_META: Record<RuleKind, { label: string; placeholder: string; hint: string }> = {
   xpath_rules: {
-    label: "XPath 删除规则",
+    label: "XPath 清理规则",
     placeholder: '//div[contains(@class,"ad")]',
-    hint: "匹配并删除指定 DOM 节点的文本",
+    hint: "匹配并移除指定 DOM 节点或节点文本",
   },
   regex_rules: {
     label: "正则行规则",
     placeholder: "关注.*公众号",
-    hint: "匹配整行文本，命中则删除该行",
+    hint: "匹配正文中的整行文本并删除",
   },
   nav_keywords: {
-    label: "末尾导航关键词",
-    placeholder: "下一章",
-    hint: "从正文末尾向上删除包含该关键词的行",
+    label: "尾部导航关键词",
+    placeholder: "下一页",
+    hint: "删除正文末尾包含这些关键词的导航行",
   },
 };
 
-// ─── AI system prompt for ad cleanup ──────────────────────────────────────────
-
-const AI_SYSTEM_AD_CLEANUP = `你是专门分析中文小说章节页内容清理的专家。
-分析章节正文文本（已按行分割），找出需要删除的广告、导航和垃圾内容，严格输出JSON，不含其他内容：
+const AI_SYSTEM_AD_CLEANUP = `你是一名专门分析网络小说章节页广告与噪音内容的助手。
+请阅读章节正文文本（按换行分隔），找出需要清理的广告、推广、导航或无关内容，并严格只返回 JSON：
 {
   "xpath_rules":   ["XPath规则1", "XPath规则2"],
   "regex_rules":   ["正则表达式1", "正则表达式2"],
@@ -77,40 +64,35 @@ const AI_SYSTEM_AD_CLEANUP = `你是专门分析中文小说章节页内容清�
   "trim_head":     0,
   "trim_tail":     0
 }
-规则说明：
-- xpath_rules：用于删除 HTML 中特定 DOM 节点（如广告div），格式为完整 XPath，末尾加 /text()
-- regex_rules：用于按行过滤正文中的广告文字，如网址、公众号推广等，格式为正则表达式（大小写不敏感）
-- nav_keywords：正文末尾的导航文字关键词，如"下一章"、"返回目录"等，从末尾向上连续删除含关键词的行
-- trim_head：需要从正文头部固定删除的非空行数（数字），适用于每章开头都有固定格式广告/标题的情况
-- trim_tail：需要从正文尾部固定删除的非空行数（数字），适用于每章末尾都有固定格式广告/导航的情况
-只输出有把握的规则，没有则对应字段留空数组或数字0。`;
-
-// ─── Main component ────────────────────────────────────────────────────────────
+说明：
+- xpath_rules：用于移除 HTML 中固定广告节点，返回有效 XPath，不要附带 /text()
+- regex_rules：用于删除整行广告或推广文案，返回可直接使用的正则
+- nav_keywords：用于删除正文末尾的分页、返回目录、下载提示等导航行
+- trim_head：如每章开头固定有 1-2 行噪音，可返回要裁掉的非空行数
+- trim_tail：如每章结尾固定有 1-2 行噪音，可返回要裁掉的非空行数
+没有把握时返回空数组和 0，不要输出解释文本。`;
 
 interface Props {
   data: WizardData;
   onChange: (d: WizardData) => void;
+  onGoToChapterRules: () => void;
 }
 
-export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
+export function WizardStepChapTestAndCleanup({ data, onChange, onGoToChapterRules }: Props) {
   const navigate = useNavigate();
   const aiEnabled = useAiStore((s) => s.config.enabled);
 
-  // ── 多页预览状态 ────────────────────────────────────────────────────────────
   const [multiPageLoading, setMultiPageLoading] = useState(false);
   const [multiPageText, setMultiPageText] = useState("");
   const [multiPageCount, setMultiPageCount] = useState(1);
   const [multiPageError, setMultiPageError] = useState("");
-  // 是否已触发过多页加载（避免每次 data 变化都重新加载）
   const multiPageLoadedRef = useRef(false);
 
-  // ── 换章入口状态（折叠） ────────────────────────────────────────────────────
   const [showChangeChapter, setShowChangeChapter] = useState(false);
   const [changeUrl, setChangeUrl] = useState(data.chapter_test_url);
   const [changeLoading, setChangeLoading] = useState(false);
   const [changeError, setChangeError] = useState("");
 
-  // ── 广告清理状态 ────────────────────────────────────────────────────────────
   const [adError, setAdError] = useState("");
   const [aiAdLoading, setAiAdLoading] = useState(false);
   const [drafts, setDrafts] = useState<Record<RuleKind, string>>({
@@ -125,29 +107,53 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
   const contentXPath = buildXPathFromRule(data.chap_content);
   const fallbackXPaths = data.chap_content_fallbacks;
 
-  // ── 单页正文（无分页时的预览 / 分页加载前的占位） ───────────────────────────
   const singlePagePreview = useMemo(
     () => buildChapterContentPreview(data.chapter_html, contentXPath, fallbackXPaths),
     [data.chapter_html, contentXPath, fallbackXPaths],
   );
 
-  // ── 最终正文文本（有多页结果则用多页，否则用单页） ──────────────────────────
   const finalContentText = hasNextPage && multiPageText ? multiPageText : singlePagePreview.text;
   const finalPageCount = hasNextPage && multiPageText ? multiPageCount : 1;
   const finalUsedRule = singlePagePreview.usedRule;
 
-  // ── 广告清理预览（基于最终正文文本） ────────────────────────────────────────
   const adPreview = useMemo(
     () => buildAdCleanupPreview(data.chapter_html, rules, finalContentText),
     [data.chapter_html, rules, finalContentText],
   );
 
   const activeRuleCount =
-    rules.xpath_rules.length + rules.regex_rules.length + rules.nav_keywords.length +
-    (rules.trim_head > 0 ? 1 : 0) + (rules.trim_tail > 0 ? 1 : 0);
+    rules.xpath_rules.length +
+    rules.regex_rules.length +
+    rules.nav_keywords.length +
+    (rules.trim_head > 0 ? 1 : 0) +
+    (rules.trim_tail > 0 ? 1 : 0);
 
-  // ── 多页预览加载 ─────────────────────────────────────────────────────────────
   const fetchHtml = useCallback((url: string) => apiFetchSource(url), []);
+
+  const refetchCurrentChapter = useCallback(async () => {
+    const url = (changeUrl.trim() || data.chapter_test_url || "").trim();
+    if (!url) {
+      setChangeError("当前没有可重新抓取的章节地址");
+      return;
+    }
+
+    setChangeLoading(true);
+    setChangeError("");
+    setAdError("");
+    setMultiPageError("");
+    multiPageLoadedRef.current = false;
+    setMultiPageText("");
+    setMultiPageCount(1);
+
+    try {
+      const html = await apiFetchSource(url);
+      onChange({ ...data, chapter_html: html, chapter_test_url: url });
+    } catch (error) {
+      setChangeError(formatWizardActionError("重新抓取当前章节", error));
+    } finally {
+      setChangeLoading(false);
+    }
+  }, [changeUrl, data, onChange]);
 
   const loadMultiPage = useCallback(async () => {
     if (!data.chapter_html || !hasNextPage) return;
@@ -179,7 +185,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     fetchHtml,
   ]);
 
-  // 有分页配置时，进入本步骤自动加载多页预览（只加载一次）
   useEffect(() => {
     if (hasNextPage && data.chapter_html && !multiPageLoadedRef.current) {
       multiPageLoadedRef.current = true;
@@ -187,7 +192,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     }
   }, [hasNextPage, data.chapter_html, loadMultiPage]);
 
-  // chapter_next_page_xpath 变化时重置多页缓存
   const prevNextPageXPath = useRef(data.chapter_next_page_xpath);
   useEffect(() => {
     if (data.chapter_next_page_xpath !== prevNextPageXPath.current) {
@@ -198,7 +202,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     }
   }, [data.chapter_next_page_xpath]);
 
-  // ── 换章节 ──────────────────────────────────────────────────────────────────
   const handleChangeChapter = async () => {
     const url = changeUrl.trim();
     if (!url) return;
@@ -220,9 +223,19 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     }
   };
 
-  // ── 广告清理操作 ─────────────────────────────────────────────────────────────
   const updateRules = (patch: Partial<AdCleanupRules>) => {
     onChange({ ...data, site_ad_rules: normalizeAdCleanupRules({ ...rules, ...patch }) });
+  };
+
+  const clearCleanupRules = () => {
+    updateRules({
+      enabled: false,
+      xpath_rules: [],
+      regex_rules: [],
+      nav_keywords: [],
+      trim_head: 0,
+      trim_tail: 0,
+    });
   };
 
   const applySuggestions = () => {
@@ -240,10 +253,10 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     setAdError("");
     try {
       const textForAi = finalContentText.slice(0, 3000);
-      if (!textForAi) throw new Error("正文内容为空，无法分析");
+      if (!textForAi) throw new Error("正文为空，无法分析");
       const aiConfig = useAiStore.getState().activeConfig();
       const reply = await aiComplete(
-        `网站：${data.catalog_url}\n\n以下是从章节页提取的正文内容，请分析并生成广告清理规则：\n\n${textForAi}`,
+        `站点目录页：${data.catalog_url}\n\n下面是当前章节提取出的正文内容，请分析适合的广告清理规则：\n\n${textForAi}`,
         AI_SYSTEM_AD_CLEANUP,
         aiConfig,
       );
@@ -259,13 +272,12 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
           nav_keywords: [
             ...new Set([...rules.nav_keywords, ...getAiStringArray(parsed.nav_keywords)]),
           ].filter(Boolean),
-          // AI 建议的头尾修整（只取更大的值，不覆盖用户已有设置）
           trim_head: Math.max(rules.trim_head ?? 0, getAiNumber(parsed.trim_head)),
           trim_tail: Math.max(rules.trim_tail ?? 0, getAiNumber(parsed.trim_tail)),
         });
       }
     } catch (error) {
-      setAdError(formatWizardActionError("AI 分析广告清理规则", error));
+      setAdError(formatWizardActionError("AI 分析广告规则", error));
     } finally {
       setAiAdLoading(false);
     }
@@ -282,7 +294,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     updateRules({ [kind]: rules[kind].filter((_, i) => i !== index) });
   };
 
-  // ── 无章节 HTML 时的提示 ─────────────────────────────────────────────────────
   if (!data.chapter_html) {
     return (
       <div className="flex flex-col gap-4">
@@ -296,10 +307,10 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
           />
           <div className="flex flex-col gap-1 text-left">
             <span className="text-xs font-medium" style={{ color: "var(--color-warning)" }}>
-              尚未获取章节页面
+              还没有抓取章节预览
             </span>
             <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-              请回到第五步「章节规则」获取章节页面，或在下方输入章节地址直接抓取。
+              可以先抓取一章测试内容，确认正文提取、分页合并和广告清理规则是否生效。
             </span>
           </div>
         </div>
@@ -314,56 +325,54 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const hasContentExtractionIssue = !multiPageLoading && !finalContentText.trim();
+  const cleanedContentEmpty =
+    rules.enabled && finalContentText.trim().length > 0 && !adPreview.cleanedText.trim();
+
   return (
     <div className="flex flex-col gap-4">
-      {/* ── 正文状态栏 ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* 使用的规则 */}
         {finalUsedRule ? (
           <span
             className="rounded-full px-2 py-0.5 text-xs"
             style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
           >
-            正文已命中
+            正文规则已命中
           </span>
         ) : (
           <span
             className="rounded-full px-2 py-0.5 text-xs"
             style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
           >
-            未抽取到正文
+            尚未命中正文
           </span>
         )}
 
-        {/* 分页状态 */}
         {hasNextPage && (
-          <span className="flex items-center gap-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+          <span
+            className="flex items-center gap-1 text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             <Layers className="h-3 w-3" />
             {multiPageLoading ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin" />
-                正在合并分页...
+                正在抓取分页...
               </>
             ) : multiPageText ? (
-              <>
-                已合并 {finalPageCount} 页 · {singlePagePreview.lineCount} + 多页共{" "}
-                {finalContentText.split("\n").filter(Boolean).length} 行
-              </>
+              <>已合并 {finalPageCount} 页，共 {finalContentText.split("\n").filter(Boolean).length} 行</>
             ) : (
-              "已配置分页"
+              "分页预览待生成"
             )}
           </span>
         )}
 
-        {/* 行数 */}
         {finalUsedRule && !multiPageLoading && (
           <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
             {finalContentText.split("\n").filter(Boolean).length} 行
           </span>
         )}
 
-        {/* 重新加载多页 */}
         {hasNextPage && !multiPageLoading && (
           <button
             onClick={() => {
@@ -379,11 +388,10 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
             }}
           >
             <RefreshCw className="h-3 w-3" />
-            重新合并分页
+            重新抓取分页
           </button>
         )}
 
-        {/* 换章节按钮 */}
         <button
           onClick={() => setShowChangeChapter((v) => !v)}
           className="flex items-center gap-1 rounded border px-2 py-0.5 text-xs transition-colors"
@@ -395,7 +403,7 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
           }}
         >
           <FileText className="h-3 w-3" />
-          换章节
+          更换章节
           {showChangeChapter ? (
             <ChevronUp className="h-3 w-3" />
           ) : (
@@ -404,25 +412,24 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
         </button>
       </div>
 
-      {/* ── 换章节展开区 ───────────────────────────────────────────────────── */}
       {showChangeChapter && (
         <div
           className="flex flex-col gap-2 rounded-xl border p-3"
           style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
         >
           <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            当前预览章节：
+            当前测试章节：
             <code
               className="ml-1 truncate rounded px-1 py-0.5 text-xs"
               style={{ background: "var(--color-surface-2)", color: "var(--color-text-subtle)" }}
             >
-              {data.chapter_test_url || "未知"}
+              {data.chapter_test_url || "未设置"}
             </code>
           </p>
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <Input
-                placeholder="输入另一个章节地址来更换预览"
+                placeholder="输入新的章节 URL 重新抓取预览"
                 value={changeUrl}
                 onChange={(e) => setChangeUrl(e.target.value)}
                 onKeyDown={(e) => {
@@ -458,13 +465,74 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
           style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
         >
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>分页加载失败（已显示第 1 页）：{multiPageError}</span>
+          <div className="flex flex-1 flex-col gap-2">
+            <span>分页合并失败，当前先展示单页正文：{multiPageError}</span>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={() => void loadMultiPage()}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                重试分页合并
+              </Button>
+              <Button size="sm" variant="ghost" onClick={onGoToChapterRules}>
+                <ArrowLeft className="h-3.5 w-3.5" />
+                调整正文 / 分页规则
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── 正文预览 + 清理后对比 ──────────────────────────────────────────── */}
+      {(hasContentExtractionIssue || cleanedContentEmpty || changeError) && (
+        <div
+          className="flex flex-col gap-2 rounded-xl border px-3 py-3"
+          style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
+        >
+          <div className="flex items-start gap-2 text-xs">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--color-warning)" }} />
+            <div className="flex flex-col gap-1">
+              {hasContentExtractionIssue && (
+                <span style={{ color: "var(--color-warning)" }}>
+                  当前章节没有提取到可用正文，建议先回到上一步调整正文 XPath 或备用规则。
+                </span>
+              )}
+              {cleanedContentEmpty && (
+                <span style={{ color: "var(--color-warning)" }}>
+                  清理规则把正文全部移除了，建议先停用清理或减少命中过强的规则。
+                </span>
+              )}
+              {changeError && (
+                <span style={{ color: "var(--color-danger)" }}>
+                  {changeError}
+                </span>
+              )}
+              <span style={{ color: "var(--color-text-muted)" }}>
+                这里可以直接重新抓当前章节、回退到正文规则步骤，或先撤销当前清理再继续观察。
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => void refetchCurrentChapter()} disabled={changeLoading}>
+              {changeLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {changeLoading ? "重新抓取中..." : "重新抓当前章节"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={onGoToChapterRules}>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              返回正文规则
+            </Button>
+            {cleanedContentEmpty && (
+              <Button size="sm" variant="ghost" onClick={clearCleanupRules}>
+                <Trash2 className="h-3.5 w-3.5" />
+                清空并停用清理
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
-        {/* 左：正文（含多页合并） */}
         <div
           className="flex flex-col gap-2 rounded-xl border p-3"
           style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
@@ -491,20 +559,43 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
               </span>
             </div>
           ) : (
-            <Textarea
-              readOnly
-              value={finalContentText}
-              className="h-64 font-mono text-xs leading-relaxed"
-              placeholder={
-                finalUsedRule
-                  ? "正文为空"
-                  : "未命中正文，请回到章节规则步骤调整 XPath"
-              }
-            />
+            <div className="flex flex-col gap-2">
+              <Textarea
+                readOnly
+                value={finalContentText}
+                className="h-64 font-mono text-xs leading-relaxed"
+                placeholder={finalUsedRule ? "正文为空" : "未命中正文，请回到章节规则步骤调整 XPath"}
+              />
+              {!finalContentText.trim() && (
+                <div
+                  className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+                  style={{
+                    background: "var(--color-warning-bg)",
+                    borderColor: "color-mix(in srgb, var(--color-warning) 35%, transparent)",
+                  }}
+                >
+                  <span className="text-xs" style={{ color: "var(--color-warning)" }}>
+                    当前章节没有抽取到正文，可以直接返回上一步修正文规则，或者先重新抓取同一章节再试一次。
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={onGoToChapterRules}>
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    去调整正文规则
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void refetchCurrentChapter()}
+                    disabled={changeLoading}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    重新抓取
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        {/* 右：清理后 */}
         <div
           className="flex flex-col gap-2 rounded-xl border p-3"
           style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
@@ -539,15 +630,34 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
             className="h-64 font-mono text-xs leading-relaxed"
             placeholder="请先添加清理规则"
           />
+          {cleanedContentEmpty && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+              style={{
+                background: "var(--color-warning-bg)",
+                borderColor: "color-mix(in srgb, var(--color-warning) 35%, transparent)",
+              }}
+            >
+              <span className="text-xs" style={{ color: "var(--color-warning)" }}>
+                清理后正文为空，说明当前规则过强或误伤正文内容。
+              </span>
+              <Button size="sm" variant="secondary" onClick={clearCleanupRules}>
+                <Trash2 className="h-3.5 w-3.5" />
+                清空并停用清理
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowCleanup(true)}>
+                <Scissors className="h-3.5 w-3.5" />
+                继续调整清理规则
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── 广告清理规则区（可折叠） ───────────────────────────────────────── */}
       <div
         className="flex flex-col gap-3 rounded-xl border"
         style={{ background: "var(--color-surface-1)", borderColor: "var(--color-border)" }}
       >
-        {/* 折叠标题栏 */}
         <button
           type="button"
           onClick={() => setShowCleanup((v) => !v)}
@@ -592,10 +702,9 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
         {showCleanup && (
           <div className="flex flex-col gap-3 px-3 pb-3">
             <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-              保存后和过滤中心全局规则一起作用于当前站点。调整规则后右侧「清理后预览」实时更新。
+              保存后会和过滤中心的全局规则一起作用于当前站点。调整规则后，右侧「清理后预览」会实时更新。
             </p>
 
-            {/* 工具栏 */}
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
@@ -640,7 +749,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
               )}
             </div>
 
-            {/* 规则三列 */}
             <div className="grid gap-3 lg:grid-cols-3">
               {(Object.keys(KIND_META) as RuleKind[]).map((kind) => (
                 <RuleColumn
@@ -655,7 +763,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
               ))}
             </div>
 
-            {/* 文本修整：头尾固定删行 */}
             <div
               className="flex flex-col gap-2 rounded-xl border p-3"
               style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
@@ -670,34 +777,46 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                <label
+                  className="flex items-center gap-2 text-xs"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
                   删除前面非空行数
                   <input
                     type="number"
                     min={0}
                     max={99}
                     value={rules.trim_head}
-                    onChange={(e) => updateRules({ trim_head: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    onChange={(e) =>
+                      updateRules({ trim_head: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                    }
                     className="w-16 rounded-lg border px-2 py-1 text-xs text-center focus:outline-none"
                     style={{
                       background: "var(--color-surface-2)",
-                      borderColor: (rules.trim_head > 0) ? "var(--color-accent)" : "var(--color-border)",
+                      borderColor:
+                        rules.trim_head > 0 ? "var(--color-accent)" : "var(--color-border)",
                       color: "var(--color-text)",
                     }}
                   />
                 </label>
-                <label className="flex items-center gap-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                <label
+                  className="flex items-center gap-2 text-xs"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
                   删除末尾非空行数
                   <input
                     type="number"
                     min={0}
                     max={99}
                     value={rules.trim_tail}
-                    onChange={(e) => updateRules({ trim_tail: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                    onChange={(e) =>
+                      updateRules({ trim_tail: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                    }
                     className="w-16 rounded-lg border px-2 py-1 text-xs text-center focus:outline-none"
                     style={{
                       background: "var(--color-surface-2)",
-                      borderColor: (rules.trim_tail > 0) ? "var(--color-accent)" : "var(--color-border)",
+                      borderColor:
+                        rules.trim_tail > 0 ? "var(--color-accent)" : "var(--color-border)",
                       color: "var(--color-text)",
                     }}
                   />
@@ -715,7 +834,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
               </div>
             </div>
 
-            {/* 命中详情（有命中才展示） */}
             {adPreview.matches.length > 0 && (
               <div
                 className="flex flex-col gap-2 rounded-xl border p-3"
@@ -744,7 +862,7 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
                                 ? "头部修整"
                                 : match.kind === "trim_tail"
                                   ? "尾部修整"
-                                  : "导航"}
+                                  : "关键词"}
                         </span>
                         <span
                           className="truncate font-mono"
@@ -758,7 +876,7 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
                             color: match.error ? "var(--color-danger)" : "var(--color-accent)",
                           }}
                         >
-                          {match.error ? "错误" : `命中 ${match.count}`}
+                          {match.error ? "异常" : `命中 ${match.count}`}
                         </span>
                       </div>
                       {match.error ? (
@@ -788,8 +906,6 @@ export function WizardStepChapTestAndCleanup({ data, onChange }: Props) {
   );
 }
 
-// ─── 内联抓取章节（无 HTML 时的备用入口） ────────────────────────────────────
-
 interface FetchChapterInlineProps {
   defaultUrl: string;
   onFetched: (url: string, html: string) => void;
@@ -809,7 +925,7 @@ function FetchChapterInline({ defaultUrl, onFetched }: FetchChapterInlineProps) 
       const html = await apiFetchSource(u);
       onFetched(u, html);
     } catch (error) {
-      setError(formatWizardActionError("抓取章节页面", error));
+      setError(formatWizardActionError("抓取章节预览", error));
     } finally {
       setLoading(false);
     }
@@ -820,7 +936,7 @@ function FetchChapterInline({ defaultUrl, onFetched }: FetchChapterInlineProps) 
       <div className="flex items-end gap-2">
         <div className="flex-1">
           <Input
-            label="章节页地址"
+            label="章节测试 URL"
             placeholder="https://example.com/novel/12345/1.html"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
@@ -830,7 +946,11 @@ function FetchChapterInline({ defaultUrl, onFetched }: FetchChapterInlineProps) 
           />
         </div>
         <Button size="sm" onClick={fetch} disabled={loading || !url.trim()}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
           {loading ? "抓取中..." : "抓取"}
         </Button>
       </div>
@@ -842,8 +962,6 @@ function FetchChapterInline({ defaultUrl, onFetched }: FetchChapterInlineProps) 
     </div>
   );
 }
-
-// ─── Rule column subcomponent ──────────────────────────────────────────────────
 
 interface RuleColumnProps {
   kind: RuleKind;
@@ -891,7 +1009,7 @@ function RuleColumn({ kind, values, draft, onDraftChange, onAdd, onRemove }: Rul
       <div className="flex max-h-36 flex-col gap-1 overflow-auto">
         {values.length === 0 ? (
           <span className="py-2 text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            未添加
+            暂无规则
           </span>
         ) : (
           values.map((value, index) => (

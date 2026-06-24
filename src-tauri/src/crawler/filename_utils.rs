@@ -14,5 +14,9 @@ pub fn sanitize_filename(name: &str) -> String {
     let re_ws = regex::Regex::new(r"\s+").unwrap();
     let name = re_ws.replace_all(&name, " ");
     let name = name.trim().trim_end_matches('.').to_string();
-    if name.is_empty() { "Untitled_Novel".to_string() } else { name }
+    if name.is_empty() {
+        "Untitled_Novel".to_string()
+    } else {
+        name
+    }
 }

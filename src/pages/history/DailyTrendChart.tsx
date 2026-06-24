@@ -1,6 +1,3 @@
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
-
 import { Card } from "@/components/Card";
 
 interface DailyEntry {
@@ -14,47 +11,66 @@ interface DailyTrendChartProps {
   onClose: () => void;
 }
 
-const TOOLTIP_STYLE = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: 8,
-  fontSize: 12,
-};
-
-function formatDailyTooltip(v: ValueType | undefined, name: NameType | undefined) {
-  return [v ?? 0, name === "success" ? "成功" : "失败"] as [ValueType, NameType];
+function formatLabel(date: string) {
+  return date.slice(5);
 }
 
 export function DailyTrendChart({ data, onClose }: DailyTrendChartProps) {
+  const maxValue = Math.max(1, ...data.flatMap((entry) => [entry.success, entry.error]));
+
   return (
     <Card
       title="近 30 天下载趋势"
       actions={
-        <button onClick={onClose} className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <button type="button" onClick={onClose} className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           收起
         </button>
       }
     >
-      <div style={{ height: 160 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 10, fill: "var(--color-text-muted)" }}
-              tickFormatter={(d) => d.slice(5)}
-              interval="preserveStartEnd"
-            />
-            <YAxis tick={{ fontSize: 10, fill: "var(--color-text-muted)" }} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={formatDailyTooltip} />
-            <Bar
-              dataKey="success"
-              fill="var(--color-success)"
-              radius={[3, 3, 0, 0]}
-              maxBarSize={20}
-            />
-            <Bar dataKey="error" fill="var(--color-danger)" radius={[3, 3, 0, 0]} maxBarSize={20} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex h-40 items-end gap-2 overflow-hidden">
+        {data.map((entry) => {
+          const successHeight = `${(entry.success / maxValue) * 100}%`;
+          const errorHeight = `${(entry.error / maxValue) * 100}%`;
+
+          return (
+            <div key={entry.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+              <div className="flex h-28 w-full items-end justify-center gap-1 rounded-xl bg-[var(--color-surface-2)] px-1 py-2">
+                <div
+                  className="w-2.5 rounded-full"
+                  style={{
+                    height: successHeight,
+                    minHeight: entry.success > 0 ? 6 : 0,
+                    background: "var(--color-success)",
+                  }}
+                  title={`${formatLabel(entry.date)} 成功 ${entry.success}`}
+                />
+                <div
+                  className="w-2.5 rounded-full"
+                  style={{
+                    height: errorHeight,
+                    minHeight: entry.error > 0 ? 6 : 0,
+                    background: "var(--color-danger)",
+                  }}
+                  title={`${formatLabel(entry.date)} 失败 ${entry.error}`}
+                />
+              </div>
+              <span className="truncate text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                {formatLabel(entry.date)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-success)" }} />
+          成功
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-danger)" }} />
+          失败
+        </span>
       </div>
     </Card>
   );

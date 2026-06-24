@@ -1,23 +1,24 @@
-pub mod queue;
-pub mod logger;
-pub mod scan_filter;
-pub mod novel;
 mod batch;
+pub mod logger;
+pub mod novel;
+pub mod queue;
+pub mod scan_filter;
 
-use std::path::PathBuf;
-use std::sync::Arc;
 use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
-use crate::models::{AppConfig, BookCandidate, DownloadStats, ProgressEvent};
 use crate::crawler::build_client_with_pool;
+use crate::models::{AppConfig, BookCandidate, DownloadStats, ProgressEvent};
 
 use batch::{compute_target_date, execute_download_batch};
 
-use self::queue::{load_queue, remove_queue, save_queue, make_queue_snapshot};
-use self::logger::{FileLogger, log};
+use self::logger::{log, FileLogger};
+use self::queue::{load_queue, make_queue_snapshot, remove_queue, save_queue};
 use self::scan_filter::run_scan_and_filter;
 
 // ─── Post-process script helper ───────────────────────────────────────────────
@@ -33,8 +34,16 @@ async fn run_post_process_script(
     if !post.enabled || post.script.is_empty() || !post.run_on_batch_done {
         return;
     }
-    let script = post.script.replace("%DIR%", base_dir.to_str().unwrap_or(""));
-    log(tx, logger, "info", format!("执行后处理脚本: {}", &post.script)).await;
+    let script = post
+        .script
+        .replace("%DIR%", base_dir.to_str().unwrap_or(""));
+    log(
+        tx,
+        logger,
+        "info",
+        format!("执行后处理脚本: {}", &post.script),
+    )
+    .await;
 
     #[cfg(target_os = "windows")]
     let result = tokio::process::Command::new("cmd")
@@ -62,6 +71,8 @@ pub struct ScanOptions {
     pub target_date: Option<String>,
     /// Restrict scan to these site domain_names. If empty, scan all enabled sites.
     pub enabled_sites: Option<Vec<String>>,
+    /// Optional execution mode hint from frontend; currently persisted for retries/telemetry.
+    pub download_mode: Option<String>,
 }
 
 // ─── Main entry point: full scan + download ───────────────────────────────────
@@ -82,30 +93,61 @@ pub async fn run_download(
 
     let logger = FileLogger::new(&log_dir).await;
 
-    log(&tx, logger.as_ref(), "info",
-        format!("目标日期: {} (下载此日期之后的小说)", target_date)).await;
+    log(
+        &tx,
+        logger.as_ref(),
+        "info",
+        format!("目标日期: {} (下载此日期之后的小说)", target_date),
+    )
+    .await;
 
     // ── Resume from persisted queue if available ──────────────────────────────
     let to_download = if let Some(saved) = load_queue(&base_dir).await {
         if saved.target_date == target_date && !saved.items.is_empty() {
-            log(&tx, logger.as_ref(), "info",
-                format!("发现未完成的下载队列，恢复 {} 本书", saved.items.len())).await;
+            log(
+                &tx,
+                logger.as_ref(),
+                "info",
+                format!("发现未完成的下载队列，恢复 {} 本书", saved.items.len()),
+            )
+            .await;
             let n = saved.items.len();
-            let _ = tx.send(ProgressEvent::FilterDone {
-                stats: DownloadStats {
-                    total_collected: n, after_dedup: n,
-                    blacklist_filtered: 0, local_exists: 0, final_download: n,
-                },
-            }).await;
+            let _ = tx
+                .send(ProgressEvent::FilterDone {
+                    stats: DownloadStats {
+                        total_collected: n,
+                        after_dedup: n,
+                        blacklist_filtered: 0,
+                        local_exists: 0,
+                        final_download: n,
+                    },
+                })
+                .await;
             saved.items
         } else {
             remove_queue(&base_dir).await;
-            run_scan_and_filter(&config, &client, &target_date, &base_dir,
-                &tx, logger.as_ref(), &cancel).await?
+            run_scan_and_filter(
+                &config,
+                &client,
+                &target_date,
+                &base_dir,
+                &tx,
+                logger.as_ref(),
+                &cancel,
+            )
+            .await?
         }
     } else {
-        run_scan_and_filter(&config, &client, &target_date, &base_dir,
-            &tx, logger.as_ref(), &cancel).await?
+        run_scan_and_filter(
+            &config,
+            &client,
+            &target_date,
+            &base_dir,
+            &tx,
+            logger.as_ref(),
+            &cancel,
+        )
+        .await?
     };
 
     if to_download.is_empty() {
@@ -115,16 +157,31 @@ pub async fn run_download(
     }
 
     // Persist queue before starting
-    let _ = save_queue(&base_dir, &make_queue_snapshot(&target_date, to_download.clone())).await;
+    let _ = save_queue(
+        &base_dir,
+        &make_queue_snapshot(&target_date, to_download.clone()),
+    )
+    .await;
 
     // ── Phase 3: Download ─────────────────────────────────────────────────────
-    log(&tx, logger.as_ref(), "info",
-        format!("第三阶段：开始下载 {} 本...", to_download.len())).await;
+    log(
+        &tx,
+        logger.as_ref(),
+        "info",
+        format!("第三阶段：开始下载 {} 本...", to_download.len()),
+    )
+    .await;
 
     execute_download_batch(
-        &config, &client, &base_dir, to_download,
-        &target_date, &tx, &logger, &cancel,
-    ).await;
+        &config,
+        &client,
+        &base_dir,
+        to_download,
+        &tx,
+        &logger,
+        &cancel,
+    )
+    .await;
 
     remove_queue(&base_dir).await;
     let app_data = dirs::data_local_dir()
@@ -132,7 +189,7 @@ pub async fn run_download(
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let _ = crate::config_db::update_last_download_date(
         &app_data,
-        &Local::now().format("%Y-%m-%d").to_string()
+        &Local::now().format("%Y-%m-%d").to_string(),
     );
 
     // ── Post-process script ───────────────────────────────────────────────────
@@ -152,9 +209,12 @@ pub async fn run_download_selected(
     cancel: Arc<tokio::sync::Notify>,
 ) -> Result<()> {
     if selected.is_empty() {
-        let _ = tx.send(ProgressEvent::Log {
-            message: "没有选中任何书籍".into(), level: "warn".into(),
-        }).await;
+        let _ = tx
+            .send(ProgressEvent::Log {
+                message: "没有选中任何书籍".into(),
+                level: "warn".into(),
+            })
+            .await;
         let _ = tx.send(ProgressEvent::OverallDone).await;
         return Ok(());
     }
@@ -169,27 +229,43 @@ pub async fn run_download_selected(
 
     let logger = FileLogger::new(&log_dir).await;
     let n = selected.len();
-    log(&tx, logger.as_ref(), "info", format!("开始下载选中的 {} 本书...", n)).await;
+    log(
+        &tx,
+        logger.as_ref(),
+        "info",
+        format!("开始下载选中的 {} 本书...", n),
+    )
+    .await;
 
-    let _ = tx.send(ProgressEvent::FilterDone {
-        stats: DownloadStats {
-            total_collected: n, after_dedup: n,
-            blacklist_filtered: 0, local_exists: 0, final_download: n,
-        },
-    }).await;
+    let _ = tx
+        .send(ProgressEvent::FilterDone {
+            stats: DownloadStats {
+                total_collected: n,
+                after_dedup: n,
+                blacklist_filtered: 0,
+                local_exists: 0,
+                final_download: n,
+            },
+        })
+        .await;
 
-    let target_date = compute_target_date(&config);
     execute_download_batch(
-        &config, &client, &base_dir, selected,
-        &target_date, &tx, &logger, &cancel,
-    ).await;
+        &config,
+        &client,
+        &base_dir,
+        selected,
+        &tx,
+        &logger,
+        &cancel,
+    )
+    .await;
 
     let app_data2 = dirs::data_local_dir()
         .map(|p| p.join("txtx"))
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let _ = crate::config_db::update_last_download_date(
         &app_data2,
-        &Local::now().format("%Y-%m-%d").to_string()
+        &Local::now().format("%Y-%m-%d").to_string(),
     );
 
     // ── Post-process script ───────────────────────────────────────────────────
@@ -224,45 +300,54 @@ pub async fn run_scan_with_options(
     // Apply site filter
     if let Some(ref site_filter) = options.enabled_sites {
         if !site_filter.is_empty() {
+            let enabled_sites: HashSet<&str> = site_filter.iter().map(String::as_str).collect();
             for (_, site) in config.websites.iter_mut() {
-                if !site_filter.contains(&site.domain_name) {
+                if !enabled_sites.contains(site.domain_name.as_str()) {
                     site.enabled = false;
                 }
             }
         }
     }
 
-    let target_date = options.target_date
+    let target_date = options
+        .target_date
         .unwrap_or_else(|| compute_target_date(&config));
     let base_dir = PathBuf::from(&config.paths.base_dir);
 
-    log(&tx, None, "info",
-        format!("目标日期: {} (扫描此日期之后的小说)", target_date)).await;
+    log(
+        &tx,
+        None,
+        "info",
+        format!("目标日期: {} (扫描此日期之后的小说)", target_date),
+    )
+    .await;
 
-    let items = scan_filter::build_scan_items(
-        &config, &client, &target_date, &base_dir, &tx, &cancel,
-    ).await?;
+    let items =
+        scan_filter::build_scan_items(&config, &client, &target_date, &base_dir, &tx, &cancel)
+            .await?;
 
     let stats = DownloadStats {
         total_collected: items.len(),
-        after_dedup: items.iter()
+        after_dedup: items
+            .iter()
             .filter(|i| i.excluded_reason.as_deref() != Some("重复"))
             .count(),
-        blacklist_filtered: items.iter()
-            .filter(|i| i.excluded_reason.as_deref()
-                .map(|r| r.starts_with("黑名单"))
-                .unwrap_or(false))
+        blacklist_filtered: items
+            .iter()
+            .filter(|i| {
+                i.excluded_reason
+                    .as_deref()
+                    .map(|r| r.starts_with("黑名单"))
+                    .unwrap_or(false)
+            })
             .count(),
-        local_exists: items.iter()
+        local_exists: items
+            .iter()
             .filter(|i| i.excluded_reason.as_deref() == Some("本地已存在"))
             .count(),
-        final_download: items.iter()
-            .filter(|i| i.excluded_reason.is_none())
-            .count(),
+        final_download: items.iter().filter(|i| i.excluded_reason.is_none()).count(),
     };
 
     let _ = tx.send(ProgressEvent::ScanComplete { items, stats }).await;
     Ok(())
 }
-
-

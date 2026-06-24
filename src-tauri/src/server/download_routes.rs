@@ -1,18 +1,18 @@
-use std::sync::Arc;
 use axum::{
-    extract::{Query, State, WebSocketUpgrade},
     extract::ws::{Message, WebSocket},
+    extract::{Query, State, WebSocketUpgrade},
     response::Response,
     Json,
 };
 use serde::Deserialize;
 use serde_json::json;
+use std::sync::Arc;
 use tokio::sync::{mpsc, Notify};
 
+use super::state::AppState;
 use crate::downloader;
 use crate::downloader::ScanOptions;
 use crate::models::{BookCandidate, ProgressEvent};
-use super::state::AppState;
 
 // ─── Stop ─────────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,10 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 
     let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
-        Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
+        Err(e) => {
+            send_error(&mut socket, &format!("配置加载失败: {e}")).await;
+            return;
+        }
     };
 
     let cancel = Arc::new(Notify::new());
@@ -53,7 +56,10 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
         state_clone.lock().await.running = false;
     });
 
-    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| matches!(ev, ProgressEvent::OverallDone)).await;
+    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| {
+        matches!(ev, ProgressEvent::OverallDone)
+    })
+    .await;
 }
 
 // ─── Single novel download (WebSocket) ───────────────────────────────────────
@@ -80,7 +86,10 @@ async fn handle_ws_single(mut socket: WebSocket, state: AppState, url: String) {
 
     let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
-        Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
+        Err(e) => {
+            send_error(&mut socket, &format!("配置加载失败: {e}")).await;
+            return;
+        }
     };
 
     let cancel = Arc::new(Notify::new());
@@ -97,7 +106,10 @@ async fn handle_ws_single(mut socket: WebSocket, state: AppState, url: String) {
         state_clone.lock().await.running = false;
     });
 
-    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| matches!(ev, ProgressEvent::OverallDone)).await;
+    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| {
+        matches!(ev, ProgressEvent::OverallDone)
+    })
+    .await;
 }
 
 // ─── Scan-only (WebSocket) ────────────────────────────────────────────────────
@@ -115,15 +127,16 @@ async fn handle_ws_scan(mut socket: WebSocket, state: AppState) {
 
     let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
-        Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
+        Err(e) => {
+            send_error(&mut socket, &format!("配置加载失败: {e}")).await;
+            return;
+        }
     };
 
     // Optional first message: ScanOptions JSON
     let options: ScanOptions = {
-        let maybe = tokio::time::timeout(
-            std::time::Duration::from_millis(200),
-            socket.recv(),
-        ).await;
+        let maybe =
+            tokio::time::timeout(std::time::Duration::from_millis(200), socket.recv()).await;
         match maybe {
             Ok(Some(Ok(Message::Text(t)))) => serde_json::from_str(&t).unwrap_or_default(),
             _ => ScanOptions::default(),
@@ -146,15 +159,13 @@ async fn handle_ws_scan(mut socket: WebSocket, state: AppState) {
 
     ws_event_loop(&mut socket, &mut rx, &cancel, |ev| {
         matches!(ev, ProgressEvent::ScanComplete { .. })
-    }).await;
+    })
+    .await;
 }
 
 // ─── Download selected novels (WebSocket) ────────────────────────────────────
 
-pub async fn ws_download_selected(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn ws_download_selected(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(move |socket| handle_ws_download_selected(socket, state))
 }
 
@@ -179,7 +190,10 @@ async fn handle_ws_download_selected(mut socket: WebSocket, state: AppState) {
 
     let cfg = match crate::config_db::load_config(&state.base_dir) {
         Ok(c) => c,
-        Err(e) => { send_error(&mut socket, &format!("配置加载失败: {e}")).await; return; }
+        Err(e) => {
+            send_error(&mut socket, &format!("配置加载失败: {e}")).await;
+            return;
+        }
     };
 
     let cancel = Arc::new(Notify::new());
@@ -196,7 +210,10 @@ async fn handle_ws_download_selected(mut socket: WebSocket, state: AppState) {
         state_clone.lock().await.running = false;
     });
 
-    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| matches!(ev, ProgressEvent::OverallDone)).await;
+    ws_event_loop(&mut socket, &mut rx, &cancel, |ev| {
+        matches!(ev, ProgressEvent::OverallDone)
+    })
+    .await;
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -206,7 +223,8 @@ async fn send_error(socket: &mut WebSocket, msg: &str) {
     let text = serde_json::to_string(&ProgressEvent::Log {
         message: msg.into(),
         level: "error".into(),
-    }).unwrap_or_default();
+    })
+    .unwrap_or_default();
     let _ = socket.send(Message::Text(text.into())).await;
 }
 

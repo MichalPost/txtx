@@ -1,85 +1,24 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, FlaskConical } from "lucide-react";
+import { ChevronRight, FlaskConical, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import type { ContentFilterConfig } from "@/types";
 
+import { runContentFilterPreview } from "./filterPageUtils";
+
 interface ContentCleanTestPanelProps {
   config: ContentFilterConfig;
-}
-
-interface LineResult {
-  text: string;
-  removed: boolean;
-  matchedRule?: string;
-  isNavStrip?: boolean;
-}
-
-function runFilter(text: string, config: ContentFilterConfig): LineResult[] {
-  const lines = text.split(/\r?\n/);
-
-  // Step 1: mark ad pattern matches
-  const compiled = config.ad_patterns
-    .map((p) => {
-      try {
-        return { pattern: p, re: new RegExp(p) };
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean) as { pattern: string; re: RegExp }[];
-
-  const results: LineResult[] = lines.map((line) => {
-    for (const { pattern, re } of compiled) {
-      if (re.test(line)) {
-        return { text: line, removed: true, matchedRule: pattern };
-      }
-    }
-    return { text: line, removed: false };
-  });
-
-  // Step 2: nav keyword strip from end
-  const navKeywords = config.nav_keywords;
-  if (navKeywords.length > 0) {
-    for (let i = results.length - 1; i >= 0; i--) {
-      if (results[i].removed) continue;
-      const matchedNav = navKeywords.find((kw) => results[i].text.includes(kw));
-      if (matchedNav) {
-        results[i] = { ...results[i], removed: true, isNavStrip: true, matchedRule: matchedNav };
-      } else {
-        break; // stop at first non-matching line from end
-      }
-    }
-  }
-
-  // Step 3: safety threshold check
-  const kept = results.filter((r) => !r.removed).length;
-  const ratio = results.length > 0 ? kept / results.length : 1;
-  if (ratio < config.safety_threshold) {
-    // Revert all removals (safety fallback)
-    return results.map((r) => ({
-      ...r,
-      removed: false,
-      matchedRule: undefined,
-      isNavStrip: undefined,
-    }));
-  }
-
-  return results;
 }
 
 export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
   const [input, setInput] = useState("");
   const [tested, setTested] = useState(false);
 
-  const results = useMemo<LineResult[]>(() => {
-    if (!tested || !input.trim()) return [];
-    return runFilter(input, config);
+  const preview = useMemo(() => {
+    if (!tested || !input.trim()) return null;
+    return runContentFilterPreview(input, config);
   }, [tested, input, config]);
-
-  const removedCount = results.filter((r) => r.removed).length;
-  const keptCount = results.filter((r) => !r.removed).length;
 
   const handleTest = () => setTested(true);
   const handleClear = () => {
@@ -136,25 +75,40 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
               清除
             </button>
           )}
-          {tested && results.length > 0 && (
+          {tested && preview && preview.lines.length > 0 && (
             <div className="ml-auto flex items-center gap-3">
               <span className="text-xs" style={{ color: "var(--color-success, #22c55e)" }}>
-                保留 {keptCount} 行
+                保留 {preview.keptCount} 行
               </span>
               <span className="text-xs" style={{ color: "var(--color-danger)" }}>
-                删除 {removedCount} 行
+                删除 {preview.removedCount} 行
               </span>
             </div>
           )}
         </div>
 
-        {/* Diff output */}
-        {tested && results.length > 0 && (
+        {tested && preview?.safetyRollback && (
+          <div
+            className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
+            style={{
+              borderColor: "color-mix(in srgb, var(--color-warning, #f59e0b) 35%, transparent)",
+              background: "color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent)",
+              color: "var(--color-warning, #f59e0b)",
+            }}
+          >
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              本次预览触发安全回退：按当前阈值会误删过多内容，所以系统保留了全部文本。可以收紧广告正则，或先降低阈值再观察结果。
+            </span>
+          </div>
+        )}
+
+        {tested && preview && preview.lines.length > 0 && (
           <div
             className="overflow-y-auto rounded-lg border"
             style={{ borderColor: "var(--color-border)", maxHeight: 280 }}
           >
-            {results.map((r, i) => (
+            {preview.lines.map((r, i) => (
               <div
                 key={i}
                 className="flex items-start gap-2 border-b px-3 py-1 font-mono text-xs last:border-b-0"
@@ -196,7 +150,20 @@ export function ContentCleanTestPanel({ config }: ContentCleanTestPanelProps) {
           </div>
         )}
 
-        {tested && results.length === 0 && (
+        {!tested && (
+          <div
+            className="rounded-lg border border-dashed px-3 py-4 text-xs leading-relaxed"
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-text-muted)",
+              background: "var(--color-surface-2)",
+            }}
+          >
+            建议粘贴一段包含广告尾巴、页脚导航和正常正文的真实章节，这样更容易判断当前规则是否误删。
+          </div>
+        )}
+
+        {tested && (!preview || preview.lines.length === 0) && (
           <p className="py-4 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
             请先输入文本
           </p>

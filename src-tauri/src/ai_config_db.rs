@@ -1,3 +1,6 @@
+use anyhow::Result;
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
 /// AI config persistence — stored in {appDataDir}/txtx/app.db.
 ///
 /// Schema (v2 — multi-provider):
@@ -5,9 +8,6 @@
 ///   ai_providers (name TEXT PK, ...)          — one row per provider
 ///
 use std::path::Path;
-use anyhow::Result;
-use rusqlite::{params, Connection};
-use serde::{Deserialize, Serialize};
 
 // ─── Public types (mirror the TypeScript AiMultiConfig / AiProviderEntry) ─────
 
@@ -106,8 +106,8 @@ fn load_sync(app_data_dir: &Path) -> Result<AiMultiConfig> {
 
     // Read meta
     let enabled = meta_get_bool(&conn, "enabled");
-    let active_provider = meta_get_str(&conn, "active_provider")
-        .unwrap_or_else(|| "deepseek".to_string());
+    let active_provider =
+        meta_get_str(&conn, "active_provider").unwrap_or_else(|| "deepseek".to_string());
 
     // Read providers ordered by sort_order
     let mut stmt = conn.prepare(

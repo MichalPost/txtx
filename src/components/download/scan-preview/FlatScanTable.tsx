@@ -1,6 +1,7 @@
 import type { ScanItem } from "@/types";
 
 import { ScanRow } from "./ScanRow";
+import type { ScanSortField } from "./scanPreviewUtils";
 
 function SortIcon({
   field,
@@ -57,10 +58,10 @@ export function FlatScanTable({
   selectedUrls: Set<string>;
   allPendingSelected: boolean;
   search: string;
-  sortField: "name" | "site" | "date";
+  sortField: ScanSortField;
   sortAsc: boolean;
   onSelectAll: (value: boolean) => void;
-  onToggleSort: (field: "name" | "site" | "date") => void;
+  onToggleSort: (field: ScanSortField) => void;
   onToggle: (url: string) => void;
   onForceAdd: (item: ScanItem) => void;
 }) {

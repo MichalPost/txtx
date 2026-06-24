@@ -1,10 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
-import { ClipboardList, Download, Plus, Search, Upload, X } from "lucide-react";
+import { ClipboardList, Download, Plus, Search, Trash2, Upload, X } from "lucide-react";
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 
+import {
+  buildDraftListFeedback,
+  formatDraftFeedback,
+  splitDraftValues,
+} from "./blacklistEditorUtils";
 import {
   exportKeywords,
   importKeywordsFromFile,
@@ -24,36 +29,51 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
   const [newKeyword, setNewKeyword] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkText, setBulkText] = useState("");
+  const [inputHint, setInputHint] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const addKeyword = () => {
-    const kw = newKeyword.trim();
-    if (!kw || keywords.includes(kw)) return;
-    onUpdate([...keywords, kw]);
+    const feedback = buildDraftListFeedback([newKeyword], keywords);
+    if (feedback.accepted.length === 0) {
+      setInputHint(formatDraftFeedback(0, feedback.duplicateValues.length, feedback.emptyCount));
+      return;
+    }
+
+    onUpdate([...keywords, ...feedback.accepted]);
     setNewKeyword("");
+    setInputHint("关键词已加入列表，记得保存配置");
     inputRef.current?.focus();
   };
 
-  const removeKeyword = (kw: string) => {
-    onUpdate(keywords.filter((k) => k !== kw));
+  const removeKeyword = (value: string) => {
+    onUpdate(keywords.filter((keyword) => keyword !== value));
+    setInputHint(`已移除关键词「${value}」，变更尚未保存`);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     importKeywordsFromFile(file, keywords, onUpdate);
+    setInputHint("已处理导入内容，请检查列表并保存配置");
     e.target.value = "";
   };
 
   const handleBulkAdd = () => {
-    const lines = bulkText
-      .split(/[\r\n,，]+/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length === 0) return;
-    const merged = [...new Set([...keywords, ...lines])];
-    onUpdate(merged);
+    const feedback = buildDraftListFeedback(splitDraftValues(bulkText), keywords);
+    if (feedback.accepted.length === 0) {
+      setInputHint(formatDraftFeedback(0, feedback.duplicateValues.length, feedback.emptyCount));
+      return;
+    }
+
+    onUpdate([...keywords, ...feedback.accepted]);
+    setInputHint(
+      formatDraftFeedback(
+        feedback.accepted.length,
+        feedback.duplicateValues.length,
+        feedback.emptyCount,
+      ) ?? "已批量添加关键词",
+    );
     setBulkText("");
     setBulkMode(false);
   };
@@ -61,14 +81,14 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
   const filtered = useMemo(() => {
     if (!search.trim()) return keywords;
     const fuse = new Fuse(keywords, { threshold: 0.35, includeScore: true });
-    return fuse.search(search.trim()).map((r) => r.item);
+    return fuse.search(search.trim()).map((result) => result.item);
   }, [keywords, search]);
 
   return (
     <Card
       title="关键词列表"
       className="flex min-h-0 flex-1 flex-col"
-      bodyClassName="flex flex-col flex-1 min-h-0 overflow-hidden"
+      bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       actions={
         <div className="flex items-center gap-2">
           <input
@@ -101,8 +121,8 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
             <Download className="h-3 w-3" /> 导出
           </button>
           <button
-            onClick={() => setBulkMode((v) => !v)}
-            title="批量添加（每行/逗号分隔）"
+            onClick={() => setBulkMode((value) => !value)}
+            title="批量添加（每行或逗号分隔）"
             className="flex items-center gap-1 rounded-lg border px-2 py-1 text-xs transition-colors"
             style={{
               borderColor: bulkMode ? "var(--color-accent)" : "var(--color-border)",
@@ -129,7 +149,6 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
         </div>
       }
     >
-      {/* Bulk add area */}
       {bulkMode && (
         <div
           className="mb-3 flex flex-col gap-2 rounded-xl border p-3"
@@ -153,13 +172,7 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
           />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-              {
-                bulkText
-                  .split(/[\r\n,，]+/)
-                  .map((l) => l.trim())
-                  .filter(Boolean).length
-              }{" "}
-              条待添加
+              {splitDraftValues(bulkText).filter(Boolean).length} 条待添加
             </span>
             <div className="flex gap-2">
               <button
@@ -185,29 +198,35 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
         </div>
       )}
 
-      {/* Add input */}
-      <div className="mb-3 flex gap-2">
-        <input
-          ref={inputRef}
-          className={`flex-1 ${inlineInputClass}`}
-          style={inlineInputStyle}
-          placeholder="输入关键词后按 Enter 添加"
-          value={newKeyword}
-          onChange={(e) => setNewKeyword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-          {...inputFocusHandlers}
-        />
-        <Button size="sm" onClick={addKeyword}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+      <div className="mb-3 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            className={`flex-1 ${inlineInputClass}`}
+            style={inlineInputStyle}
+            placeholder="输入关键词后按 Enter 添加"
+            value={newKeyword}
+            onChange={(e) => setNewKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+            {...inputFocusHandlers}
+          />
+          <Button size="sm" onClick={addKeyword}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <p
+          className="text-xs"
+          style={{ color: inputHint ? "var(--color-warning)" : "var(--color-text-subtle)" }}
+        >
+          {inputHint ?? "适合拦截常见书名、作者、站点活动词，重复值和空值会自动跳过"}
+        </p>
       </div>
 
-      {/* Keyword grid */}
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-wrap gap-2">
-          {filtered.map((kw) => (
+          {filtered.map((keyword) => (
             <span
-              key={kw}
+              key={keyword}
               className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
               style={{
                 background: "var(--color-surface-2)",
@@ -215,10 +234,12 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
                 color: "var(--color-text)",
               }}
             >
-              {kw}
+              {keyword}
               <button
-                onClick={() => removeKeyword(kw)}
-                className="ml-0.5 cursor-pointer transition-colors hover:opacity-70"
+                onClick={() => removeKeyword(keyword)}
+                aria-label={`删除关键词 ${keyword}`}
+                title={`删除关键词 ${keyword}`}
+                className="ml-0.5 cursor-pointer rounded-full p-0.5 transition-colors hover:opacity-70"
                 style={{ color: "var(--color-text-muted)" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.color = "var(--color-danger)";
@@ -227,7 +248,7 @@ export function KeywordPanel({ keywords, onUpdate }: KeywordPanelProps) {
                   (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-muted)";
                 }}
               >
-                ✕
+                <Trash2 className="h-3 w-3" />
               </button>
             </span>
           ))}

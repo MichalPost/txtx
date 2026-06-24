@@ -35,7 +35,6 @@ export interface NovelProgress {
   total: number;
 }
 
-/** Three-step workflow phase */
 export type DownloadPhase = "idle" | "scanning" | "preview" | "downloading" | "done" | "stopped";
 
 export interface NovelResult {
@@ -48,19 +47,19 @@ export interface NovelResult {
 }
 
 interface DownloadState {
-  // ── Phase tracking ──────────────────────────────────────────────────────────
+  // Phase tracking
   phase: DownloadPhase;
   status: DownloadStatus;
 
-  // ── Scan options (set before scan) ─────────────────────────────────────────
+  // Scan options
   scanOptions: ScanOptions;
 
-  // ── Scan results (phase 2) ──────────────────────────────────────────────────
+  // Scan results
   scanItems: ScanItem[];
   selectedUrls: Set<string>;
   scanStats: DownloadStats | null;
 
-  // ── Download progress (phase 3) ─────────────────────────────────────────────
+  // Download progress
   siteProgress: Record<string, SiteProgress>;
   novelProgress: Record<string, NovelProgress>;
   novelResults: NovelResult[];
@@ -68,18 +67,18 @@ interface DownloadState {
   overallTotal: number;
   overallCompleted: number;
 
-  // ── Speed tracking ──────────────────────────────────────────────────────────
+  // Speed tracking
   speed: SpeedState;
 
-  // ── Queue status ────────────────────────────────────────────────────────────
+  // Queue status
   queueStatus: QueueStatus | null;
 
-  // ── Logs ────────────────────────────────────────────────────────────────────
+  // Logs
   logs: LogEntry[];
 
   _unsub: UnsubscribeFn | null;
 
-  // ── Actions ─────────────────────────────────────────────────────────────────
+  // Actions
   startScan: () => void;
   startSelectedDownload: () => void;
   toggleSelect: (url: string) => void;
@@ -87,18 +86,13 @@ interface DownloadState {
   startDownload: () => void;
   startSingleDownload: (url: string) => void;
   stopDownload: () => Promise<void>;
-  /** Pause = stop but keep queue intact (resume via QueueResumePanel) */
   pauseDownload: () => Promise<void>;
   clearLogs: () => void;
   addLog: (level: LogEntry["level"], message: string) => void;
   reset: () => void;
-  /** Retry all failed novels */
   retryFailed: () => void;
-  /** Load queue status from backend */
   loadQueueStatus: () => Promise<void>;
-  /** Clear the persisted queue file */
   clearQueueFile: () => Promise<void>;
-  /** Update scan options */
   setScanOptions: (opts: Partial<ScanOptions>) => void;
 }
 
@@ -125,7 +119,6 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   clearLogs: () => set({ logs: [] }),
 
   reset: () => {
-    // Cancel any active WebSocket/Tauri subscription before resetting state
     get()._unsub?.();
     set({
       phase: "idle",
@@ -145,8 +138,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   },
 
   toggleSelect: (url) => {
-    set((s) => {
-      const next = new Set(s.selectedUrls);
+    set((state) => {
+      const next = new Set(state.selectedUrls);
       if (next.has(url)) next.delete(url);
       else next.add(url);
       return { selectedUrls: next };
@@ -154,14 +147,14 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   },
 
   selectAll: (value) => {
-    set((s) => {
+    set((state) => {
       if (!value) return { selectedUrls: new Set() };
-      const all = new Set(s.scanItems.filter((i) => !i.excluded_reason).map((i) => i.url));
+      const all = new Set(state.scanItems.filter((item) => !item.excluded_reason).map((item) => item.url));
       return { selectedUrls: all };
     });
   },
 
-  // ── Phase 1: scan ──────────────────────────────────────────────────────────
+  // Phase 1: scan
   startScan: () => {
     get()._unsub?.();
     set({
@@ -186,15 +179,20 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     set({ _unsub: unsub });
   },
 
-  // ── Phase 3: download selected ─────────────────────────────────────────────
+  // Phase 3: download selected
   startSelectedDownload: () => {
     const { scanItems, selectedUrls } = get();
     const selected: BookCandidate[] = scanItems
-      .filter((i) => selectedUrls.has(i.url))
-      .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
+      .filter((item) => selectedUrls.has(item.url))
+      .map((item) => ({
+        name: item.name,
+        url: item.url,
+        crawler_domain: item.site,
+        date: item.date,
+      }));
 
     if (selected.length === 0) {
-      get().addLog("warn", "未选中任何书籍");
+      get().addLog("warn", "请先勾选至少一本书再开始下载");
       return;
     }
 
@@ -210,34 +208,38 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       overallCompleted: 0,
       speed: initialSpeed,
     });
-    get().addLog("info", `开始下载选中的 ${selected.length} 本书...`);
+    get().addLog("info", `开始下载已选择的 ${selected.length} 本书...`);
     const unsub = apiStartSelectedDownload(selected, handleEvent(get as never, set as never));
     set({ _unsub: unsub });
   },
 
-  // ── Retry failed ──────────────────────────────────────────────────────────
+  // Retry failed
   retryFailed: () => {
     const { novelResults, scanItems } = get();
-    // Use URL as the unique key to avoid name collisions across different sites
     const failedUrls = new Set(
       novelResults
-        .filter((r) => r.status === "error")
-        .map((r) => r.url)
+        .filter((result) => result.status === "error")
+        .map((result) => result.url)
         .filter(Boolean),
     );
     if (failedUrls.size === 0) return;
 
     const selected: BookCandidate[] = scanItems
-      .filter((i) => failedUrls.has(i.url))
-      .map((i) => ({ name: i.name, url: i.url, crawler_domain: i.site, date: i.date }));
+      .filter((item) => failedUrls.has(item.url))
+      .map((item) => ({
+        name: item.name,
+        url: item.url,
+        crawler_domain: item.site,
+        date: item.date,
+      }));
 
     if (selected.length === 0) {
-      get().addLog("warn", "找不到失败项的原始数据，无法重试");
+      get().addLog("warn", "找不到失败条目的原始扫描数据，暂时无法重试");
       return;
     }
 
     get()._unsub?.();
-    const keptResults = novelResults.filter((r) => r.status !== "error");
+    const keptResults = novelResults.filter((result) => result.status !== "error");
     set({
       phase: "downloading",
       status: "downloading",
@@ -247,12 +249,12 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       overallCompleted: keptResults.length,
       speed: initialSpeed,
     });
-    get().addLog("info", `重试 ${selected.length} 本失败的书籍...`);
+    get().addLog("info", `重新尝试下载 ${selected.length} 本失败书籍...`);
     const unsub = apiStartSelectedDownload(selected, handleEvent(get as never, set as never));
     set({ _unsub: unsub });
   },
 
-  // ── One-shot batch download ────────────────────────────────────────────────
+  // One-shot batch download
   startDownload: () => {
     get()._unsub?.();
     const runState = getDownloadRunState();
@@ -265,7 +267,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       overallCompleted: 0,
       speed: initialSpeed,
     });
-    get().addLog("info", "开始下载任务...");
+    get().addLog("info", "开始批量下载...");
     const unsub = apiStartDownload(handleEvent(get as never, set as never));
     set({ _unsub: unsub });
   },
@@ -282,7 +284,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       overallCompleted: 0,
       speed: initialSpeed,
     });
-    get().addLog("info", `单本下载: ${url}`);
+    get().addLog("info", `开始下载单本：${url}`);
     const unsub = apiStartSingleDownload(url, handleEvent(get as never, set as never));
     set({ _unsub: unsub });
   },
@@ -293,10 +295,10 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       set({ _unsub: null });
       await stopDownloadAndUpdateState(apiStopDownload, async () => {
         set({ phase: "stopped", status: "stopped" });
-        get().addLog("warn", "已停止");
+        get().addLog("warn", "下载已停止");
       });
-    } catch (e) {
-      get().addLog("error", `停止失败: ${String(e)}`);
+    } catch (error) {
+      get().addLog("error", `停止下载失败：${String(error)}`);
     }
   },
 
@@ -306,19 +308,19 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       set({ _unsub: null });
       await pauseDownloadAndUpdateState(apiStopDownload, async () => {
         set({ phase: "stopped", status: "stopped" });
-        get().addLog("warn", "已暂停，下载队列已保存，可稍后恢复");
+        get().addLog("warn", "下载已暂停，当前队列已保留，可稍后恢复");
         await get().loadQueueStatus();
       });
-    } catch (e) {
-      get().addLog("error", `暂停失败: ${String(e)}`);
+    } catch (error) {
+      get().addLog("error", `暂停下载失败：${String(error)}`);
     }
   },
 
   setScanOptions: (opts) => {
-    set((s) => ({ scanOptions: { ...s.scanOptions, ...opts } }));
+    set((state) => ({ scanOptions: { ...state.scanOptions, ...opts } }));
   },
 
-  // ── Queue management ───────────────────────────────────────────────────────
+  // Queue management
   loadQueueStatus: async () => {
     try {
       const status = await apiGetQueue();
@@ -332,8 +334,8 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     try {
       await apiClearQueue();
       set({ queueStatus: { exists: false } });
-    } catch (e) {
-      get().addLog("error", `清除队列失败: ${String(e)}`);
+    } catch (error) {
+      get().addLog("error", `清除断点队列失败：${String(error)}`);
     }
   },
 }));

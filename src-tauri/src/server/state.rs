@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use std::path::PathBuf;
-use tokio::sync::{Mutex, Notify};
 use crate::task_manager::SharedTaskManager;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::{Mutex, Notify};
 
 pub struct DownloadState {
     pub cancel: Arc<Notify>,

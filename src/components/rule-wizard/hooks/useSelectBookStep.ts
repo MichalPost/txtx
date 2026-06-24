@@ -4,6 +4,7 @@ import { apiFetchSource } from "@/lib/api/files";
 
 import { buildXPathFromRule, type UpdateListBookItem, type WizardData } from "../ruleUtils";
 import { formatWizardActionError } from "../utils/wizardActionError";
+import { applySelectedBook, resetSelectedBookContext } from "../wizardFlowUtils";
 
 export function buildPageUrl(
   baseUrl: string,
@@ -131,18 +132,12 @@ export function useSelectBookStep(data: WizardData, onChange: (d: WizardData) =>
 
   const selectBook = (book: UpdateListBookItem) => {
     setPageError("");
-    onChange({
-      ...data,
-      selected_book_name: book.name,
-      selected_book_url: book.url,
-      catalog_url: book.url,
-      catalog_html: "",
-    });
+    onChange(applySelectedBook(data, book));
   };
 
   const setCatalogUrl = (value: string) => {
     setPageError("");
-    onChange({ ...data, catalog_url: value, catalog_html: "" });
+    onChange(resetSelectedBookContext(data, value));
   };
 
   return {

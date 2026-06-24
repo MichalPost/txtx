@@ -1,8 +1,8 @@
+use crate::models::{DownloadStats, ScanItem, TaskKind, TaskRecord, TaskStatus};
+use anyhow::Result;
+use rusqlite::{params, Connection};
 /// Persist task sessions to SQLite (same DB as history: download_history.db)
 use std::path::Path;
-use anyhow::Result;
-use rusqlite::{Connection, params};
-use crate::models::{TaskRecord, TaskKind, TaskStatus, ScanItem, DownloadStats};
 
 fn open_db(base_dir: &Path) -> Result<Connection> {
     let path = base_dir.join("download_history.db");
@@ -13,13 +13,15 @@ fn open_db(base_dir: &Path) -> Result<Connection> {
 }
 
 fn migrate(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS task_sessions (
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS task_sessions (
             id              TEXT PRIMARY KEY,
             kind            TEXT NOT NULL,
             status          TEXT NOT NULL,
             label           TEXT NOT NULL,
             source_url      TEXT,
+            retry_context_json TEXT,
+            preview_draft_json TEXT,
             created_at      TEXT NOT NULL,
             finished_at     TEXT,
             total           INTEGER DEFAULT 0,
@@ -30,8 +32,16 @@ fn migrate(conn: &Connection) -> Result<()> {
             scan_items_json TEXT,
             scan_stats_json TEXT,
             error_message   TEXT
-        );"
+        );",
     )?;
+    let _ = conn.execute(
+        "ALTER TABLE task_sessions ADD COLUMN retry_context_json TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE task_sessions ADD COLUMN preview_draft_json TEXT",
+        [],
+    );
     Ok(())
 }
 
@@ -42,6 +52,10 @@ pub async fn save_task(base_dir: &Path, task: &TaskRecord) -> Result<()> {
         let conn = open_db(&base_dir)?;
         let stats_json = task.stats.as_ref()
             .and_then(|s| serde_json::to_string(s).ok());
+        let retry_context_json = task.retry_context.as_ref()
+            .and_then(|ctx| serde_json::to_string(ctx).ok());
+        let preview_draft_json = task.preview_draft.as_ref()
+            .and_then(|draft| serde_json::to_string(draft).ok());
         let scan_items_json = if task.scan_items.is_empty() {
             None
         } else {
@@ -57,13 +71,15 @@ pub async fn save_task(base_dir: &Path, task: &TaskRecord) -> Result<()> {
         conn.execute(
             "INSERT OR REPLACE INTO task_sessions
              (id,kind,status,label,created_at,finished_at,total,completed,
-              source_url,success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15)",
+              source_url,retry_context_json,preview_draft_json,success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)",
             params![
                 task.id, kind, status, task.label,
                 task.created_at, task.finished_at,
                 task.total as i64, task.completed as i64,
                 task.source_url,
+                retry_context_json,
+                preview_draft_json,
                 task.success_count as i64, task.error_count as i64,
                 stats_json, scan_items_json, scan_stats_json,
                 task.error_message
@@ -87,7 +103,7 @@ pub async fn load_all_tasks(base_dir: &Path) -> Result<Vec<TaskRecord>> {
         if !table_exists { return Ok(vec![]); }
 
         let mut stmt = conn.prepare(
-            "SELECT id,kind,status,label,source_url,created_at,finished_at,total,completed,
+            "SELECT id,kind,status,label,source_url,retry_context_json,preview_draft_json,created_at,finished_at,total,completed,
                     success_count,error_count,stats_json,scan_items_json,scan_stats_json,error_message
              FROM task_sessions ORDER BY created_at DESC LIMIT 100"
         )?;
@@ -98,38 +114,56 @@ pub async fn load_all_tasks(base_dir: &Path) -> Result<Vec<TaskRecord>> {
                 row.get::<_, String>(2)?,   // status
                 row.get::<_, String>(3)?,   // label
                 row.get::<_, Option<String>>(4)?,  // source_url
-                row.get::<_, String>(5)?,   // created_at
-                row.get::<_, Option<String>>(6)?,  // finished_at
-                row.get::<_, i64>(7)? as usize,    // total
-                row.get::<_, i64>(8)? as usize,    // completed
-                row.get::<_, i64>(9)? as usize,    // success_count
-                row.get::<_, i64>(10)? as usize,   // error_count
-                row.get::<_, Option<String>>(11)?, // stats_json
-                row.get::<_, Option<String>>(12)?, // scan_items_json
-                row.get::<_, Option<String>>(13)?, // scan_stats_json
-                row.get::<_, Option<String>>(14)?, // error_message
+                row.get::<_, Option<String>>(5)?,  // retry_context_json
+                row.get::<_, Option<String>>(6)?,  // preview_draft_json
+                row.get::<_, String>(7)?,   // created_at
+                row.get::<_, Option<String>>(8)?,  // finished_at
+                row.get::<_, i64>(9)? as usize,    // total
+                row.get::<_, i64>(10)? as usize,    // completed
+                row.get::<_, i64>(11)? as usize,   // success_count
+                row.get::<_, i64>(12)? as usize,   // error_count
+                row.get::<_, Option<String>>(13)?, // stats_json
+                row.get::<_, Option<String>>(14)?, // scan_items_json
+                row.get::<_, Option<String>>(15)?, // scan_stats_json
+                row.get::<_, Option<String>>(16)?, // error_message
             ))
         })?.filter_map(|r| r.ok()).map(|t| {
             let kind: TaskKind = serde_json::from_str(&format!("\"{}\"", t.1))
                 .unwrap_or(TaskKind::BatchDownload);
             let status: TaskStatus = serde_json::from_str(&format!("\"{}\"", t.2))
                 .unwrap_or(TaskStatus::Done);
-            let stats: Option<DownloadStats> = t.11.as_ref()
+            let retry_context = t.5.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
-            let scan_items: Vec<ScanItem> = t.12.as_ref()
+            let preview_draft = t.6.as_ref()
+                .and_then(|s| serde_json::from_str(s).ok());
+            let stats: Option<DownloadStats> = t.13.as_ref()
+                .and_then(|s| serde_json::from_str(s).ok());
+            let scan_items: Vec<ScanItem> = t.14.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok())
                 .unwrap_or_default();
-            let scan_stats: Option<DownloadStats> = t.13.as_ref()
+            let scan_stats: Option<DownloadStats> = t.15.as_ref()
                 .and_then(|s| serde_json::from_str(s).ok());
             TaskRecord {
                 id: t.0, kind, status,
-                label: t.3, source_url: t.4, created_at: t.5, finished_at: t.6,
-                total: t.7, completed: t.8,
-                success_count: t.9, error_count: t.10,
+                label: t.3, source_url: t.4, retry_context, preview_draft, created_at: t.7, finished_at: t.8,
+                total: t.9, completed: t.10,
+                success_count: t.11, error_count: t.12,
                 stats, scan_items, scan_stats,
-                error_message: t.14,
+                error_message: t.16,
             }
         }).collect();
         Ok(tasks)
     }).await?
+}
+
+pub async fn delete_task(base_dir: &Path, task_id: &str) -> Result<()> {
+    let base_dir = base_dir.to_path_buf();
+    let task_id = task_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        let conn = open_db(&base_dir)?;
+        conn.execute("DELETE FROM task_sessions WHERE id = ?1", params![task_id])?;
+        Ok::<_, anyhow::Error>(())
+    })
+    .await??;
+    Ok(())
 }

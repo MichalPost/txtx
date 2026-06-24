@@ -31,11 +31,16 @@ export async function apiPickFile(
   return input?.trim() || null;
 }
 
-export async function apiCheckSites(): Promise<SiteHealth[]> {
+export async function apiCheckSites(selectedSites?: string[] | null): Promise<SiteHealth[]> {
   if (IS_TAURI) {
-    return invokeDesktopCommand<SiteHealth[]>("check_sites");
+    return invokeDesktopCommand<SiteHealth[]>("check_sites", {
+      selectedSites: selectedSites && selectedSites.length > 0 ? selectedSites : null,
+    });
   }
-  const res = await fetch(`${API_BASE}/api/health`);
+  const params = new URLSearchParams();
+  selectedSites?.forEach((site) => params.append("site", site));
+  const query = params.toString();
+  const res = await fetch(`${API_BASE}/api/health${query ? `?${query}` : ""}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -51,7 +56,11 @@ export async function apiConvertFile(path: string): Promise<string> {
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
-  return data.changed ? `已转换: ${path}` : `无需转换: ${path}`;
+  const encoding = (data as { encoding?: string }).encoding;
+  if (data.changed) {
+    return `已转换: ${path}${encoding ? `（输入编码 ${encoding}，已写出 UTF-8）` : ""}`;
+  }
+  return `无需转换: ${path}${encoding ? `（输入编码 ${encoding}）` : ""}`;
 }
 
 /** Save text content as a file download. In dev mode uses browser download; in Tauri uses save dialog. */

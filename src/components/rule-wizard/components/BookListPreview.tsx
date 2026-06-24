@@ -79,7 +79,7 @@ export function BookListPreview({ books }: BookListPreviewProps) {
         </button>
       )}
       <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-        ✓ 列表解析正确后，点「下一步」从中选择一本书进入目录配置
+        列表解析正确后，点「下一步」从中选择一本书进入目录配置
       </p>
     </div>
   );

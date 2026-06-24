@@ -9,7 +9,10 @@ export function ConverterTabs({
   onModeChange: (mode: ToolMode) => void;
 }) {
   return (
-    <div className="flex shrink-0 gap-0 border-b" style={{ borderColor: "var(--color-border)" }}>
+    <div
+      className="flex shrink-0 flex-wrap gap-0 border-b"
+      style={{ borderColor: "var(--color-border)" }}
+    >
       {TABS.map(({ id, label, icon: Icon }) => (
         <button
           key={id}

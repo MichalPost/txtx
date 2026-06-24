@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-use std::net::{IpAddr, ToSocketAddrs};
 use anyhow::Result;
 use backon::{ExponentialBuilder, Retryable};
 use encoding_rs::Encoding;
 use reqwest::Client;
+use std::collections::HashMap;
+use std::net::{IpAddr, ToSocketAddrs};
 
-use crate::models::NetworkConfig;
 use super::domain_utils::extract_domain;
+use crate::models::NetworkConfig;
 
 /// Build a reqwest client with the given network config.
 /// Uses a default pool size of 10 idle connections per host.
@@ -15,7 +15,10 @@ pub fn build_client(net: &NetworkConfig) -> Result<Client> {
 }
 
 /// Build a reqwest client with a custom connection-pool size.
-pub fn build_client_with_pool(net: &NetworkConfig, pool_max_idle_per_host: usize) -> Result<Client> {
+pub fn build_client_with_pool(
+    net: &NetworkConfig,
+    pool_max_idle_per_host: usize,
+) -> Result<Client> {
     let mut builder = Client::builder()
         .user_agent(&net.user_agent)
         .timeout(std::time::Duration::from_secs(net.timeout))
@@ -66,8 +69,7 @@ fn is_private_ip(ip: IpAddr) -> bool {
 }
 
 pub fn validate_fetch_url(url: &str) -> Result<()> {
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|_| anyhow::anyhow!("URL 格式不正确"))?;
+    let parsed = reqwest::Url::parse(url).map_err(|_| anyhow::anyhow!("URL 格式不正确"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(anyhow::anyhow!("仅支持 http/https URL"));
     }
@@ -108,21 +110,34 @@ pub async fn fetch_page(
 
     // Build same-domain Referer header
     let referer = {
-        let domain_part = url.split("://").nth(1).unwrap_or("").split('/').next().unwrap_or("");
-        let scheme = if url.starts_with("https") { "https" } else { "http" };
+        let domain_part = url
+            .split("://")
+            .nth(1)
+            .unwrap_or("")
+            .split('/')
+            .next()
+            .unwrap_or("");
+        let scheme = if url.starts_with("https") {
+            "https"
+        } else {
+            "http"
+        };
         format!("{}://{}/", scheme, domain_part)
     };
 
     let fetch = || async {
-        let resp = client.get(url)
+        let resp = client
+            .get(url)
             .header("Referer", &referer)
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            )
             .send()
             .await?;
         let bytes = resp.bytes().await?;
-        let encoding = Encoding::for_label(enc_name.as_bytes())
-            .unwrap_or(encoding_rs::UTF_8);
+        let encoding = Encoding::for_label(enc_name.as_bytes()).unwrap_or(encoding_rs::UTF_8);
         let (text, _, _) = encoding.decode(&bytes);
         Ok::<String, anyhow::Error>(text.into_owned())
     };

@@ -1,4 +1,10 @@
-import type { BookCandidate, ScanTaskOptions, TaskId, TaskRecord } from "@/types";
+import type {
+  BookCandidate,
+  ScanTaskOptions,
+  TaskId,
+  TaskPreviewDraft,
+  TaskRecord,
+} from "@/types";
 import { invokeDesktopCommand } from "@/platform";
 
 import { API_BASE, IS_TAURI } from "./constants";
@@ -39,6 +45,20 @@ export async function apiCreateSingleDownloadTask(url: string): Promise<TaskId> 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.task_id;
+}
+
+export async function apiCreateSelectedDownloadTask(selected: BookCandidate[]): Promise<TaskId> {
+  if (IS_TAURI) {
+    return invokeDesktopCommand<TaskId>("create_selected_download_task", { selected });
+  }
+  const res = await fetch(`${API_BASE}/api/tasks/selected`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(selected),
   });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
@@ -108,4 +128,19 @@ export async function apiLoadPersistedTasks(): Promise<TaskRecord[]> {
     return invokeDesktopCommand<TaskRecord[]>("load_persisted_tasks");
   }
   return [];
+}
+
+export async function apiUpdateTaskPreviewDraft(
+  taskId: TaskId,
+  draft: TaskPreviewDraft,
+): Promise<void> {
+  if (IS_TAURI) {
+    return invokeDesktopCommand("update_task_preview_draft", { taskId, draft });
+  }
+  const res = await fetch(`${API_BASE}/api/tasks/${taskId}/preview-draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+  if (!res.ok) throw new Error(await res.text());
 }

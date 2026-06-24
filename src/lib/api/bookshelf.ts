@@ -30,3 +30,15 @@ export async function apiOpenBook(path: string): Promise<void> {
   }
   // Web mode: not supported
 }
+
+export async function apiOpenBookParent(path: string): Promise<void> {
+  if (IS_TAURI) {
+    return invokeDesktopCommand("open_book_parent", { path });
+  }
+  const res = await fetch(`${API_BASE}/api/books/open-parent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}

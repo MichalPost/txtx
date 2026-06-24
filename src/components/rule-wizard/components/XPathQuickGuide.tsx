@@ -19,7 +19,7 @@ export function XPathQuickGuide({ page }: XPathQuickGuideProps) {
           </p>
           <ol className="flex list-inside list-decimal flex-col gap-1">
             <li>
-              切换到「书名」，输入列表中某本书的名字，按{" "}
+              切换到“书名”，输入列表中某本书的名字，按{" "}
               <kbd
                 className="rounded border px-1"
                 style={{ borderColor: "var(--color-border)", fontSize: 10 }}
@@ -27,10 +27,10 @@ export function XPathQuickGuide({ page }: XPathQuickGuideProps) {
                 Enter
               </kbd>
             </li>
-            <li>确认"定位样本"是目标书名，不对就调整表达式</li>
-            <li>切换到「书籍链接」，输入链接片段，类型选"跳转链接"</li>
-            <li>「更新日期」可选，用日期文字定位</li>
-            <li>右侧命中数 &gt; 0，勾选后点应用</li>
+            <li>确认“定位样本”就是目标书名，不对就调整表达式。</li>
+            <li>切换到“书籍链接”，输入链接片段，关键字类型选“跳转链接”。</li>
+            <li>“更新日期”是可选项，可直接用日期文字定位。</li>
+            <li>右侧命中数大于 0 后，勾选字段并点击应用。</li>
           </ol>
         </>
       ) : page === "catalog" ? (
@@ -48,12 +48,12 @@ export function XPathQuickGuide({ page }: XPathQuickGuideProps) {
                 Enter
               </kbd>
             </li>
-            <li>确认"定位样本"是目标元素，不对就调整表达式</li>
-            <li>右侧命中数 &gt; 0 即可，勾选字段后点应用</li>
+            <li>确认“定位样本”就是目标元素，不对就调整表达式。</li>
+            <li>右侧命中数大于 0 后，勾选字段并点击应用。</li>
           </ol>
           <div className="mt-2 flex flex-col gap-0.5" style={{ color: "var(--color-text-subtle)" }}>
-            <p>💡 章节名/链接：用章节名作关键字，类型选"文本内容"</p>
-            <p>💡 书籍名称：用书名作关键字，通常自动命中 h1</p>
+            <p>例如：章节名或章节链接可直接用章节标题作关键字，类型选“文本内容”。</p>
+            <p>例如：书籍名称可用书名作关键字，通常会自动命中 `h1`。</p>
           </div>
         </>
       ) : (
@@ -61,14 +61,14 @@ export function XPathQuickGuide({ page }: XPathQuickGuideProps) {
           <p className="mb-1.5 font-medium" style={{ color: "var(--color-text)" }}>
             快速开始
           </p>
-          <p className="mb-1">从正文中复制一段关键文字，类型选"文本内容"，按 Enter 生成。</p>
+          <p className="mb-1">从正文中复制一段关键文字，类型选“文本内容”，按 Enter 生成。</p>
           <div
             className="mt-2 flex items-start gap-2 rounded-lg px-2.5 py-2"
             style={{ background: "var(--color-warning-bg)" }}
           >
-            <span style={{ color: "var(--color-warning)", fontSize: 12 }}>ℹ</span>
+            <span style={{ color: "var(--color-warning)", fontSize: 12 }}>提示</span>
             <p style={{ color: "var(--color-warning)" }}>
-              尽量从页面源码中复制，链接可能是相对路径。
+              尽量从页面源码中复制关键文本；如果要定位链接，注意页面里可能使用相对路径。
             </p>
           </div>
         </>

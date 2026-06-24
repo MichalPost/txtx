@@ -13,6 +13,7 @@ import { apiFetchSource } from "@/lib/api/files";
 import { buildXPathFromRule, type ChapterListItem, type WizardData } from "./ruleUtils";
 import { TestPanel } from "./TestPanel";
 import { formatWizardActionError } from "./utils/wizardActionError";
+import { hasSelectedChapter } from "./wizardFlowUtils";
 
 interface Props {
   data: WizardData;
@@ -52,17 +53,15 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
       const urlXpath = buildXPathFromRule(data.list_release_url);
       const titleXpath = buildXPathFromRule(data.list_novel_name);
       const dateXpath = buildXPathFromRule(data.list_release_date);
-      let chapterTestUrl = data.chapter_test_url;
-      let chapterItems: ChapterListItem[] = data.chapter_items;
+      let chapterTestUrl = "";
+      let chapterItems: ChapterListItem[] = [];
+      let selectedChapterTitle = "";
       if (urlXpath) {
         const v = validateXPath(html, urlXpath);
-        const passCount = [
-          validateXPath(html, buildXPathFromRule(data.list_novel_name)).count > 0,
-          v.count > 0,
-        ].filter(Boolean).length;
-        setSummary({ passed: passCount, total: 2 });
+        const titlesResult = validateXPath(html, buildXPathFromRule(data.list_novel_name));
+        const passCount = [titlesResult.count > 0, v.count > 0].filter(Boolean).length;
         if (v.samples.length > 0) {
-          const titles = titleXpath ? validateXPath(html, titleXpath).samples : [];
+          const titles = titleXpath ? titlesResult.samples : [];
           const dates = dateXpath ? validateXPath(html, dateXpath).samples : [];
           chapterItems = v.samples
             .map((rawUrl, index) => ({
@@ -74,7 +73,11 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
           const rawUrl = v.samples[0];
           // Resolve relative URL
           chapterTestUrl = resolveChapterUrl(rawUrl, data.catalog_url);
+          selectedChapterTitle =
+            chapterItems.find((item) => item.url === chapterTestUrl)?.title ?? "";
         }
+        const selectedReady = Boolean(chapterTestUrl && selectedChapterTitle);
+        setSummary({ passed: passCount + (selectedReady ? 1 : 0), total: 3 });
       } else {
         setSummary({ passed: 0, total: 3 });
       }
@@ -84,9 +87,8 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
         catalog_html: html,
         chapter_test_url: chapterTestUrl,
         chapter_items: chapterItems,
-        selected_chapter_title:
-          chapterItems.find((item) => item.url === chapterTestUrl)?.title ??
-          data.selected_chapter_title,
+        selected_chapter_title: selectedChapterTitle,
+        chapter_html: "",
       });
     } catch (error) {
       setErrorMsg(
@@ -164,7 +166,9 @@ export function WizardStep3ListTest({ data, onChange }: Props) {
             规则校验通过 {summary.passed}/{summary.total}
           </span>
           <span style={{ color: "var(--color-text-muted)" }}>
-            目录规则命中后，请在下方章节列表中选中一个章节继续
+            {hasSelectedChapter(data)
+              ? "目录规则已命中，并已准备好一个章节样本继续正文规则。"
+              : "目录规则命中后，请在下方章节列表中选中一个章节继续"}
           </span>
         </div>
       )}

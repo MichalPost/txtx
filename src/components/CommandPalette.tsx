@@ -13,6 +13,7 @@ import {
   History,
   ListTodo,
   ScanSearch,
+  Search,
   Settings,
   Shield,
 } from "lucide-react";
@@ -44,7 +45,6 @@ export function CommandPalette() {
   );
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Open on Ctrl+K or Cmd+K
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -57,7 +57,6 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Animate on open
   useEffect(() => {
     if (open && panelRef.current) {
       animateModalOpen(panelRef.current);
@@ -231,7 +230,7 @@ export function CommandPalette() {
             className="flex items-center gap-3 border-b px-4 py-3"
             style={{ borderColor: "var(--color-border)" }}
           >
-            <span style={{ color: "var(--color-text-subtle)" }}>⌘</span>
+            <Search className="h-4 w-4" style={{ color: "var(--color-text-subtle)" }} />
             <Command.Input
               placeholder="搜索页面或操作..."
               className="flex-1 bg-transparent text-sm outline-none"
@@ -304,7 +303,7 @@ export function CommandPalette() {
             style={{ borderColor: "var(--color-border)", color: "var(--color-text-subtle)" }}
           >
             <span>↑↓ 导航</span>
-            <span>↵ 确认</span>
+            <span>Enter 确认</span>
             <span>ESC 关闭</span>
             <span className="ml-auto">Ctrl+K 打开/关闭</span>
           </div>

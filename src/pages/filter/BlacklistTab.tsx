@@ -1,45 +1,62 @@
-import { useRef } from "react";
-import { Download, Save, Upload } from "lucide-react";
+import { useMemo, useRef } from "react";
+import { Download, FileDown, Save, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import { FilterSettingsCard } from "@/pages/blacklist/FilterSettingsCard";
 import { KeywordPanel } from "@/pages/blacklist/KeywordPanel";
 import { RegexPanel } from "@/pages/blacklist/RegexPanel";
 import { TagPanel } from "@/pages/blacklist/TagPanel";
-import { useConfigStore } from "@/store/configStore";
 import type { BlacklistConfig } from "@/types";
 
 import { BlacklistTestPanel } from "./BlacklistTestPanel";
+import { buildImportSummary, mergeUniqueStrings, serializeFilterDraft } from "./filterPageUtils";
 import { WhitelistPanel } from "./WhitelistPanel";
 
-export function BlacklistTab() {
-  const { config, saveConfig, saving } = useConfigStore();
+interface BlacklistTabProps {
+  blacklist: BlacklistConfig;
+  saving: boolean;
+  onChange: (next: BlacklistConfig) => void;
+  onSave: (next: BlacklistConfig) => Promise<void>;
+  onSaved?: (snapshot: string) => void;
+}
+
+export function BlacklistTab({
+  blacklist: currentBlacklist,
+  saving,
+  onChange,
+  onSave,
+  onSaved,
+}: BlacklistTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const summary = useMemo(
+    () =>
+      currentBlacklist
+        ? [
+            `${currentBlacklist.enabled ? "已启用" : "未启用"} 黑名单`,
+            `${currentBlacklist.keywords.length} 个关键词`,
+            `${currentBlacklist.regex_patterns.length} 条正则`,
+            `${currentBlacklist.whitelist?.length ?? 0} 个白名单`,
+          ]
+        : [],
+    [currentBlacklist],
+  );
 
-  if (!config) {
-    return (
-      <div className="p-5 text-sm" style={{ color: "var(--color-text-muted)" }}>
-        正在加载...
-      </div>
-    );
-  }
-
-  const bl = config.blacklist;
-
-  const update = (patch: Partial<typeof bl>) => {
-    useConfigStore.setState({ config: { ...config, blacklist: { ...bl, ...patch } } });
+  const update = (patch: Partial<typeof currentBlacklist>) => {
+    onChange({ ...currentBlacklist, ...patch });
   };
 
   const handleSave = async () => {
-    await saveConfig(useConfigStore.getState().config!);
+    await onSave(currentBlacklist);
+    onSaved?.(serializeFilterDraft(currentBlacklist));
   };
 
   const handleExport = () => {
     const data: Partial<BlacklistConfig> = {
-      keywords: bl.keywords,
-      regex_patterns: bl.regex_patterns,
-      whitelist: bl.whitelist ?? [],
+      keywords: currentBlacklist.keywords,
+      regex_patterns: currentBlacklist.regex_patterns,
+      whitelist: currentBlacklist.whitelist ?? [],
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json;charset=utf-8",
@@ -60,18 +77,46 @@ export function BlacklistTab() {
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string) as Partial<BlacklistConfig>;
-        const keywords = Array.isArray(parsed.keywords) ? parsed.keywords : [];
-        const regex_patterns = Array.isArray(parsed.regex_patterns) ? parsed.regex_patterns : [];
-        const whitelist = Array.isArray(parsed.whitelist) ? parsed.whitelist : [];
+        const keywords = Array.isArray(parsed.keywords)
+          ? parsed.keywords.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        const regex_patterns = Array.isArray(parsed.regex_patterns)
+          ? parsed.regex_patterns.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        const whitelist = Array.isArray(parsed.whitelist)
+          ? parsed.whitelist.map((item) => String(item).trim()).filter(Boolean)
+          : [];
         const merged = {
-          keywords: [...new Set([...bl.keywords, ...keywords])],
-          regex_patterns: [...new Set([...bl.regex_patterns, ...regex_patterns])],
-          whitelist: [...new Set([...(bl.whitelist ?? []), ...whitelist])],
+          keywords: mergeUniqueStrings(currentBlacklist.keywords, keywords),
+          regex_patterns: mergeUniqueStrings(currentBlacklist.regex_patterns, regex_patterns),
+          whitelist: mergeUniqueStrings(currentBlacklist.whitelist ?? [], whitelist),
         };
         update(merged);
-        toast.success(
-          `已导入：${keywords.length} 个关键词，${regex_patterns.length} 条正则，${whitelist.length} 个白名单`,
-        );
+        const feedback = [
+          buildImportSummary(
+            merged.keywords.length - currentBlacklist.keywords.length,
+            keywords.length - (merged.keywords.length - currentBlacklist.keywords.length),
+            0,
+            "关键词",
+          ),
+          buildImportSummary(
+            merged.regex_patterns.length - currentBlacklist.regex_patterns.length,
+            regex_patterns.length -
+              (merged.regex_patterns.length - currentBlacklist.regex_patterns.length),
+            0,
+            "正则",
+          ),
+          buildImportSummary(
+            merged.whitelist.length - (currentBlacklist.whitelist?.length ?? 0),
+            whitelist.length -
+              (merged.whitelist.length - (currentBlacklist.whitelist?.length ?? 0)),
+            0,
+            "白名单",
+          ),
+        ]
+          .filter(Boolean)
+          .join("；");
+        toast.success(feedback || "导入完成");
       } catch {
         toast.error("文件格式不正确，无法导入");
       }
@@ -82,14 +127,45 @@ export function BlacklistTab() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden">
-      {/* Header row */}
-      <div className="flex shrink-0 items-center justify-between">
+      <Card inset className="shrink-0">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
+              用于拦截不想下载的书名、作者或标签组合，建议先维护关键词，再补充高精度正则。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {summary.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full px-2.5 py-1 text-xs"
+                  style={{ background: "var(--color-surface)", color: "var(--color-text-muted)" }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div
+            className="rounded-2xl border px-4 py-3 text-xs leading-relaxed xl:max-w-sm"
+            style={{
+              borderColor: "var(--color-border)",
+              background: "var(--color-surface)",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            导入适合迁移旧规则，导出适合备份或团队共享；右侧测试面板可以直接验证某本书会不会被拦截。
+          </div>
+        </div>
+      </Card>
+
+      <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            {bl.keywords.length} 个关键词，{bl.regex_patterns.length} 条正则，支持模糊搜索
+            {currentBlacklist.keywords.length} 个关键词，{currentBlacklist.regex_patterns.length}{" "}
+            条正则，支持模糊搜索与正则补充过滤
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -110,6 +186,11 @@ export function BlacklistTab() {
           </button>
           <button
             onClick={handleExport}
+            disabled={
+              currentBlacklist.keywords.length === 0 &&
+              currentBlacklist.regex_patterns.length === 0 &&
+              (currentBlacklist.whitelist?.length ?? 0) === 0
+            }
             className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
             style={{
               borderColor: "var(--color-border)",
@@ -126,31 +207,42 @@ export function BlacklistTab() {
         </div>
       </div>
 
-      {/* Main layout */}
-      <div className="flex min-h-0 flex-1 gap-4">
-        {/* Left: keywords */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <KeywordPanel keywords={bl.keywords} onUpdate={(keywords) => update({ keywords })} />
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
+          <KeywordPanel
+            keywords={currentBlacklist.keywords}
+            onUpdate={(keywords) => update({ keywords })}
+          />
           <WhitelistPanel
-            whitelist={bl.whitelist ?? []}
+            whitelist={currentBlacklist.whitelist ?? []}
             onUpdate={(whitelist) => update({ whitelist })}
           />
         </div>
 
-        {/* Right: settings + regex + tags */}
-        <div className="flex w-64 shrink-0 flex-col gap-3">
-          <FilterSettingsCard blacklist={bl} onUpdate={update} />
+        <div className="flex min-h-0 flex-col gap-3 xl:overflow-y-auto">
+          {currentBlacklist.keywords.length === 0 && currentBlacklist.regex_patterns.length === 0 ? (
+            <Card
+              title="从这里开始"
+              actions={<FileDown className="h-4 w-4" style={{ color: "var(--color-text-muted)" }} />}
+            >
+              <div className="flex flex-col gap-2 text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                <p>如果你还没有规则，先加 3 到 5 个最常见的屏蔽词，比如站点名、推广词或已知垃圾书名片段。</p>
+                <p>再用右侧测试框输入真实书名，确认不会误杀目标作品后再保存。</p>
+              </div>
+            </Card>
+          ) : null}
+          <FilterSettingsCard blacklist={currentBlacklist} onUpdate={update} />
           <RegexPanel
-            patterns={bl.regex_patterns}
+            patterns={currentBlacklist.regex_patterns}
             onUpdate={(regex_patterns) => update({ regex_patterns })}
           />
-          {bl.tag_filter && (
+          {currentBlacklist.tag_filter && (
             <TagPanel
-              tags={bl.filtered_tags ?? []}
+              tags={currentBlacklist.filtered_tags ?? []}
               onUpdate={(filtered_tags) => update({ filtered_tags })}
             />
           )}
-          <BlacklistTestPanel blacklist={bl} />
+          <BlacklistTestPanel blacklist={currentBlacklist} />
         </div>
       </div>
     </div>

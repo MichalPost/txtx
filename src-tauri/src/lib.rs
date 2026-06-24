@@ -1,19 +1,20 @@
-pub mod models;
-pub mod config;
-pub mod config_db;
 pub mod ai;
 pub mod ai_config_db;
 pub mod blacklist;
 pub mod bookshelf;
+pub mod config;
+pub mod config_db;
 pub mod crawler;
 pub mod downloader;
-pub mod server;
-pub mod text_converter;
 pub mod ebook_converter;
 pub mod history;
-pub mod task_manager;
-pub mod single_downloader;
+pub mod models;
 pub mod rate_limited_downloader;
+pub mod server;
+pub mod single_downloader;
+pub mod task_manager;
+pub mod text_file;
+pub mod text_converter;
 
 #[cfg(debug_assertions)]
 pub mod dev_tools;
@@ -28,12 +29,12 @@ pub mod commands;
 
 #[cfg(feature = "tauri-build")]
 mod tauri_app {
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
-    use tauri::Manager;
-    use crate::task_manager::{TaskManager, SharedTaskManager};
     #[allow(unused_imports)]
     use crate::commands::*;
+    use crate::task_manager::{SharedTaskManager, TaskManager};
+    use std::sync::Arc;
+    use tauri::Manager;
+    use tokio::sync::Mutex;
 
     pub fn run() {
         let task_manager: SharedTaskManager =
@@ -75,6 +76,7 @@ mod tauri_app {
                 create_single_download_task,
                 create_selected_download_task,
                 confirm_task_download,
+                update_task_preview_draft,
                 list_tasks,
                 get_task,
                 cancel_task,
@@ -84,6 +86,9 @@ mod tauri_app {
                 cancel_active_tasks,
                 // Other
                 get_history,
+                query_history,
+                get_history_stats,
+                get_history_site_options,
                 clear_history,
                 check_sites,
                 convert_file,
@@ -95,6 +100,7 @@ mod tauri_app {
                 list_books,
                 delete_book,
                 open_book,
+                open_book_parent,
                 detect_calibre,
                 // Text tools
                 merge_files,

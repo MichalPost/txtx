@@ -4,11 +4,7 @@
  */
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
-interface ChapterStat {
-  index: number;
-  charCount: number;
-  suspicious: boolean;
-}
+import { buildChapterQualitySummary } from "@/pages/bookshelf/bookshelfQualityUtils";
 
 interface Props {
   /** 书的全文内容 */
@@ -17,14 +13,9 @@ interface Props {
   threshold?: number;
 }
 
-function splitChapters(content: string): string[] {
-  // 按常见章节标题行分割：第X章/第X节/第X回/第X折/第X幕等
-  const parts = content.split(/\n(?=第[零一二三四五六七八九十百千\d]+[章节回折幕])/);
-  return parts.filter((p) => p.trim().length > 0);
-}
-
 export function ChapterQualityReport({ content, threshold = 300 }: Props) {
-  const chapters = splitChapters(content);
+  const summary = buildChapterQualitySummary(content, threshold);
+  const { chapters, stats, suspiciousCount, suspiciousRatio } = summary;
 
   if (chapters.length <= 1) {
     return (
@@ -33,14 +24,6 @@ export function ChapterQualityReport({ content, threshold = 300 }: Props) {
       </p>
     );
   }
-
-  const stats: ChapterStat[] = chapters.map((ch, i) => {
-    const charCount = ch.replace(/\s/g, "").length;
-    return { index: i + 1, charCount, suspicious: charCount < threshold };
-  });
-
-  const suspiciousCount = stats.filter((s) => s.suspicious).length;
-  const ratio = suspiciousCount / chapters.length;
 
   return (
     <div className="flex flex-col gap-2">
@@ -70,7 +53,7 @@ export function ChapterQualityReport({ content, threshold = 300 }: Props) {
       </div>
 
       {/* High ratio warning */}
-      {ratio > 0.1 && (
+      {suspiciousRatio > 0.1 && (
         <div
           className="rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}

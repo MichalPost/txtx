@@ -1,10 +1,11 @@
+import { memo } from "react";
 import { PlusCircle } from "lucide-react";
 
 import type { ScanItem } from "@/types";
 
 import { ExcludedBadge } from "./ExcludedBadge";
 
-export function ScanRow({
+export const ScanRow = memo(function ScanRow({
   item,
   checked,
   onToggle,
@@ -76,4 +77,4 @@ export function ScanRow({
       </td>
     </tr>
   );
-}
+});

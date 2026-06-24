@@ -168,7 +168,7 @@ function deriveUpdateDate(doc: Document, anchor: Element, anchorXPath: string): 
   const dateCandidates = ["span", "td", "em", "i", "small", "time"];
   for (const tag of dateCandidates) {
     const nodes = row.querySelectorAll(tag);
-    for (const node of nodes) {
+    for (const node of Array.from(nodes)) {
       const text = node.textContent?.trim() ?? "";
       if (/\d{4}[-/年]\d{1,2}/.test(text) || /\d{1,2}[-/月]\d{1,2}/.test(text)) {
         const generalized = buildGeneralizedListPath(doc, node, "/text()");

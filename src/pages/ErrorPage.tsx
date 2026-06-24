@@ -5,8 +5,6 @@ import { AlertTriangle, ArrowLeft, Check, ChevronDown, Copy, RefreshCw } from "l
 
 import { Button } from "@/components/Button";
 
-// ─── 动效变体 ─────────────────────────────────────────────────────────────────
-
 const containerVariants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } },
@@ -24,18 +22,21 @@ const stackVariants = {
     height: "auto",
     transition: { duration: 0.22, ease: [0.25, 0, 0, 1] as const },
   },
-  exit: { opacity: 0, height: 0, transition: { duration: 0.18, ease: [0.4, 0, 1, 1] as const } },
+  exit: {
+    opacity: 0,
+    height: 0,
+    transition: { duration: 0.18, ease: [0.4, 0, 1, 1] as const },
+  },
 };
-
-// ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
 function parseError(error: unknown): { title: string; detail: string; stack?: string } {
   if (isRouteErrorResponse(error)) {
     return {
-      title: `${error.status} ${error.statusText || "请求错误"}`,
+      title: `${error.status} ${error.statusText || "请求失败"}`,
       detail: typeof error.data === "string" ? error.data : "路由响应出现了问题。",
     };
   }
+
   if (error instanceof Error) {
     return {
       title: error.name || "运行时错误",
@@ -43,13 +44,12 @@ function parseError(error: unknown): { title: string; detail: string; stack?: st
       stack: error.stack,
     };
   }
+
   return {
     title: "未知错误",
-    detail: String(error) || "应用遇到了意外情况，无法继续。",
+    detail: String(error) || "应用发生了异常，暂时无法继续运行。",
   };
 }
-
-// ─── 复制按钮 ─────────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -60,7 +60,7 @@ function CopyButton({ text }: { text: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback — 忽略
+      // Ignore clipboard failures and keep the page usable.
     }
   };
 
@@ -113,10 +113,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ─── 主组件 ───────────────────────────────────────────────────────────────────
-
 interface ErrorPageProps {
-  /** 也可作为普通组件直接传入 error */
   error?: unknown;
 }
 
@@ -126,8 +123,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
   const [showStack, setShowStack] = useState(false);
 
   const { title, detail, stack } = parseError(propError ?? routeError);
-
-  // 复制内容 = detail + stack（若有）
   const copyText = stack ? `${detail}\n\n${stack}` : detail;
 
   return (
@@ -135,7 +130,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
       className="flex h-full w-full flex-col items-center justify-center px-4 select-none"
       style={{ background: "var(--color-bg)" }}
     >
-      {/* 背景装饰 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
@@ -149,7 +143,14 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           style={{ color: "var(--color-text-muted)" }}
         >
           <defs>
-            <pattern id="err-grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+            <pattern
+              id="err-grid"
+              x="0"
+              y="0"
+              width="32"
+              height="32"
+              patternUnits="userSpaceOnUse"
+            >
               <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="0.5" />
             </pattern>
           </defs>
@@ -157,7 +158,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
         </svg>
       </div>
 
-      {/* 主内容 */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -165,7 +165,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
         className="relative z-10 flex w-full flex-col gap-5"
         style={{ maxWidth: 480 }}
       >
-        {/* 图标 + 标题 */}
         <motion.div variants={itemVariants} className="flex items-start gap-4">
           <motion.div
             initial={{ rotate: -10, scale: 0.7, opacity: 0 }}
@@ -200,7 +199,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           </div>
         </motion.div>
 
-        {/* 错误信息卡 */}
         <motion.div
           variants={itemVariants}
           className="rounded-xl"
@@ -210,7 +208,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
             boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
           }}
         >
-          {/* 卡头：标签 + 复制按钮 */}
           <div
             className="flex items-center justify-between border-b px-4 py-2.5"
             style={{ borderColor: "var(--color-border)" }}
@@ -223,7 +220,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
             </span>
             <CopyButton text={copyText} />
           </div>
-          {/* 内容 */}
           <p
             className="px-4 py-3.5 text-sm leading-relaxed"
             style={{ color: "var(--color-text-muted)" }}
@@ -232,7 +228,6 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           </p>
         </motion.div>
 
-        {/* 堆栈折叠区 */}
         {stack && (
           <motion.div
             variants={itemVariants}
@@ -286,11 +281,10 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           </motion.div>
         )}
 
-        {/* 操作按钮 */}
         <motion.div variants={itemVariants} className="flex gap-3">
           <Button variant="secondary" size="md" className="flex-1" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-3.5 w-3.5" />
-            返回
+            返回上一页
           </Button>
           <Button
             variant="primary"
@@ -303,13 +297,12 @@ export function ErrorPage({ error: propError }: ErrorPageProps = {}) {
           </Button>
         </motion.div>
 
-        {/* 底部提示 */}
         <motion.p
           variants={itemVariants}
           className="text-center text-xs"
           style={{ color: "var(--color-text-muted)", opacity: 0.5 }}
         >
-          如果问题持续出现，请尝试重启应用或检查配置文件。
+          如果问题持续出现，请尝试重启应用或检查相关配置。
         </motion.p>
       </motion.div>
     </div>

@@ -42,6 +42,7 @@ export function XPathKeywordEditor({
         </span>
         {(fieldState.generatedXPath || fieldState.anchorXPath || fieldState.error) && (
           <button
+            type="button"
             onClick={onReset}
             className="ml-auto flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs transition-colors"
             style={{
@@ -50,6 +51,7 @@ export function XPathKeywordEditor({
               background: "transparent",
             }}
             title="清空此字段重来"
+            aria-label={`重置${activeLabel ?? "当前字段"}的定位配置`}
           >
             <RotateCcw className="h-2.5 w-2.5" />
             重置
@@ -63,6 +65,7 @@ export function XPathKeywordEditor({
             定位关键字 <span style={{ color: "var(--color-danger)" }}>*</span>
           </label>
           <button
+            type="button"
             onClick={onAddKeyword}
             className="flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs transition-colors"
             style={{
@@ -70,6 +73,7 @@ export function XPathKeywordEditor({
               borderColor: "var(--color-border)",
               color: "var(--color-text-muted)",
             }}
+            aria-label={`为${activeLabel ?? "当前字段"}添加一个关键字`}
           >
             <Plus className="h-3 w-3" />
             添加
@@ -93,6 +97,7 @@ export function XPathKeywordEditor({
             />
             {fieldState.keywords.length > 1 && (
               <button
+                type="button"
                 onClick={() => onKeywordRemove(idx)}
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
                 style={{
@@ -100,6 +105,7 @@ export function XPathKeywordEditor({
                   borderColor: "var(--color-danger)",
                   color: "var(--color-danger)",
                 }}
+                aria-label={`删除第 ${idx + 1} 个关键字`}
               >
                 <XIcon className="h-3 w-3" />
               </button>
@@ -122,8 +128,11 @@ export function XPathKeywordEditor({
             const active = fieldState.keywordType === kt;
             return (
               <button
+                type="button"
                 key={kt}
                 onClick={() => onKeywordTypeChange(kt)}
+                aria-pressed={active}
+                aria-label={`关键字类型：${KEYWORD_TYPE_LABELS[kt]}`}
                 className="rounded-lg border px-2.5 py-1 text-xs transition-colors"
                 style={{
                   background: active ? "var(--color-accent-muted)" : "var(--color-surface-1)",

@@ -13,6 +13,7 @@ export function hasTaskChanged(existing: TaskRecord, server: TaskRecord): boolea
     server.error_count !== existing.error_count ||
     server.finished_at !== existing.finished_at ||
     server.error_message !== existing.error_message ||
+    !sameJsonValue(server.retry_context, existing.retry_context) ||
     !sameJsonValue(server.scan_stats, existing.scan_stats) ||
     !sameJsonValue(server.stats, existing.stats) ||
     (server.scan_items?.length ?? 0) !== (existing.scan_items?.length ?? 0)

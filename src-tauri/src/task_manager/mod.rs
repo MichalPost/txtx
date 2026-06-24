@@ -1,10 +1,10 @@
 pub mod db;
 
+use chrono::Local;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
-use chrono::Local;
 use uuid::Uuid;
 
 use crate::models::{TaskId, TaskKind, TaskRecord, TaskStatus};
@@ -43,15 +43,18 @@ impl TaskManager {
     }
 
     pub fn running_count(&self) -> usize {
-        self.handles.values().filter(|h| {
-            matches!(
-                h.record.status,
-                // Preview means the scan worker has finished and we are waiting
-                // for the user to confirm — no worker is actively consuming
-                // resources, so it must NOT count against the concurrency limit.
-                TaskStatus::Scanning | TaskStatus::Downloading
-            )
-        }).count()
+        self.handles
+            .values()
+            .filter(|h| {
+                matches!(
+                    h.record.status,
+                    // Preview means the scan worker has finished and we are waiting
+                    // for the user to confirm — no worker is actively consuming
+                    // resources, so it must NOT count against the concurrency limit.
+                    TaskStatus::Scanning | TaskStatus::Downloading
+                )
+            })
+            .count()
     }
 
     pub fn get_record(&self, id: &str) -> Option<&TaskRecord> {
@@ -59,15 +62,15 @@ impl TaskManager {
     }
 
     pub fn list_records(&self) -> Vec<TaskRecord> {
-        let mut records: Vec<TaskRecord> = self.handles.values()
-            .map(|h| h.record.clone())
-            .collect();
+        let mut records: Vec<TaskRecord> =
+            self.handles.values().map(|h| h.record.clone()).collect();
         records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         records
     }
 
     pub fn upsert(&mut self, record: TaskRecord, cancel: Arc<Notify>) {
-        self.handles.insert(record.id.clone(), TaskHandle { record, cancel });
+        self.handles
+            .insert(record.id.clone(), TaskHandle { record, cancel });
     }
 
     pub fn update_record<F>(&mut self, id: &str, f: F) -> bool

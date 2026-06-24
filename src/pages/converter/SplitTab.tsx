@@ -65,7 +65,7 @@ export function SplitTab() {
             disabled={running}
           />
           <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            默认匹配：第X章、第X节、第X回等常见格式，输出文件保存到源文件同目录
+            默认匹配：第X章、第X节、第X回等常见格式，支持自动识别 UTF-8 / GBK / Big5，并输出到源文件同目录
           </p>
         </div>
 
@@ -78,6 +78,10 @@ export function SplitTab() {
           <Scissors className="h-3.5 w-3.5" />
           {running ? "分割中..." : "开始分割"}
         </Button>
+
+        <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-subtle)" }}>
+          如果同目录已有上一轮生成的 `*_ch001.txt` 等结果，当前分割会直接停止并报错，避免静默覆盖旧文件。
+        </p>
 
         {error && (
           <div

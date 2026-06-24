@@ -2,25 +2,23 @@ import { z } from "zod";
 
 import type { AppConfig } from "@/types";
 
-// ─── Zod schema ────────────────────────────────────────────────────────────────
-
 const encodingEntrySchema = z.object({ domain: z.string(), encoding: z.string() });
 
 const rateLimitRuleFormSchema = z.object({
   name: z.string(),
-  domains: z.string(), // newline-separated string in form
+  domains: z.string(),
   delay_min_ms: z.coerce.number().int().min(0),
   delay_max_ms: z.coerce.number().int().min(0),
   requests_per_second: z.coerce.number().min(0),
-  ua_pool: z.string(), // newline-separated string in form
+  ua_pool: z.string(),
   stealth: z.boolean(),
 });
 
 export const settingsSchema = z.object({
-  base_dir: z.string().min(1, "下载目录不能为空"),
-  temp_dir: z.string().min(1, "临时目录不能为空"),
-  log_dir: z.string().min(1, "日志目录不能为空"),
-  user_agent: z.string().min(10, "User-Agent 过短"),
+  base_dir: z.string().min(1, "请填写下载目录"),
+  temp_dir: z.string().min(1, "请填写临时目录"),
+  log_dir: z.string().min(1, "请填写日志目录"),
+  user_agent: z.string().min(10, "User-Agent 至少需要 10 个字符"),
   proxy: z.string().nullable().optional(),
   timeout: z.coerce.number().int().min(5).max(120),
   retry_count: z.coerce.number().int().min(0).max(10),
@@ -33,7 +31,7 @@ export const settingsSchema = z.object({
   min_days_limit: z.coerce.number().int().min(1).max(60),
   last_download_date: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "格式 YYYY-MM-DD")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式应为 YYYY-MM-DD")
     .nullable()
     .optional()
     .or(z.literal("")),
@@ -44,27 +42,21 @@ export const settingsSchema = z.object({
   eb_enabled: z.boolean(),
   eb_formats: z.array(z.string()),
   eb_calibre: z.string().nullable().optional(),
-  // content filter
   ad_patterns: z.string(),
   nav_keywords: z.string(),
   safety_threshold: z.coerce.number().min(0).max(1),
   fallback_trim_lines: z.coerce.number().int().min(0).max(10),
-  // Advanced
   pool_idle_timeout_secs: z.coerce.number().int().min(10).max(600),
   tcp_keepalive_secs: z.coerce.number().int().min(10).max(600),
   min_chapter_bytes: z.coerce.number().int().min(0),
   chapter_fail_threshold: z.coerce.number().min(0).max(1),
-  // Rate limit rules
   rate_limit_rules: z.array(rateLimitRuleFormSchema),
-  // Post-process script
   post_process_enabled: z.boolean(),
   post_process_script: z.string(),
   post_process_batch_done: z.boolean(),
 });
 
 export type SettingsForm = z.infer<typeof settingsSchema>;
-
-// ─── Conversion helpers ────────────────────────────────────────────────────────
 
 export function configToForm(config: AppConfig): SettingsForm {
   return {

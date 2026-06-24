@@ -1,23 +1,23 @@
+use anyhow::{anyhow, Result};
 /// Single novel downloader — given a URL, auto-detect the matching site config
 /// and download that one novel.
-
 use std::path::PathBuf;
 use std::sync::Arc;
-use anyhow::{Result, anyhow};
 use tokio::sync::mpsc;
 
-use crate::models::{AppConfig, BookCandidate, ProgressEvent};
 use crate::crawler::{build_client, fetch_novel_name};
 use crate::downloader::run_download;
+use crate::models::{AppConfig, BookCandidate, ProgressEvent};
 
 /// Find the WebsiteConfig whose domain_name is a prefix of `url`.
 fn find_site_for_url<'a>(
     config: &'a AppConfig,
     url: &str,
 ) -> Option<&'a crate::models::WebsiteConfig> {
-    config.websites.values().find(|s| {
-        s.enabled && url.starts_with(&s.domain_name)
-    })
+    config
+        .websites
+        .values()
+        .find(|s| s.enabled && url.starts_with(&s.domain_name))
 }
 
 pub async fn download_single_novel(
@@ -30,20 +30,26 @@ pub async fn download_single_novel(
         .ok_or_else(|| anyhow!("未找到匹配的站点配置，URL: {}", url))?
         .clone();
 
-    let _ = tx.send(ProgressEvent::Log {
-        message: format!("单本下载: {} ({})", url, site_cfg.domain_name),
-        level: "info".into(),
-    }).await;
+    let _ = tx
+        .send(ProgressEvent::Log {
+            message: format!("单本下载: {} ({})", url, site_cfg.domain_name),
+            level: "info".into(),
+        })
+        .await;
 
     let client = Arc::new(build_client(&config.network)?);
 
     // Fetch novel name from detail page
     let name = fetch_novel_name(
-        &client, &url, &site_cfg.novel_name_x,
+        &client,
+        &url,
+        &site_cfg.novel_name_x,
         &config.network.encoding_map,
         config.network.retry_count,
         config.network.retry_delay,
-    ).await.unwrap_or_else(|| {
+    )
+    .await
+    .unwrap_or_else(|| {
         // Fallback: derive name from URL path
         url.trim_end_matches('/')
             .rsplit('/')
@@ -52,10 +58,12 @@ pub async fn download_single_novel(
             .to_string()
     });
 
-    let _ = tx.send(ProgressEvent::Log {
-        message: format!("书名: {}", name),
-        level: "info".into(),
-    }).await;
+    let _ = tx
+        .send(ProgressEvent::Log {
+            message: format!("书名: {}", name),
+            level: "info".into(),
+        })
+        .await;
 
     // Build a synthetic AppConfig with only this one novel in the queue.
     // We reuse run_download by injecting a fake "already filtered" queue.
@@ -90,7 +98,8 @@ pub async fn download_single_novel(
     tokio::fs::write(
         base_dir.join("download_queue.json"),
         serde_json::to_string_pretty(&queue)?.as_bytes(),
-    ).await?;
+    )
+    .await?;
 
     run_download(single_config, tx, cancel).await
 }

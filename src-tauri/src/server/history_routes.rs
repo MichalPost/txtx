@@ -1,16 +1,20 @@
-use axum::{extract::{Query, State}, Json};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 use serde_json::json;
 use std::collections::HashMap;
 
 use super::error::AppError;
 use super::state::AppState;
 
-pub async fn get_history(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn get_history(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let cfg = crate::config_db::load_config(&state.base_dir)?;
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
     let entries = crate::history::load_history(&base_dir).await?;
-    let value = serde_json::to_value(entries)
-        .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
+    let value = serde_json::to_value(entries).map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
     Ok(Json(value))
 }
 
@@ -26,10 +30,11 @@ pub async fn get_history_page(
         search: q.get("search").cloned(),
         status: q.get("status").cloned(),
         site: q.get("site").cloned(),
+        sort_by: q.get("sort_by").cloned(),
+        sort_order: q.get("sort_order").cloned(),
     };
     let page = crate::history::query_history(&base_dir, query).await?;
-    let value = serde_json::to_value(page)
-        .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
+    let value = serde_json::to_value(page).map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
     Ok(Json(value))
 }
 
@@ -39,13 +44,28 @@ pub async fn get_history_stats(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let cfg = crate::config_db::load_config(&state.base_dir)?;
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
-    let days = q.get("days").and_then(|v| v.parse::<i64>().ok()).unwrap_or(30);
+    let days = q
+        .get("days")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(30);
     let daily = crate::history::get_daily_stats(&base_dir, days).await?;
     let sites = crate::history::get_site_stats(&base_dir).await?;
-    Ok(Json(json!({ "daily": daily, "sites": sites })))
+    let site_options = crate::history::get_history_site_options(&base_dir).await?;
+    Ok(Json(json!({ "daily": daily, "sites": sites, "site_options": site_options })))
 }
 
-pub async fn delete_history(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn get_history_site_options(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = crate::config_db::load_config(&state.base_dir)?;
+    let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
+    let site_options = crate::history::get_history_site_options(&base_dir).await?;
+    Ok(Json(json!({ "site_options": site_options })))
+}
+
+pub async fn delete_history(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let cfg = crate::config_db::load_config(&state.base_dir)?;
     let base_dir = std::path::PathBuf::from(&cfg.paths.base_dir);
     crate::history::clear_history(&base_dir).await?;

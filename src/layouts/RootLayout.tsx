@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { RefreshCw } from "lucide-react";
 
+import { Button } from "@/components/Button";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SetupWizard } from "@/components/onboarding/SetupWizard";
 import { Sidebar } from "@/components/Sidebar";
@@ -119,14 +121,21 @@ export function RootLayout() {
       <main className="relative flex h-full flex-1 flex-col overflow-hidden">
         {error && (
           <div
-            className="m-4 rounded-lg border px-4 py-3 text-sm"
+            className="m-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
             style={{
               background: "var(--color-danger-bg)",
               borderColor: "var(--color-danger)",
               color: "var(--color-danger)",
             }}
           >
-            配置加载失败：{error}
+            <div className="flex-1">
+              <p className="font-medium">配置加载失败</p>
+              <p className="mt-1 text-xs">{error}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => void loadConfig()}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              重试加载
+            </Button>
           </div>
         )}
 

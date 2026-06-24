@@ -17,7 +17,7 @@ export function FilterSettingsCard({ blacklist: bl, onUpdate }: FilterSettingsCa
       <div className="flex flex-col gap-4">
         <Toggle
           checked={bl.enabled}
-          onChange={(v) => onUpdate({ enabled: v })}
+          onChange={(value) => onUpdate({ enabled: value })}
           label="启用黑名单"
         />
 
@@ -46,24 +46,37 @@ export function FilterSettingsCard({ blacklist: bl, onUpdate }: FilterSettingsCa
 
         <Toggle
           checked={bl.case_insensitive}
-          onChange={(v) => onUpdate({ case_insensitive: v })}
+          onChange={(value) => onUpdate({ case_insensitive: value })}
           label="大小写不敏感"
         />
         <Toggle
           checked={bl.fuzzy_match}
-          onChange={(v) => onUpdate({ fuzzy_match: v })}
+          onChange={(value) => onUpdate({ fuzzy_match: value })}
           label="模糊匹配（包含即过滤）"
         />
         <Toggle
           checked={bl.regex_match}
-          onChange={(v) => onUpdate({ regex_match: v })}
+          onChange={(value) => onUpdate({ regex_match: value })}
           label="启用正则匹配"
         />
         <Toggle
           checked={bl.tag_filter ?? false}
-          onChange={(v) => onUpdate({ tag_filter: v })}
+          onChange={(value) => onUpdate({ tag_filter: value })}
           label="启用标签过滤"
         />
+
+        <div
+          className="rounded-xl border px-3 py-2 text-xs"
+          style={{
+            background: "var(--color-surface-2)",
+            borderColor: "var(--color-border)",
+            color: "var(--color-text-muted)",
+          }}
+        >
+          {bl.enabled
+            ? `当前为${bl.filter_level === "strict" ? "严格" : bl.filter_level === "moderate" ? "中等" : "宽松"}模式`
+            : "黑名单当前未启用，保存后才会对新任务生效"}
+        </div>
       </div>
     </Card>
   );

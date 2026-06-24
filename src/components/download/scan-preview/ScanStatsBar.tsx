@@ -1,8 +1,12 @@
+import { lazy, Suspense } from "react";
 import { BarChart2 } from "lucide-react";
 
 import type { ScanItem } from "@/types";
 
-import { SiteStatsChart } from "./SiteStatsChart";
+const LazySiteStatsChart = lazy(async () => {
+  const module = await import("./SiteStatsChart");
+  return { default: module.SiteStatsChart };
+});
 
 export function ScanStatsBar({
   scanStats,
@@ -64,7 +68,22 @@ export function ScanStatsBar({
 
       {showChart && (
         <div className="shrink-0">
-          <SiteStatsChart items={scanItems} />
+          <Suspense
+            fallback={
+              <div
+                className="rounded-xl border px-4 py-3 text-xs"
+                style={{
+                  background: "var(--color-surface)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                正在加载分布图...
+              </div>
+            }
+          >
+            <LazySiteStatsChart items={scanItems} />
+          </Suspense>
         </div>
       )}
     </>

@@ -1,3 +1,7 @@
+import { toast } from "sonner";
+
+import { buildDraftListFeedback, formatDraftFeedback, splitDraftValues } from "./blacklistEditorUtils";
+
 /** 导出关键词列表为 .txt 文件 */
 export function exportKeywords(keywords: string[]): void {
   const content = keywords.join("\n");
@@ -19,12 +23,22 @@ export function importKeywordsFromFile(
   const reader = new FileReader();
   reader.onload = (ev) => {
     const text = ev.target?.result as string;
-    const newKws = text
-      .split(/[\r\n]+/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    const merged = [...new Set([...existing, ...newKws])];
-    onDone(merged);
+    const feedback = buildDraftListFeedback(splitDraftValues(text), existing);
+    if (feedback.accepted.length > 0) {
+      onDone([...existing, ...feedback.accepted]);
+    }
+
+    const message = formatDraftFeedback(
+      feedback.accepted.length,
+      feedback.duplicateValues.length,
+      feedback.emptyCount,
+    );
+
+    if (message) {
+      toast.success(`导入完成：${message}`);
+    } else {
+      toast.error("未导入任何关键词，请检查文件内容是否为空或已全部存在");
+    }
   };
   reader.readAsText(file);
 }

@@ -1,5 +1,5 @@
 /**
- * Step 4 — 目录规则
+ * 目录规则编辑步骤。
  */
 import { useNavigate } from "react-router-dom";
 
@@ -23,16 +23,13 @@ interface Props {
   onChange: (d: WizardData) => void;
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
-
 export function WizardStep2ListRules({ data, onChange }: Props) {
   const navigate = useNavigate();
   const step = useListRulesStep(data, onChange);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Section: 常用规则（快速选用）──────────────────────────────────── */}
-      <WizardSection title="常用规则（快速选用）" color="var(--color-text-muted)">
+      <WizardSection title="辅助工具（可选）" color="var(--color-text-muted)">
         <ListRulesQuickTools
           autoMatchLoading={step.autoMatchLoading}
           onAutoMatch={step.runAutoMatch}
@@ -56,20 +53,19 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
 
       <ErrorMessage message={step.errorMsg} />
 
-      {/* ── Section: 规则设定（必填）─────────────────────────────────────── */}
-      <WizardSection title="规则设定（必填）" color="var(--color-danger)">
+      <WizardSection title="目录规则（必填）" color="var(--color-danger)">
         <FieldRuleEditor
-          label="目录页书名 *"
+          label="章节名称 *"
           rule={data.list_novel_name}
-          onChange={(r) => step.patch("list_novel_name", r)}
+          onChange={(rule) => step.patch("list_novel_name", rule)}
           aiEnabled={step.aiEnabled}
-          onAiRequest={() => step.runFieldAi("list_novel_name", "目录页书名")}
+          onAiRequest={() => step.runFieldAi("list_novel_name", "章节名称")}
           aiLoading={step.aiLoading === "list_novel_name"}
         />
         <FieldRuleEditor
           label="更新日期"
           rule={data.list_release_date}
-          onChange={(r) => step.patch("list_release_date", r)}
+          onChange={(rule) => step.patch("list_release_date", rule)}
           aiEnabled={step.aiEnabled}
           onAiRequest={() => step.runFieldAi("list_release_date", "更新日期")}
           aiLoading={step.aiLoading === "list_release_date"}
@@ -77,18 +73,16 @@ export function WizardStep2ListRules({ data, onChange }: Props) {
         <FieldRuleEditor
           label="章节链接 *"
           rule={data.list_release_url}
-          onChange={(r) => step.patch("list_release_url", r)}
+          onChange={(rule) => step.patch("list_release_url", rule)}
           aiEnabled={step.aiEnabled}
           onAiRequest={() => step.runFieldAi("list_release_url", "章节链接")}
           aiLoading={step.aiLoading === "list_release_url"}
         />
       </WizardSection>
 
-      {/* ── Section: 分页设置 ────────────────────────────────────────────── */}
       <PaginationSection data={data} onChange={onChange} />
 
-      {/* ── Section: 书籍名称 ────────────────────────────────────────────── */}
-      <WizardSection title="书籍名称（可选）" color="var(--color-text-muted)">
+      <WizardSection title="书名辅助提取（可选）" color="var(--color-text-muted)">
         <ListRulesBookNameConfig
           data={data}
           onChange={onChange}

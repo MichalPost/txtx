@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use anyhow::{Context, Result};
 use crate::models::AppConfig;
+use anyhow::{Context, Result};
+use std::path::PathBuf;
 
 pub fn config_path() -> PathBuf {
     // 1. Explicit override via environment variable
@@ -43,8 +43,7 @@ pub fn load_config() -> Result<AppConfig> {
     let path = config_path();
     let content = std::fs::read_to_string(&path)
         .with_context(|| format!("无法读取配置文件: {}", path.display()))?;
-    let config: AppConfig = serde_yaml::from_str(&content)
-        .with_context(|| "配置文件格式错误")?;
+    let config: AppConfig = serde_yaml::from_str(&content).with_context(|| "配置文件格式错误")?;
     Ok(config)
 }
 
@@ -53,8 +52,7 @@ pub fn save_config(config: &AppConfig) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let content = serde_yaml::to_string(config)
-        .context("序列化配置失败")?;
+    let content = serde_yaml::to_string(config).context("序列化配置失败")?;
     std::fs::write(&path, content)
         .with_context(|| format!("写入配置文件失败: {}", path.display()))?;
     Ok(())

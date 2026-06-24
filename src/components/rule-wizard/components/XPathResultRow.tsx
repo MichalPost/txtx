@@ -44,6 +44,7 @@ export function XPathResultRow({
     xpath ? validateGeneratedXPath(html, xpath) : null,
   );
   const [samplesExpanded, setSamplesExpanded] = useState(false);
+  const canAdopt = !!validation && !validation.error && validation.count > 0;
 
   useEffect(() => {
     setLocalXPath(xpath);
@@ -51,18 +52,23 @@ export function XPathResultRow({
     setSamplesExpanded(false);
   }, [xpath, html]);
 
+  useEffect(() => {
+    if (!canAdopt && adopted) onToggleAdopt();
+  }, [adopted, canAdopt, onToggleAdopt]);
+
   const handleBlur = () => {
     if (localXPath !== xpath) onChange(localXPath);
     setValidation(localXPath ? validateGeneratedXPath(html, localXPath) : null);
   };
 
-  const handleChange = (val: string) => {
-    setLocalXPath(val);
-    onChange(val);
-    setValidation(val ? validateGeneratedXPath(html, val) : null);
+  const handleChange = (value: string) => {
+    setLocalXPath(value);
+    onChange(value);
+    setValidation(value ? validateGeneratedXPath(html, value) : null);
   };
 
   const empty = !xpath && !generating;
+  const effectiveAdopted = adopted && canAdopt;
 
   return (
     <div
@@ -70,12 +76,12 @@ export function XPathResultRow({
       style={{
         background: isActive
           ? "color-mix(in srgb, var(--color-accent) 4%, var(--color-surface))"
-          : adopted
+          : effectiveAdopted
             ? "color-mix(in srgb, var(--color-accent) 5%, var(--color-surface))"
             : "var(--color-surface-2)",
         borderColor: isActive
           ? "var(--color-accent)"
-          : adopted
+          : effectiveAdopted
             ? "color-mix(in srgb, var(--color-accent) 35%, transparent)"
             : "var(--color-border)",
         cursor: "pointer",
@@ -83,7 +89,6 @@ export function XPathResultRow({
       }}
       onClick={onActivate}
     >
-      {/* Header */}
       <div className="flex items-center gap-2">
         <span
           className="text-xs font-medium"
@@ -108,6 +113,7 @@ export function XPathResultRow({
             命中 {validation.count}
           </span>
         )}
+
         {!generating && validation?.error && (
           <span
             className="rounded-full px-1.5 py-0.5 text-xs"
@@ -116,6 +122,7 @@ export function XPathResultRow({
             语法错误
           </span>
         )}
+
         {empty && (
           <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
             点左侧生成
@@ -123,31 +130,52 @@ export function XPathResultRow({
         )}
 
         {!empty && (
-          <button
-            className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all"
-            style={{
-              background: adopted ? "var(--color-accent)" : "var(--color-surface)",
-              borderColor: adopted ? "var(--color-accent)" : "var(--color-border)",
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleAdopt();
-            }}
-            title={adopted ? "取消应用此字段" : "应用此字段"}
-          >
-            {adopted && <Check className="h-3 w-3" style={{ color: "#fff" }} />}
-          </button>
+          canAdopt ? (
+            <button
+              type="button"
+              aria-pressed={effectiveAdopted}
+              aria-label={effectiveAdopted ? `取消应用${target.label}` : `应用${target.label}`}
+              className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all"
+              style={{
+                background: effectiveAdopted ? "var(--color-accent)" : "var(--color-surface)",
+                borderColor: effectiveAdopted ? "var(--color-accent)" : "var(--color-border)",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAdopt();
+              }}
+              title={effectiveAdopted ? "取消应用此字段" : "应用此字段"}
+            >
+              {effectiveAdopted && <Check className="h-3 w-3" style={{ color: "#fff" }} />}
+            </button>
+          ) : (
+            <span
+              className="ml-auto rounded px-1.5 py-0.5 text-xs"
+              style={{
+                background: validation?.error
+                  ? "var(--color-danger-bg)"
+                  : "var(--color-warning-bg)",
+                color: validation?.error ? "var(--color-danger)" : "var(--color-warning)",
+              }}
+              title={
+                validation?.error
+                  ? "XPath 语法错误，不能应用"
+                  : "XPath 命中数为 0，不能应用"
+              }
+            >
+              不可应用
+            </span>
+          )
         )}
       </div>
 
-      {/* XPath 编辑框 */}
       {!empty && !generating && (
         <div onClick={(e) => e.stopPropagation()}>
           <Input
             value={localXPath}
             onChange={(e) => handleChange(e.target.value)}
             onBlur={handleBlur}
-            placeholder="—"
+            placeholder="可手动输入或粘贴 XPath"
             style={{ fontFamily: "monospace", fontSize: 11 }}
           />
         </div>
@@ -157,7 +185,6 @@ export function XPathResultRow({
         <div className="h-7 animate-pulse rounded" style={{ background: "var(--color-border)" }} />
       )}
 
-      {/* 验证结果 */}
       {!generating && validation && (
         <div className="flex flex-col gap-0.5 pl-1">
           {validation.error ? (
@@ -173,16 +200,18 @@ export function XPathResultRow({
               className="flex items-center gap-1 text-xs"
               style={{ color: "var(--color-warning)" }}
             >
-              <AlertCircle className="h-3 w-3 shrink-0" /> 未命中，可手动修改后切回左侧点调整
+              <AlertCircle className="h-3 w-3 shrink-0" />
+              未命中任何节点，当前字段不能勾选或应用
             </div>
           ) : (
             <>
               <button
+                type="button"
                 className="-mx-0.5 flex w-fit items-center gap-1 rounded px-0.5 text-xs transition-opacity hover:opacity-70"
                 style={{ color: "var(--color-success)" }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSamplesExpanded((v) => !v);
+                  setSamplesExpanded((value) => !value);
                 }}
                 title={samplesExpanded ? "收起命中列表" : "展开查看全部命中"}
               >
@@ -196,19 +225,20 @@ export function XPathResultRow({
                   ))}
               </button>
               {(samplesExpanded ? validation.samples : validation.samples.slice(0, 2)).map(
-                (s, i) => (
+                (sample, index) => (
                   <span
-                    key={i}
+                    key={index}
                     className="truncate pl-4 text-xs"
                     style={{ color: "var(--color-text-muted)" }}
-                    title={s}
+                    title={sample}
                   >
-                    {i + 1}. {s}
+                    {index + 1}. {sample}
                   </span>
                 ),
               )}
               {!samplesExpanded && validation.count > 2 && (
                 <button
+                  type="button"
                   className="pl-4 text-left text-xs transition-opacity hover:opacity-70"
                   style={{ color: "var(--color-text-subtle)" }}
                   onClick={(e) => {
@@ -221,6 +251,7 @@ export function XPathResultRow({
               )}
               {samplesExpanded && validation.count > 2 && (
                 <button
+                  type="button"
                   className="pl-4 text-left text-xs transition-opacity hover:opacity-70"
                   style={{ color: "var(--color-text-subtle)" }}
                   onClick={(e) => {

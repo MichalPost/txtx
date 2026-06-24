@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Link, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
 import { animateDropdownOpen } from "@/lib/animations";
 import { apiPreviewNovelName } from "@/lib/api";
+import { formatTaskCreateError } from "@/lib/taskCreateFeedback";
 import { submitSingleDownloadUrl } from "./singleDownloadState";
+import { describeSingleDownloadFailure, validateSingleDownloadUrl } from "./singleDownloadInputUtils";
 
 const URL_HISTORY_KEY = "txtx_url_history";
 
@@ -34,40 +37,72 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
   const [showHistory, setShowHistory] = useState(false);
   const [previewName, setPreviewName] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewSeqRef = useRef(0);
+  const latestPreviewUrlRef = useRef("");
 
   useEffect(() => {
     if (showHistory && historyRef.current) animateDropdownOpen(historyRef.current);
   }, [showHistory]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const triggerPreview = useCallback((u: string) => {
     setPreviewName(null);
+    latestPreviewUrlRef.current = u.trim();
+    previewSeqRef.current += 1;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const trimmed = u.trim();
-    if (!trimmed || !trimmed.startsWith("http")) return;
+    if (!trimmed || !trimmed.startsWith("http")) {
+      setPreviewing(false);
+      return;
+    }
+    const requestSeq = previewSeqRef.current;
     debounceRef.current = setTimeout(async () => {
       setPreviewing(true);
       try {
         const name = await apiPreviewNovelName(trimmed);
-        setPreviewName(name);
+        if (previewSeqRef.current === requestSeq && latestPreviewUrlRef.current === trimmed) {
+          setPreviewName(name);
+        }
       } catch {
-        setPreviewName(null);
+        if (previewSeqRef.current === requestSeq) {
+          setPreviewName(null);
+        }
       } finally {
-        setPreviewing(false);
+        if (previewSeqRef.current === requestSeq) {
+          setPreviewing(false);
+        }
       }
     }, 600);
   }, []);
 
   const handleChange = (v: string) => {
     setUrl(v);
+    if (inlineError) {
+      setInlineError(null);
+    }
     triggerPreview(v);
   };
 
   const handleSubmit = () => {
     const u = url.trim();
-    if (!u) return;
+    const validationError = validateSingleDownloadUrl(u);
+    if (validationError) {
+      setInlineError(validationError);
+      return;
+    }
+    if (disabled || submitting) return;
+    setInlineError(null);
+    setSubmitting(true);
     void submitSingleDownloadUrl({
       url: u,
       submit: async (nextUrl) => {
@@ -81,8 +116,18 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
         setUrl("");
         setShowHistory(false);
         setPreviewName(null);
+        setPreviewing(false);
+        latestPreviewUrlRef.current = "";
+        previewSeqRef.current += 1;
       },
-    });
+    })
+      .catch((error) => {
+        setInlineError(describeSingleDownloadFailure(error));
+        toast.error(formatTaskCreateError("single", error));
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
   };
 
   const pickHistory = (u: string) => {
@@ -99,7 +144,7 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
 
   return (
     <div className="relative">
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
           <Link
             className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
@@ -110,24 +155,33 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
             className="h-9 w-full rounded-lg border pr-3 pl-9 text-sm transition-all outline-none"
             style={{
               background: "var(--color-surface)",
-              borderColor: "var(--color-border)",
+              borderColor: inlineError ? "var(--color-danger)" : "var(--color-border)",
               color: "var(--color-text)",
             }}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-accent)";
+              e.currentTarget.style.borderColor = inlineError
+                ? "var(--color-danger)"
+                : "var(--color-accent)";
               e.currentTarget.style.boxShadow =
-                "0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent)";
+                inlineError
+                  ? "0 0 0 3px color-mix(in srgb, var(--color-danger) 15%, transparent)"
+                  : "0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent)";
               if (history.length > 0) setShowHistory(true);
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = "var(--color-border)";
+              e.currentTarget.style.borderColor = inlineError
+                ? "var(--color-danger)"
+                : "var(--color-border)";
               e.currentTarget.style.boxShadow = "none";
               setTimeout(() => setShowHistory(false), 150);
             }}
             placeholder="输入小说 URL 单本下载..."
             value={url}
             onChange={(e) => handleChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !disabled && handleSubmit()}
+            onKeyDown={(e) => e.key === "Enter" && !disabled && !submitting && handleSubmit()}
+            disabled={disabled || submitting}
+            aria-label="小说链接输入框"
+            aria-invalid={inlineError ? "true" : "false"}
           />
           {(previewing || previewName) && (
             <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1.5">
@@ -155,16 +209,22 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
           size="md"
           variant="secondary"
           onClick={handleSubmit}
-          disabled={disabled || !url.trim()}
+          disabled={disabled || submitting || !url.trim()}
+          className="w-full sm:w-auto"
         >
-          单本下载
+          {submitting ? "提交中..." : "单本下载"}
         </Button>
       </div>
+      {inlineError && (
+        <p className="mt-2 text-xs leading-5" style={{ color: "var(--color-danger)" }}>
+          {inlineError}
+        </p>
+      )}
 
       {showHistory && history.length > 0 && (
         <div
           ref={historyRef}
-          className="absolute top-full right-24 left-0 z-50 mt-1 overflow-hidden rounded-[10px] border shadow-lg"
+          className="absolute top-full left-0 z-50 mt-1 overflow-hidden rounded-[10px] border shadow-lg sm:right-24"
           style={{
             background: "var(--color-surface)",
             borderColor: "var(--color-border)",
@@ -182,6 +242,7 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
               className="text-xs"
               style={{ color: "var(--color-text-subtle)" }}
               onClick={clearHistory}
+              disabled={submitting}
             >
               清除
             </button>
@@ -194,6 +255,7 @@ export function SingleDownloadInput({ disabled, onSubmit }: SingleDownloadInputP
               style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-surface-2)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              disabled={submitting}
             >
               <ChevronRight className="mr-1 inline h-3 w-3 opacity-40" />
               {u}

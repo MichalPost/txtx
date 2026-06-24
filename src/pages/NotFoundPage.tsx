@@ -5,8 +5,6 @@ import { ArrowLeft, BookOpen, Compass } from "lucide-react";
 
 import { Button } from "@/components/Button";
 
-// ─── 动效变体 ─────────────────────────────────────────────────────────────────
-
 const containerVariants = {
   hidden: {},
   show: {
@@ -19,23 +17,22 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.25, 0, 0, 1] as const } },
 };
 
-// ─── 主组件 ───────────────────────────────────────────────────────────────────
-
 export function NotFoundPage() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // 浮动粒子动画
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const renderCanvas = canvas;
+    const renderCtx = ctx;
 
     let animId: number;
     const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      renderCanvas.width = renderCanvas.offsetWidth;
+      renderCanvas.height = renderCanvas.offsetHeight;
     };
     resize();
     window.addEventListener("resize", resize);
@@ -54,21 +51,22 @@ export function NotFoundPage() {
       "#b07235";
 
     function draw() {
-      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
-      for (const d of dots) {
-        d.x += d.dx;
-        d.y += d.dy;
-        if (d.x < 0 || d.x > canvas!.width) d.dx *= -1;
-        if (d.y < 0 || d.y > canvas!.height) d.dy *= -1;
-        ctx!.beginPath();
-        ctx!.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-        ctx!.fillStyle = accent;
-        ctx!.globalAlpha = d.alpha;
-        ctx!.fill();
+      renderCtx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
+      for (const dot of dots) {
+        dot.x += dot.dx;
+        dot.y += dot.dy;
+        if (dot.x < 0 || dot.x > renderCanvas.width) dot.dx *= -1;
+        if (dot.y < 0 || dot.y > renderCanvas.height) dot.dy *= -1;
+        renderCtx.beginPath();
+        renderCtx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
+        renderCtx.fillStyle = accent;
+        renderCtx.globalAlpha = dot.alpha;
+        renderCtx.fill();
       }
-      ctx!.globalAlpha = 1;
+      renderCtx.globalAlpha = 1;
       animId = requestAnimationFrame(draw);
     }
+
     draw();
 
     return () => {
@@ -82,10 +80,8 @@ export function NotFoundPage() {
       className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden select-none"
       style={{ background: "var(--color-bg)" }}
     >
-      {/* 背景粒子 */}
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
-      {/* 主体卡片 */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
@@ -99,7 +95,6 @@ export function NotFoundPage() {
           width: "calc(100% - 2rem)",
         }}
       >
-        {/* 图标 */}
         <motion.div variants={itemVariants} className="relative flex items-center justify-center">
           <div
             className="absolute h-28 w-28 rounded-full opacity-30 blur-2xl"
@@ -123,7 +118,6 @@ export function NotFoundPage() {
           </motion.div>
         </motion.div>
 
-        {/* 数字 404 */}
         <motion.div variants={itemVariants} className="text-center">
           <motion.div
             initial={{ scale: 0.7, opacity: 0 }}
@@ -141,23 +135,22 @@ export function NotFoundPage() {
             404
           </motion.div>
           <div className="mt-3 text-base font-semibold" style={{ color: "var(--color-text)" }}>
-            页面迷路了
+            页面不存在
           </div>
           <div
             className="mt-1.5 text-sm leading-relaxed"
             style={{ color: "var(--color-text-muted)" }}
           >
-            你访问的路径不存在，也许是链接失效了，
+            这个地址可能已经失效、被移动，或者你输入了错误的路径。
             <br />
-            或者页面已经被移走。
+            可以返回上一页，或直接回到首页继续操作。
           </div>
         </motion.div>
 
-        {/* 按钮 */}
         <motion.div variants={itemVariants} className="flex w-full gap-3">
           <Button variant="secondary" size="md" className="flex-1" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-3.5 w-3.5" />
-            返回上页
+            返回上一页
           </Button>
           <Button variant="primary" size="md" className="flex-1" onClick={() => navigate("/")}>
             <BookOpen className="h-3.5 w-3.5" />
@@ -166,7 +159,6 @@ export function NotFoundPage() {
         </motion.div>
       </motion.div>
 
-      {/* 底部装饰 */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.4 }}
@@ -174,7 +166,7 @@ export function NotFoundPage() {
         className="relative z-10 mt-6 font-mono text-xs"
         style={{ color: "var(--color-text-muted)" }}
       >
-        ERROR · 404 · NOT_FOUND
+        ERROR / 404 / NOT_FOUND
       </motion.div>
     </div>
   );

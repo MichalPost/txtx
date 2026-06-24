@@ -14,8 +14,8 @@ export function NetworkSection() {
 
   return (
     <Card title="网络配置">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
           <Input label="User-Agent" {...register("user_agent")} />
           <FieldError msg={errors.user_agent?.message} />
         </div>

@@ -1,26 +1,22 @@
-use tauri::AppHandle;
 use super::worker::app_data_dir;
+use tauri::AppHandle;
 
 #[tauri::command]
 pub async fn load_config(app: AppHandle) -> Result<crate::models::AppConfig, String> {
     let dir = app_data_dir(&app);
-    tokio::task::spawn_blocking(move || {
-        crate::config_db::load_config(&dir)
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || crate::config_db::load_config(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn save_config(app: AppHandle, config: crate::models::AppConfig) -> Result<(), String> {
     let dir = app_data_dir(&app);
-    tokio::task::spawn_blocking(move || {
-        crate::config_db::save_config(&dir, &config)
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || crate::config_db::save_config(&dir, &config))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
 }
 
 /// Returns true when the user has not yet finished the setup wizard.

@@ -4,58 +4,17 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { Card } from "@/components/Card";
 import type { BlacklistConfig } from "@/types";
 
+import { runBlacklistTest } from "./filterPageUtils";
+
 interface Props {
   blacklist: BlacklistConfig;
-}
-
-function testBlacklist(name: string, bl: BlacklistConfig): { blocked: boolean; reason?: string } {
-  if (!bl.enabled) return { blocked: false };
-
-  // White list check first (if whitelist field exists)
-  const whitelist = (bl as BlacklistConfig & { whitelist?: string[] }).whitelist ?? [];
-  if (
-    whitelist.some((w) => {
-      const h = bl.case_insensitive ? name.toLowerCase() : name;
-      const n = bl.case_insensitive ? w.toLowerCase() : w;
-      return h === n || h.includes(n);
-    })
-  ) {
-    return { blocked: false };
-  }
-
-  // Keyword check
-  for (const kw of bl.keywords) {
-    const haystack = bl.case_insensitive ? name.toLowerCase() : name;
-    const needle = bl.case_insensitive ? kw.toLowerCase() : kw;
-    if (bl.fuzzy_match) {
-      if (haystack.includes(needle)) return { blocked: true, reason: `关键词: "${kw}"` };
-    } else {
-      if (haystack === needle) return { blocked: true, reason: `关键词(精确): "${kw}"` };
-    }
-  }
-
-  // Regex check
-  if (bl.regex_match) {
-    for (const pattern of bl.regex_patterns) {
-      try {
-        const flags = bl.case_insensitive ? "i" : "";
-        if (new RegExp(pattern, flags).test(name)) {
-          return { blocked: true, reason: `正则: ${pattern}` };
-        }
-      } catch {
-        // ignore invalid regex
-      }
-    }
-  }
-
-  return { blocked: false };
 }
 
 export function BlacklistTestPanel({ blacklist }: Props) {
   const [input, setInput] = useState("");
   const result = useMemo(() => {
     if (!input.trim()) return null;
-    return testBlacklist(input.trim(), blacklist);
+    return runBlacklistTest(input.trim(), blacklist);
   }, [input, blacklist]);
 
   return (
@@ -64,6 +23,18 @@ export function BlacklistTestPanel({ blacklist }: Props) {
         <p className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
           输入书名，实时检查是否会被过滤
         </p>
+        {!blacklist.enabled && (
+          <div
+            className="rounded-lg border px-3 py-2 text-xs"
+            style={{
+              borderColor: "var(--color-border)",
+              background: "var(--color-surface-2)",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            黑名单当前处于关闭状态，下面的结果会以“不会拦截”为主，适合先预演规则再决定是否启用。
+          </div>
+        )}
         <input
           className="w-full rounded-lg border px-3 py-2 text-xs focus:outline-none"
           style={{
@@ -92,7 +63,13 @@ export function BlacklistTestPanel({ blacklist }: Props) {
             ) : (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
             )}
-            <span>{result.blocked ? `会被过滤 — ${result.reason}` : "不会被过滤，可以下载"}</span>
+            <span>
+              {result.blocked
+                ? `会被过滤 — ${result.reason}`
+                : result.matchedBy === "whitelist"
+                  ? "命中白名单，不会被过滤"
+                  : "不会被过滤，可以下载"}
+            </span>
           </div>
         )}
       </div>

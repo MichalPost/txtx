@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Download, Save, ShieldCheck, Upload } from "lucide-react";
+import { CircleAlert, Download, RefreshCw, Save, ShieldCheck, Upload } from "lucide-react";
 import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -25,7 +25,7 @@ import { TextConversionSection } from "./sections/TextConversionSection";
 import { configToForm, formToConfig, settingsSchema, type SettingsForm } from "./settingsSchema";
 
 export function SettingsPage() {
-  const { config, saveConfig, saving } = useConfigStore();
+  const { config, saveConfig, saving, loading, error, loadConfig } = useConfigStore();
   const flushAiSave = useAiStore((s) => s.flushSave);
 
   const methods = useForm<SettingsForm>({
@@ -40,14 +40,24 @@ export function SettingsPage() {
     formState: { isDirty },
   } = methods;
 
-  // Only reset when config is first loaded (not on every reference change)
-  const initializedRef = useRef(false);
+  const appliedSnapshotRef = useRef<string | null>(null);
   useEffect(() => {
-    if (config && !initializedRef.current) {
-      initializedRef.current = true;
-      reset(configToForm(config));
+    if (!config) return;
+
+    const nextForm = configToForm(config);
+    const nextSnapshot = JSON.stringify(nextForm);
+    if (appliedSnapshotRef.current === nextSnapshot) return;
+
+    if (isDirty && appliedSnapshotRef.current !== null) {
+      const shouldReplace = window.confirm(
+        "检测到配置已在其他地方更新。是否放弃当前未保存修改并加载最新配置？",
+      );
+      if (!shouldReplace) return;
     }
-  }, [config, reset]);
+
+    reset(nextForm);
+    appliedSnapshotRef.current = nextSnapshot;
+  }, [config, isDirty, reset]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,17 +81,19 @@ export function SettingsPage() {
       try {
         const parsed = JSON.parse(ev.target!.result as string) as AppConfig;
         await saveConfig(parsed);
-        reset(configToForm(parsed));
+        const nextForm = configToForm(parsed);
+        reset(nextForm);
+        appliedSnapshotRef.current = JSON.stringify(nextForm);
         toast.success("配置已导入并应用");
       } catch (err) {
-        toast.error(`导入失败: ${String(err)}`);
+        toast.error(`导入失败：${String(err)}`);
       }
     };
     reader.readAsText(file);
     e.target.value = "";
   };
 
-  if (!config) {
+  if (loading && !config) {
     return (
       <div className="p-5" style={{ color: "var(--color-text-muted)" }}>
         正在加载...
@@ -89,10 +101,65 @@ export function SettingsPage() {
     );
   }
 
+  if (!config) {
+    return (
+      <div className="flex h-full items-center justify-center p-5">
+        <div
+          className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border px-5 py-5"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: "color-mix(in srgb, var(--color-danger) 28%, transparent)",
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+            >
+              <CircleAlert className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                设置加载失败
+              </p>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                {error || "暂时无法读取本地配置，请确认后端已启动或稍后重试。"}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void loadConfig({ force: true });
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              重新加载
+            </Button>
+            <Link
+              to="/rules"
+              className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                borderColor: "var(--color-border)",
+                color: "var(--color-text-muted)",
+                background: "var(--color-surface-2)",
+              }}
+            >
+              先去规则管理
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const onSubmit = async (form: SettingsForm) => {
     try {
       await Promise.all([saveConfig(formToConfig(form, config)), flushAiSave()]);
-      reset(form); // Mark form as clean after successful save
+      reset(form);
+      appliedSnapshotRef.current = JSON.stringify(form);
     } catch (error) {
       toast.error(formatToolActionError("保存设置", error));
     }
@@ -106,9 +173,9 @@ export function SettingsPage() {
       >
         <PageHeader
           title="通用设置"
-          subtitle="网络、并发、路径、过滤参数"
+          subtitle="目录、下载、网络、过滤统一在这里调整"
           actions={
-            <>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -140,15 +207,13 @@ export function SettingsPage() {
                 <Save className="h-3.5 w-3.5" />
                 {saving ? "保存中..." : isDirty ? "保存*" : "已保存"}
               </Button>
-            </>
+            </div>
           }
         />
 
         <div className="flex-1 overflow-y-auto pr-1">
           <div className="flex flex-col gap-4">
-            {/* ── Two-column grid ──────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Left column */}
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="flex flex-col gap-4">
                 <PathSection />
                 <FilterSection />
@@ -156,7 +221,6 @@ export function SettingsPage() {
                 <EbookSection />
               </div>
 
-              {/* Right column */}
               <div className="flex flex-col gap-4">
                 <NetworkSection />
                 <ConcurrencySection />
@@ -165,10 +229,8 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* ── Full-width sections ──────────────────────────────────────── */}
-            {/* Rate-limit rules moved to Rules page — edit per-site under each site card */}
             <div
-              className="flex items-center gap-3 rounded-xl border px-4 py-3"
+              className="flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center"
               style={{
                 borderColor: "var(--color-border)",
                 background: "var(--color-surface-1)",
@@ -185,7 +247,7 @@ export function SettingsPage() {
               </div>
               <Link
                 to="/rules"
-                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                className="shrink-0 rounded-lg px-3 py-1.5 text-center text-xs font-medium transition-colors"
                 style={{
                   background: "var(--color-accent)",
                   color: "#fff",

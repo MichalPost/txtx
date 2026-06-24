@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, FileText } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Loader2 } from "lucide-react";
 
 interface FetchStatusMessageProps {
   status: "idle" | "loading" | "ok" | "error";
@@ -17,6 +17,20 @@ export function FetchStatusMessage({
   detectedIcon = "check",
   onUndoDetected,
 }: FetchStatusMessageProps) {
+  if (status === "loading") {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+        style={{ background: "var(--color-accent-muted)", color: "var(--color-accent)" }}
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+        <span>正在处理页面内容，请稍候...</span>
+      </div>
+    );
+  }
+
   if (status === "ok") {
     const DetectedIcon = detectedIcon === "file" ? FileText : CheckCircle2;
     return (
@@ -24,6 +38,8 @@ export function FetchStatusMessage({
         <div
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
+          role="status"
+          aria-live="polite"
         >
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           <span className="flex-1">{okText}</span>
@@ -41,8 +57,10 @@ export function FetchStatusMessage({
             <span className="flex-1">{detectedText}</span>
             {onUndoDetected && (
               <button
+                type="button"
                 className="shrink-0 text-xs underline opacity-70 hover:opacity-100"
                 onClick={onUndoDetected}
+                aria-label="撤销自动检测结果"
               >
                 撤销
               </button>
@@ -58,6 +76,7 @@ export function FetchStatusMessage({
       <div
         className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
         style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+        role="alert"
       >
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>{errorText}</span>

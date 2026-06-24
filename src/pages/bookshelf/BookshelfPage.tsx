@@ -7,10 +7,13 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  CircleAlert,
+  Download,
   FileText,
   FolderOpen,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
@@ -19,15 +22,29 @@ import { toast } from "sonner";
 import { Button } from "@/components/Button";
 import { ChapterQualityReport } from "@/components/download/ChapterQualityReport";
 import { PageHeader } from "@/components/PageHeader";
-import { apiDeleteBook, apiListBooks, apiOpenBook } from "@/lib/api";
+import {
+  apiDeleteBook,
+  apiListBooks,
+  apiOpenBook,
+  apiOpenBookParent,
+  apiOpenOutputDir,
+  apiSaveTextFile,
+} from "@/lib/api";
 import { formatToolActionError } from "@/lib/toolActionError";
 import { readLocalTextFile } from "@/platform/filesystem";
 import { PLATFORM_CAPABILITIES } from "@/platform/runtime";
+import { useAppNavigate } from "@/router";
 import { useConfigStore } from "@/store/configStore";
 import type { BookFile } from "@/types";
 
-type SortKey = "name" | "size" | "modified";
-type SortDir = "asc" | "desc";
+import {
+  buildBookshelfSummary,
+  filterAndSortBooks,
+  getAvailableExtensions,
+  type BookshelfSortDir,
+  type BookshelfSortKey,
+} from "./bookshelfListUtils";
+import { buildChapterQualityExportText, buildChapterQualitySummary } from "./bookshelfQualityUtils";
 
 function formatDate(iso: string): string {
   try {
@@ -42,16 +59,22 @@ function formatDate(iso: string): string {
 }
 
 export function BookshelfPage() {
-  const { config } = useConfigStore();
+  const { config, loading: configLoading, error: configError, loadConfig } = useConfigStore();
   const qc = useQueryClient();
+  const navigate = useAppNavigate();
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("modified");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [extensionFilter, setExtensionFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<BookshelfSortKey>("modified");
+  const [sortDir, setSortDir] = useState<BookshelfSortDir>("desc");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [openingBook, setOpeningBook] = useState<string | null>(null);
+  const [openingParent, setOpeningParent] = useState<string | null>(null);
+  const [openingShelfDir, setOpeningShelfDir] = useState(false);
   const [qualityReport, setQualityReport] = useState<{ book: BookFile; content: string } | null>(
     null,
   );
   const [checkingQuality, setCheckingQuality] = useState<string | null>(null);
+  const [exportingQuality, setExportingQuality] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   const baseDir = config?.paths.base_dir ?? "";
@@ -77,30 +100,29 @@ export function BookshelfPage() {
     onError: (error) => toast.error(formatToolActionError("删除书籍", error)),
   });
 
-  const filtered = useMemo(() => {
-    let list = [...books];
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter((b) => b.name.toLowerCase().includes(q));
-    }
-    list.sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "name") cmp = a.name.localeCompare(b.name, "zh");
-      if (sortKey === "size") cmp = a.size - b.size;
-      if (sortKey === "modified") cmp = a.modified.localeCompare(b.modified);
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [books, search, sortKey, sortDir]);
+  const extensions = useMemo(() => getAvailableExtensions(books), [books]);
+  const filtered = useMemo(
+    () =>
+      filterAndSortBooks(books, {
+        search,
+        extension: extensionFilter,
+        sortKey,
+        sortDir,
+      }),
+    [books, extensionFilter, search, sortDir, sortKey],
+  );
+  const summary = useMemo(() => buildBookshelfSummary(books, filtered), [books, filtered]);
+  const hasFilters = search.trim().length > 0 || extensionFilter !== "all";
+  const hasBaseDir = baseDir.trim().length > 0;
 
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => listRef.current,
-    estimateSize: () => 72, // px per row (py-3 + content + border ≈ 72px)
+    estimateSize: () => 124,
     overscan: 8,
   });
 
-  const toggleSort = (key: SortKey) => {
+  const toggleSort = (key: BookshelfSortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -113,14 +135,44 @@ export function BookshelfPage() {
     const result = await refetch();
     if (result.error) {
       toast.error(formatToolActionError("刷新书架", result.error));
+    } else {
+      toast.success("书架已刷新");
     }
   };
 
   const handleOpenBook = async (path: string) => {
+    if (openingBook === path) return;
+    setOpeningBook(path);
     try {
       await apiOpenBook(path);
     } catch (error) {
       toast.error(formatToolActionError("打开文件", error));
+    } finally {
+      setOpeningBook(null);
+    }
+  };
+
+  const handleOpenBookParent = async (path: string) => {
+    if (openingParent === path) return;
+    setOpeningParent(path);
+    try {
+      await apiOpenBookParent(path);
+    } catch (error) {
+      toast.error(formatToolActionError("打开所在目录", error));
+    } finally {
+      setOpeningParent(null);
+    }
+  };
+
+  const handleOpenShelfDir = async () => {
+    if (openingShelfDir || !hasBaseDir) return;
+    setOpeningShelfDir(true);
+    try {
+      await apiOpenOutputDir();
+    } catch (error) {
+      toast.error(formatToolActionError("打开下载目录", error));
+    } finally {
+      setOpeningShelfDir(false);
     }
   };
 
@@ -145,7 +197,90 @@ export function BookshelfPage() {
     }
   };
 
-  const SortBtn = ({ k, label }: { k: SortKey; label: string }) => {
+  const clearFilters = () => {
+    setSearch("");
+    setExtensionFilter("all");
+  };
+
+  const canCheckQuality = (book: BookFile) => book.extension.trim().toLowerCase() === "txt";
+
+  const qualitySummary = useMemo(
+    () =>
+      qualityReport ? buildChapterQualitySummary(qualityReport.content) : null,
+    [qualityReport],
+  );
+
+  const handleExportQuality = async () => {
+    if (!qualityReport || !qualitySummary || exportingQuality) return;
+    setExportingQuality(true);
+    try {
+      const content = buildChapterQualityExportText(qualityReport.book.name, qualitySummary);
+      await apiSaveTextFile(
+        `${qualityReport.book.name}-章节质量报告.txt`,
+        content,
+      );
+      toast.success("质量报告已导出");
+    } catch (error) {
+      toast.error(formatToolActionError("导出质量报告", error));
+    } finally {
+      setExportingQuality(false);
+    }
+  };
+
+  if (configLoading && !config) {
+    return (
+      <div className="flex h-full items-center justify-center p-5">
+        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+          正在加载书架配置...
+        </p>
+      </div>
+    );
+  }
+
+  if (configError && !config) {
+    return (
+      <div className="flex h-full items-center justify-center p-5">
+        <div
+          className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border px-5 py-5"
+          style={{
+            background: "var(--color-surface)",
+            borderColor: "color-mix(in srgb, var(--color-danger) 28%, transparent)",
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+            >
+              <CircleAlert className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                书架配置加载失败
+              </p>
+              <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
+                {configError}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void loadConfig({ force: true });
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              重新加载
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const SortBtn = ({ k, label }: { k: BookshelfSortKey; label: string }) => {
     const isActive = sortKey === k;
     const Icon = sortDir === "asc" ? ArrowUp : ArrowDown;
     return (
@@ -170,59 +305,174 @@ export function BookshelfPage() {
       <PageHeader
         title="本地书架"
         subtitle={
-          books.length > 0
-            ? `共 ${filtered.length} 本${search ? ` / ${books.length} 本` : ""}`
+          summary.totalCount > 0
+            ? `显示 ${summary.filteredCount} / ${summary.totalCount} 本，约 ${filesize(summary.filteredBytes, { locale: false, standard: "iec" })}`
             : "浏览已下载的书目"
         }
         actions={
-          <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} disabled={isLoading}>
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            刷新
-          </Button>
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleOpenShelfDir()}
+              disabled={!hasBaseDir || openingShelfDir}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              {openingShelfDir ? "打开中..." : "打开目录"}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleRefresh()}
+              disabled={isLoading || !hasBaseDir}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              刷新
+            </Button>
+          </>
         }
       />
 
       {/* Toolbar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="relative max-w-72 min-w-48 flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
-            style={{ color: "var(--color-text-muted)" }}
-          />
-          <input
-            className="w-full rounded-lg border py-1.5 pr-3 pl-8 text-xs focus:outline-none"
-            style={{
-              background: "var(--color-surface-2)",
-              borderColor: "var(--color-border)",
-              color: "var(--color-text)",
-            }}
-            placeholder="搜索书名..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="mr-1 text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            排序：
-          </span>
-          <SortBtn k="name" label="名称" />
-          <SortBtn k="size" label="大小" />
-          <SortBtn k="modified" label="时间" />
+      <div
+        className="shrink-0 rounded-2xl border p-3"
+        style={{
+          background: "var(--color-surface)",
+          borderColor: "var(--color-border)",
+        }}
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+                style={{ color: "var(--color-text-muted)" }}
+              />
+              <input
+                className="w-full rounded-lg border py-2 pr-9 pl-8 text-xs focus:outline-none"
+                style={{
+                  background: "var(--color-surface-2)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-text)",
+                }}
+                placeholder="搜索书名或路径..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full transition-opacity hover:opacity-70"
+                  style={{ color: "var(--color-text-muted)" }}
+                  title="清空搜索"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex min-w-0 gap-2 sm:w-auto sm:min-w-52">
+              <div className="relative min-w-0 flex-1">
+                <SlidersHorizontal
+                  className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: "var(--color-text-muted)" }}
+                />
+                <select
+                  className="w-full appearance-none rounded-lg border py-2 pr-8 pl-8 text-xs focus:outline-none"
+                  style={{
+                    background: "var(--color-surface-2)",
+                    borderColor: "var(--color-border)",
+                    color: "var(--color-text)",
+                  }}
+                  value={extensionFilter}
+                  onChange={(e) => setExtensionFilter(e.target.value)}
+                >
+                  <option value="all">全部格式</option>
+                  {extensions.map((extension) => (
+                    <option key={extension} value={extension}>
+                      {extension.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {hasFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  清空
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-1 text-xs" style={{ color: "var(--color-text-subtle)" }}>
+                排序：
+              </span>
+              <SortBtn k="name" label="名称" />
+              <SortBtn k="size" label="大小" />
+              <SortBtn k="modified" label="时间" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  color: "var(--color-text-muted)",
+                  background: "var(--color-surface-2)",
+                }}
+              >
+                {summary.filteredCount} 本
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  color: "var(--color-text-muted)",
+                  background: "var(--color-surface-2)",
+                }}
+              >
+                总计 {filesize(summary.totalBytes, { locale: false, standard: "iec" })}
+              </span>
+              <span
+                className="rounded-full px-2.5 py-1"
+                style={{
+                  color: "var(--color-text-muted)",
+                  background: "var(--color-surface-2)",
+                }}
+              >
+                TXT 可检查质量，EPUB/MOBI/AZW3 可直接打开
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       {error && (
         <div
-          className="rounded-lg px-3 py-2 text-xs"
-          style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+          className="flex shrink-0 flex-col gap-3 rounded-2xl border px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+          style={{
+            background: "var(--color-danger-bg)",
+            color: "var(--color-danger)",
+            borderColor: "color-mix(in srgb, var(--color-danger) 28%, transparent)",
+          }}
         >
-          {String(error)}
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "color-mix(in srgb, var(--color-danger) 16%, transparent)" }}
+            >
+              <CircleAlert className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="font-medium">书架加载失败</p>
+              <p className="mt-1 text-xs opacity-90">{String(error)}</p>
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void handleRefresh()} disabled={isLoading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            重试
+          </Button>
         </div>
       )}
 
       {/* Book list */}
       <div ref={listRef} className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-        {" "}
         {isLoading && (
           <div className="flex h-32 items-center justify-center">
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -230,7 +480,32 @@ export function BookshelfPage() {
             </p>
           </div>
         )}
-        {!isLoading && filtered.length === 0 && (
+        {!isLoading && error && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <div
+              className="flex h-16 w-16 items-center justify-center rounded-2xl"
+              style={{
+                background: "var(--color-danger-bg)",
+                border: "1px solid color-mix(in srgb, var(--color-danger) 22%, transparent)",
+              }}
+            >
+              <CircleAlert className="h-8 w-8" style={{ color: "var(--color-danger)" }} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                当前无法读取书架内容
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                请先重试加载；只有请求成功且结果为空时，才会显示空书架状态。
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => void handleRefresh()}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              重新加载
+            </Button>
+          </div>
+        )}
+        {!isLoading && !error && filtered.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4">
             <div
               className="flex h-16 w-16 items-center justify-center rounded-2xl"
@@ -244,15 +519,65 @@ export function BookshelfPage() {
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-                {search ? "没有匹配的书目" : "书架是空的"}
+                {!hasBaseDir
+                  ? "还没有配置下载目录"
+                  : hasFilters
+                    ? "没有匹配的书目"
+                    : "书架是空的"}
               </p>
               <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
-                {search ? "试试其他关键词" : `下载目录: ${baseDir || "未设置（请先在设置中配置）"}`}
+                {!hasBaseDir
+                  ? "请先在设置中配置下载目录，然后再回来刷新书架。"
+                  : hasFilters
+                    ? "试试其他关键词、扩展名筛选，或清空筛选条件。"
+                    : `下载目录: ${baseDir}`}
               </p>
             </div>
+            {!hasBaseDir ? null : hasFilters ? (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  清空筛选
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => void handleOpenShelfDir()}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    打开目录
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => void handleRefresh()}>
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    重新扫描
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void loadConfig({ force: true });
+                  }}
+                >
+                  重新读取配置
+                </Button>
+              </div>
+            )}
+            {!hasBaseDir && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void loadConfig({ force: true });
+                }}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                重新读取配置
+              </Button>
+            )}
+            {!hasBaseDir && (
+              <Button variant="secondary" size="sm" onClick={() => navigate("/settings")}>
+                前往设置目录
+              </Button>
+            )}
           </div>
         )}
-        {!isLoading && filtered.length > 0 && (
+        {!isLoading && !error && filtered.length > 0 && (
           <div
             style={{
               height: `${rowVirtualizer.getTotalSize()}px`,
@@ -277,47 +602,72 @@ export function BookshelfPage() {
                   }}
                 >
                   <div
-                    className="flex items-center gap-3 rounded-xl border px-4 py-3 transition-all"
+                    className="flex flex-col gap-3 rounded-xl border px-4 py-3 transition-all sm:flex-row sm:items-center"
                     style={{
                       background: "var(--color-surface)",
                       borderColor: "var(--color-border)",
                     }}
                   >
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                      style={{
-                        background: "var(--color-accent-muted)",
-                        border:
-                          "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
-                      }}
-                    >
-                      <FileText className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className="truncate text-sm font-medium"
-                        style={{ color: "var(--color-text)" }}
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                        style={{
+                          background: "var(--color-accent-muted)",
+                          border:
+                            "1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)",
+                        }}
                       >
-                        {book.name}
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        {filesize(book.size, { locale: false, standard: "iec" })} ·{" "}
-                        {formatDate(book.modified)} · {book.extension.toUpperCase()}
-                      </p>
+                        <FileText className="h-4 w-4" style={{ color: "var(--color-accent)" }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className="truncate text-sm font-medium"
+                          style={{ color: "var(--color-text)" }}
+                        >
+                          {book.name}
+                        </p>
+                        <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                          {filesize(book.size, { locale: false, standard: "iec" })} ·{" "}
+                          {formatDate(book.modified)} · {book.extension.toUpperCase()}
+                        </p>
+                        <p
+                          className="mt-1 truncate text-[11px]"
+                          style={{ color: "var(--color-text-subtle)" }}
+                          title={book.path}
+                        >
+                          {book.path}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 sm:ml-auto">
                       <button
                         onClick={() => void handleOpenBook(book.path)}
-                        className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
+                        className="flex min-w-20 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors hover:opacity-80"
                         style={{
                           borderColor: "var(--color-border)",
                           color: "var(--color-text-muted)",
                           background: "var(--color-surface-2)",
                         }}
+                        disabled={openingBook === book.path}
                         title="打开文件"
+                        aria-label={`打开 ${book.name}`}
                       >
                         <FolderOpen className="h-3.5 w-3.5" />
-                        打开
+                        {openingBook === book.path ? "打开中..." : "打开"}
+                      </button>
+                      <button
+                        onClick={() => void handleOpenBookParent(book.path)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
+                        style={{ color: "var(--color-text-muted)" }}
+                        disabled={openingParent !== null && openingParent !== book.path}
+                        title="定位到文件所在目录"
+                        aria-label={
+                          openingParent === book.path
+                            ? `正在打开 ${book.name} 所在目录`
+                            : `打开 ${book.name} 所在目录`
+                        }
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => void handleCheckQuality(book)}
@@ -327,13 +677,29 @@ export function BookshelfPage() {
                             qualityReport?.book.path === book.path
                               ? "var(--color-accent)"
                               : "var(--color-text-muted)",
+                          opacity: canCheckQuality(book) ? 1 : 0.45,
                         }}
-                        title="章节质量检查"
+                        disabled={
+                          !canCheckQuality(book) ||
+                          (checkingQuality !== null && checkingQuality !== book.path)
+                        }
+                        title={
+                          canCheckQuality(book)
+                            ? "章节质量检查"
+                            : "仅 TXT 文件支持章节质量检查"
+                        }
+                        aria-label={
+                          !canCheckQuality(book)
+                            ? `${book.name} 不是 TXT 文件，暂不支持章节质量检查`
+                            : checkingQuality === book.path
+                            ? `正在检查 ${book.name} 的章节质量`
+                            : `检查 ${book.name} 的章节质量`
+                        }
                       >
                         <Activity className="h-3.5 w-3.5" />
                       </button>
                       {confirmDelete === book.path ? (
-                        <div className="ml-1 flex items-center gap-1.5">
+                        <div className="ml-1 flex flex-wrap items-center justify-end gap-1.5">
                           <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                             确认删除？
                           </span>
@@ -362,7 +728,9 @@ export function BookshelfPage() {
                           onClick={() => setConfirmDelete(book.path)}
                           className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:opacity-80"
                           style={{ color: "var(--color-danger)" }}
+                          disabled={deleteMutation.isPending}
                           title="删除"
+                          aria-label={`删除 ${book.name}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -387,16 +755,34 @@ export function BookshelfPage() {
           }}
         >
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
-              《{qualityReport.book.name}》章节质量报告
-            </span>
-            <button
-              onClick={() => setQualityReport(null)}
-              className="rounded-md p-1 hover:opacity-70"
-              style={{ color: "var(--color-text-muted)" }}
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="min-w-0">
+              <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                《{qualityReport.book.name}》章节质量报告
+              </span>
+              <p className="mt-1 text-xs" style={{ color: "var(--color-text-muted)" }}>
+                {qualitySummary
+                  ? `共 ${qualitySummary.chapters.length} 章，可疑章节 ${qualitySummary.suspiciousCount} 章`
+                  : "正在分析章节结构..."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleExportQuality()}
+                disabled={!qualitySummary || exportingQuality}
+              >
+                <Download className="h-3.5 w-3.5" />
+                {exportingQuality ? "导出中..." : "导出报告"}
+              </Button>
+              <button
+                onClick={() => setQualityReport(null)}
+                className="rounded-md p-1 hover:opacity-70"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           <ChapterQualityReport content={qualityReport.content} />
         </div>

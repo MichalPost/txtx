@@ -8,4 +8,3 @@ pub fn extract_domain(url: &str) -> String {
         .unwrap_or("")
         .to_string()
 }
-

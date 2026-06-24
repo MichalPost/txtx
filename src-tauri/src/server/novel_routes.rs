@@ -1,7 +1,10 @@
-use std::sync::Arc;
-use axum::{extract::{Query, State}, Json};
+use axum::{
+    extract::{Query, State},
+    Json,
+};
 use serde::Deserialize;
 use serde_json::json;
+use std::sync::Arc;
 
 use super::error::AppError;
 use super::state::AppState;
@@ -18,20 +21,31 @@ pub async fn get_novel_name(
     let cfg = crate::config_db::load_config(&state.base_dir)?;
     let client = Arc::new(crate::crawler::build_client(&cfg.network)?);
 
-    let site_cfg = cfg.websites.values()
+    let site_cfg = cfg
+        .websites
+        .values()
         .find(|s| s.enabled && q.url.contains(&s.domain_name))
         .cloned();
 
-    let xpath = site_cfg.as_ref().map(|s| s.novel_name_x.clone()).unwrap_or_default();
+    let xpath = site_cfg
+        .as_ref()
+        .map(|s| s.novel_name_x.clone())
+        .unwrap_or_default();
 
     if xpath.is_empty() {
         return Ok(Json(json!({ "name": null, "error": "未找到匹配站点配置" })));
     }
 
     match crate::crawler::fetch_novel_name(
-        &client, &q.url, &xpath, &cfg.network.encoding_map,
-        cfg.network.retry_count, cfg.network.retry_delay,
-    ).await {
+        &client,
+        &q.url,
+        &xpath,
+        &cfg.network.encoding_map,
+        cfg.network.retry_count,
+        cfg.network.retry_delay,
+    )
+    .await
+    {
         Some(name) => Ok(Json(json!({ "name": name }))),
         None => Ok(Json(json!({ "name": null, "error": "无法获取书名" }))),
     }

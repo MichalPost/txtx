@@ -11,7 +11,11 @@ pub fn xpath_texts(html: &Html, xpath: &str) -> Vec<String> {
                 .select(&selector)
                 .flat_map(|el| {
                     if let Some(a) = &attr {
-                        el.value().attr(a).map(|v| v.to_string()).into_iter().collect::<Vec<_>>()
+                        el.value()
+                            .attr(a)
+                            .map(|v| v.to_string())
+                            .into_iter()
+                            .collect::<Vec<_>>()
                     } else {
                         vec![el.text().collect::<String>().trim().to_string()]
                     }
@@ -40,7 +44,11 @@ pub fn xpath_texts_native(html_str: &str, xpath_expr: &str) -> Vec<String> {
                 Some(items)
             }
             sxd_xpath::Value::String(s) => {
-                if s.trim().is_empty() { None } else { Some(vec![s.trim().to_string()]) }
+                if s.trim().is_empty() {
+                    None
+                } else {
+                    Some(vec![s.trim().to_string()])
+                }
             }
             _ => None,
         }
@@ -59,8 +67,12 @@ pub fn xpath_texts_native(html_str: &str, xpath_expr: &str) -> Vec<String> {
 
 /// Extract the attribute name from an XPath like `.../@href`
 fn xpath_attr(xpath: &str) -> Option<String> {
-    if xpath.ends_with("/@href") { return Some("href".into()); }
-    if xpath.ends_with("/@src")  { return Some("src".into());  }
+    if xpath.ends_with("/@href") {
+        return Some("href".into());
+    }
+    if xpath.ends_with("/@src") {
+        return Some("src".into());
+    }
     if let Some(pos) = xpath.rfind("/@") {
         return Some(xpath[pos + 2..].to_string());
     }
@@ -124,7 +136,9 @@ pub fn xpath_to_css(xpath: &str) -> Option<String> {
         let mut seg_css: Vec<String> = Vec::new();
 
         for part in &parts {
-            if *part == "html" || *part == "body" { continue; }
+            if *part == "html" || *part == "body" {
+                continue;
+            }
             seg_css.push(xpath_part_to_css(part));
         }
 

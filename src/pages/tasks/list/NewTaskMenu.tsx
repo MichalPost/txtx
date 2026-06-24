@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, FileUp, Link, ScanSearch } from "lucide-react";
+import { Download, FileUp, Link, Loader2, ScanSearch } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/Button";
@@ -24,6 +24,7 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
   const [singleUrl, setSingleUrl] = useState("");
   const [showImportPanel, setShowImportPanel] = useState(false);
   const [downloadMode, setDownloadMode] = useState<DownloadMode>("smart");
+  const [submitting, setSubmitting] = useState(false);
 
   const {
     enabled: schedEnabled,
@@ -33,6 +34,16 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
   } = useSchedulerStore();
 
   const modeOpts: ScanTaskOptions = { download_mode: downloadMode };
+
+  const runSubmit = async (action: () => Promise<void>) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await action();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div
@@ -61,62 +72,69 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
           variant="secondary"
           size="sm"
           className="justify-start"
+          disabled={submitting}
           onClick={() => {
-            void submitTaskAndThen(
-              () => Promise.resolve(onNewScan(modeOpts)),
-              onClose,
+            void runSubmit(() =>
+              submitTaskAndThen(() => Promise.resolve(onNewScan(modeOpts)), onClose),
             );
           }}
         >
-          <ScanSearch className="h-3.5 w-3.5" /> 扫描预览
+          {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanSearch className="h-3.5 w-3.5" />}{" "}
+          {submitting ? "创建中..." : "扫描预览"}
         </Button>
         <Button
           variant="secondary"
           size="sm"
           className="justify-start"
+          disabled={submitting}
           onClick={() => {
-            void submitTaskAndThen(
-              () => Promise.resolve(onNewBatch(modeOpts)),
-              onClose,
+            void runSubmit(() =>
+              submitTaskAndThen(() => Promise.resolve(onNewBatch(modeOpts)), onClose),
             );
           }}
         >
-          <Download className="h-3.5 w-3.5" /> 批量下载
+          {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}{" "}
+          {submitting ? "创建中..." : "批量下载"}
         </Button>
         <div className="flex gap-1">
           <Input
             className="h-7 flex-1 text-xs"
             placeholder="输入小说 URL..."
             value={singleUrl}
+            disabled={submitting}
             onChange={(e) => setSingleUrl(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && singleUrl.trim()) {
-                void submitTaskAndThen(
-                  () => Promise.resolve(onNewSingle(singleUrl.trim())),
-                  () => {
-                    setSingleUrl("");
-                    onClose();
-                  },
+              if (e.key === "Enter" && singleUrl.trim() && !submitting) {
+                void runSubmit(() =>
+                  submitTaskAndThen(
+                    () => Promise.resolve(onNewSingle(singleUrl.trim())),
+                    () => {
+                      setSingleUrl("");
+                      onClose();
+                    },
+                  ),
                 );
               }
             }}
           />
           <Button
             size="sm"
-            disabled={!singleUrl.trim()}
+            disabled={!singleUrl.trim() || submitting}
             onClick={() => {
               if (singleUrl.trim()) {
-                void submitTaskAndThen(
-                  () => Promise.resolve(onNewSingle(singleUrl.trim())),
-                  () => {
-                    setSingleUrl("");
-                    onClose();
-                  },
+                void runSubmit(() =>
+                  submitTaskAndThen(
+                    () => Promise.resolve(onNewSingle(singleUrl.trim())),
+                    () => {
+                      setSingleUrl("");
+                      onClose();
+                    },
+                  ),
                 );
               }
             }}
           >
-            <Link className="h-3 w-3" />
+            {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3" />}
           </Button>
         </div>
 
@@ -128,32 +146,37 @@ export function NewTaskMenu({ onNewScan, onNewBatch, onNewSingle, onClose }: New
             borderColor: "var(--color-border)",
             color: "var(--color-text-muted)",
           }}
-          onClick={() => setShowImportPanel((v) => !v)}
+          disabled={submitting}
+          onClick={() => {
+            if (!submitting) setShowImportPanel((v) => !v);
+          }}
         >
           <FileUp className="h-3.5 w-3.5" />
-          从文件批量导入
+          {submitting ? "提交中，暂不可导入" : "从文件批量导入"}
         </button>
         {showImportPanel && (
           <ImportUrlPanel
             taskMode
             onClose={() => setShowImportPanel(false)}
             onImport={async (urls) => {
-              const result = await createTasksFromUrls(urls, (url) =>
-                Promise.resolve(onNewSingle(url)),
-              );
-              if (result.failures.length > 0) {
-                toast.error(
-                  `${result.failures.length} 个任务创建失败，已成功创建 ${result.successCount} 个`,
+              return runSubmit(async () => {
+                const result = await createTasksFromUrls(urls, (url) =>
+                  Promise.resolve(onNewSingle(url)),
                 );
-              } else if (result.successCount > 0) {
-                toast.success(formatTaskCreateSuccess("multi_single", result.successCount));
-              }
-              if (result.successCount > 0) {
-                setShowImportPanel(false);
-                onClose();
-                return;
-              }
-              throw new Error("所有任务创建都失败了，请检查 URL 或后端状态后重试");
+                if (result.failures.length > 0) {
+                  toast.error(
+                    `${result.failures.length} 个任务创建失败，已成功创建 ${result.successCount} 个`,
+                  );
+                } else if (result.successCount > 0) {
+                  toast.success(formatTaskCreateSuccess("multi_single", result.successCount));
+                }
+                if (result.successCount > 0) {
+                  setShowImportPanel(false);
+                  onClose();
+                  return;
+                }
+                throw new Error("所有任务创建都失败了，请检查 URL 或后端状态后重试");
+              });
             }}
           />
         )}

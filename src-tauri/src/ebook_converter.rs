@@ -1,3 +1,5 @@
+use anyhow::{Context, Result};
+use regex::Regex;
 /// Ebook conversion support.
 ///
 /// Supports:
@@ -6,10 +8,7 @@
 ///
 /// If a format is requested but the required tool is unavailable, a warning
 /// is logged and the step is skipped gracefully.
-
 use std::path::{Path, PathBuf};
-use anyhow::{Result, Context};
-use regex::Regex;
 
 // ─── Chapter extraction ───────────────────────────────────────────────────────
 
@@ -24,9 +23,7 @@ pub fn extract_chapters(txt: &str) -> Vec<Chapter> {
         r"^第[零一二三四五六七八九十百千万\d]+[章节回卷]\s*",
         r"^\d+[、.．]\s*",
     ];
-    let compiled: Vec<Regex> = patterns.iter()
-        .filter_map(|p| Regex::new(p).ok())
-        .collect();
+    let compiled: Vec<Regex> = patterns.iter().filter_map(|p| Regex::new(p).ok()).collect();
 
     let mut chapters: Vec<Chapter> = Vec::new();
     let mut current_title = "序章".to_string();
@@ -34,7 +31,9 @@ pub fn extract_chapters(txt: &str) -> Vec<Chapter> {
 
     for line in txt.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
         let is_heading = compiled.iter().any(|re| re.is_match(trimmed));
         if is_heading {
@@ -86,15 +85,26 @@ pub fn convert_to_epub(txt_path: &Path, novel_name: &str) -> Result<PathBuf> {
 
     let mut builder = EpubBuilder::new(ZipLibrary::new().map_err(|e| anyhow::anyhow!("{}", e))?)
         .map_err(|e| anyhow::anyhow!("{}", e))?;
-    builder.metadata("title", novel_name).map_err(|e| anyhow::anyhow!("{}", e))?;
-    builder.metadata("lang", "zh").map_err(|e| anyhow::anyhow!("{}", e))?;
+    builder
+        .metadata("title", novel_name)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+    builder
+        .metadata("lang", "zh")
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     // 尝试从正文前 5 行提取作者信息（格式：作者：xxx 或 作者:xxx）
     if let Some(author) = txt.lines().take(5).find_map(|line| {
         let line = line.trim();
         if line.starts_with("作者") {
-            let after = line.trim_start_matches("作者").trim_start_matches(['：', ':']).trim();
-            if !after.is_empty() { Some(after.to_string()) } else { None }
+            let after = line
+                .trim_start_matches("作者")
+                .trim_start_matches(['：', ':'])
+                .trim();
+            if !after.is_empty() {
+                Some(after.to_string())
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -110,28 +120,31 @@ pub fn convert_to_epub(txt_path: &Path, novel_name: &str) -> Result<PathBuf> {
              <head><title>{title}</title></head>\
              <body><h2>{title}</h2>{body}</body></html>",
             title = html_escape(&ch.title),
-            body = ch.content.lines()
+            body = ch
+                .content
+                .lines()
                 .map(|l| format!("<p>{}</p>", html_escape(l)))
                 .collect::<Vec<_>>()
                 .join("\n")
         );
 
         let filename = format!("chapter_{:04}.xhtml", i);
-        builder.add_content(
-            EpubContent::new(&filename, html.as_bytes())
-                .title(&ch.title)
-        ).map_err(|e| anyhow::anyhow!("{}", e))?;
+        builder
+            .add_content(EpubContent::new(&filename, html.as_bytes()).title(&ch.title))
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
     }
 
-    builder.generate(out).map_err(|e| anyhow::anyhow!("{}", e))?;
+    builder
+        .generate(out)
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(epub_path)
 }
 
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 // ─── MOBI/AZW3 via Calibre CLI ───────────────────────────────────────────────
@@ -152,7 +165,9 @@ pub fn find_calibre() -> Option<PathBuf> {
     ];
     for c in &candidates {
         let p = PathBuf::from(c);
-        if p.exists() { return Some(p); }
+        if p.exists() {
+            return Some(p);
+        }
     }
     None
 }
@@ -167,7 +182,9 @@ pub fn convert_with_calibre(
     let binary = calibre_path
         .map(|p| p.to_path_buf())
         .or_else(find_calibre)
-        .ok_or_else(|| anyhow::anyhow!("未找到 Calibre ebook-convert，请安装 Calibre 或在配置中指定路径"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!("未找到 Calibre ebook-convert，请安装 Calibre 或在配置中指定路径")
+        })?;
 
     let output = input.with_extension(target_ext);
 
@@ -204,15 +221,14 @@ pub async fn convert(
 
     match format {
         "epub" => {
-            tokio::task::spawn_blocking(move || {
-                convert_to_epub(&txt_path, &novel_name)
-            }).await?
+            tokio::task::spawn_blocking(move || convert_to_epub(&txt_path, &novel_name)).await?
         }
         "mobi" | "azw3" => {
             let fmt = format.to_string();
             tokio::task::spawn_blocking(move || {
                 convert_with_calibre(&txt_path, &fmt, calibre_path.as_deref())
-            }).await?
+            })
+            .await?
         }
         other => Err(anyhow::anyhow!("不支持的电子书格式: {}", other)),
     }

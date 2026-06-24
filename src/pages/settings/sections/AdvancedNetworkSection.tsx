@@ -14,7 +14,7 @@ export function AdvancedNetworkSection() {
 
   return (
     <Card title="高级网络参数">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Input
             label="连接池空闲超时（秒）"

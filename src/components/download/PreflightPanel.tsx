@@ -7,25 +7,32 @@ import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react
 
 import { apiCheckSites } from "@/lib/api";
 import type { SiteHealth } from "@/types";
-import { canContinueWithPreflight } from "./preflightDecision";
+import {
+  buildPreflightScope,
+  canContinueWithPreflight,
+  summarizePreflightResults,
+} from "./preflightDecision";
 
 interface Props {
   onDismiss: () => void;
   onConfirm: () => void;
+  selectedSites: string[] | null;
+  enabledSites: string[];
 }
 
-export function PreflightPanel({ onDismiss, onConfirm }: Props) {
+export function PreflightPanel({ onDismiss, onConfirm, selectedSites, enabledSites }: Props) {
   const [results, setResults] = useState<SiteHealth[]>([]);
   const [checking, setChecking] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const scopedSites = buildPreflightScope(selectedSites, enabledSites);
 
   const runCheck = async () => {
     setChecking(true);
     setDone(false);
     setError("");
     try {
-      const res = await apiCheckSites();
+      const res = await apiCheckSites(scopedSites);
       setResults(res);
     } catch (e) {
       setError(String(e));
@@ -35,8 +42,7 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
     }
   };
 
-  const failCount = results.filter((r) => !r.reachable).length;
-  const successCount = results.filter((r) => r.reachable).length;
+  const summary = summarizePreflightResults(results, scopedSites);
   const canContinue = canContinueWithPreflight({ done, error });
 
   return (
@@ -63,8 +69,14 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
       </div>
 
       <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-        快速检测所有已启用站点的可达性，帮你提前发现问题再决定是否下载。
+        仅检测这次扫描会用到的站点，帮你提前发现异常站点，再决定是否创建扫描任务。
       </p>
+      <div
+        className="rounded-lg px-3 py-2 text-xs"
+        style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}
+      >
+        本次预检范围：{scopedSites.length} 个站点
+      </div>
 
       {/* Check button */}
       {!done && (
@@ -94,9 +106,9 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
       )}
 
       {/* Results list */}
-      {results.length > 0 && (
+      {summary.results.length > 0 && (
         <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
-          {results.map((r) => (
+          {summary.results.map((r) => (
             <div key={r.domain} className="flex items-center gap-2 text-xs">
               {r.reachable ? (
                 <CheckCircle2
@@ -127,19 +139,19 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
       {/* Summary + action */}
       {done && (
         <div className="flex items-center gap-2">
-          {failCount > 0 ? (
+          {summary.failCount > 0 ? (
             <div
               className="flex-1 rounded-lg px-3 py-2 text-xs"
               style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)" }}
             >
-              {failCount} 个站点不可达（{successCount} 个正常），继续下载可能部分失败
+              {summary.failCount} / {summary.total} 个目标站点不可达，建议稍后重试或先调整扫描站点。
             </div>
           ) : (
             <div
               className="flex-1 rounded-lg px-3 py-2 text-xs"
               style={{ background: "var(--color-success-bg)", color: "var(--color-success)" }}
             >
-              全部 {successCount} 个站点可达，可以开始下载
+              本次要扫描的 {summary.successCount} 个站点都可达，可以创建扫描任务
             </div>
           )}
           <button
@@ -151,7 +163,7 @@ export function PreflightPanel({ onDismiss, onConfirm }: Props) {
               color: canContinue ? "#fff" : "var(--color-text-subtle)",
             }}
           >
-            继续下载
+            {summary.failCount > 0 ? "忽略异常并创建" : "创建扫描任务"}
           </button>
         </div>
       )}

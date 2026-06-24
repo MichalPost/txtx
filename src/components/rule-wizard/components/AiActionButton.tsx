@@ -43,7 +43,9 @@ export function AiActionButton({
 
   return (
     <button
+      type="button"
       onClick={onEnable}
+      aria-label="打开 AI 设置并启用 AI 功能"
       className="flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
       style={{
         background: "var(--color-surface-1)",

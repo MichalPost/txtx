@@ -59,11 +59,12 @@ export function handleEvent(get: GetFn, set: SetFn) {
 
       case "scan_start":
         if (payload.site) {
+          const site = payload.site;
           set((s) => ({
             siteProgress: {
               ...s.siteProgress,
-              [payload.site!]: {
-                domain: payload.site!,
+              [site]: {
+                domain: site,
                 total: 0,
                 completed: 0,
                 status: "scanning",
@@ -75,11 +76,12 @@ export function handleEvent(get: GetFn, set: SetFn) {
 
       case "scan_done":
         if (payload.site) {
+          const site = payload.site;
           set((s) => ({
             siteProgress: {
               ...s.siteProgress,
-              [payload.site!]: {
-                ...s.siteProgress[payload.site!],
+              [site]: {
+                ...s.siteProgress[site],
                 total: payload.total ?? 0,
                 status: "downloading",
               },
@@ -91,8 +93,8 @@ export function handleEvent(get: GetFn, set: SetFn) {
       case "scan_complete": {
         const items = payload.items ?? [];
         const stats = payload.stats ?? null;
-        const selectedUrls = new Set(items.filter((i) => !i.excluded_reason).map((i) => i.url));
-        // Merge into a single set() call to avoid intermediate render with empty scanItems
+        const selectedUrls = new Set(items.filter((item) => !item.excluded_reason).map((item) => item.url));
+
         (set as (p: object) => void)({
           phase: "preview",
           scanItems: items,
@@ -100,10 +102,8 @@ export function handleEvent(get: GetFn, set: SetFn) {
           scanStats: stats,
           stats,
         });
-        addLog(
-          "success",
-          `扫描完成，共 ${items.filter((i) => !i.excluded_reason).length} 本待下载`,
-        );
+
+        addLog("success", `扫描完成，共 ${items.filter((item) => !item.excluded_reason).length} 本待下载`);
         break;
       }
 
@@ -121,39 +121,36 @@ export function handleEvent(get: GetFn, set: SetFn) {
 
       case "chapter_done":
         if (payload.novel) {
+          const novel = payload.novel;
           set((s) => {
             const now = Date.now();
             const newTimestamps = [...s.speed.chapterTimestamps, now];
 
-            // Sum remaining chapters for novels currently in progress
             const activeNovels = Object.values(s.novelProgress);
             const activeRemaining = activeNovels.reduce(
-              (acc, n) => acc + Math.max(0, n.total - n.current),
+              (acc, novel) => acc + Math.max(0, novel.total - novel.current),
               0,
             );
-            // Estimate remaining chapters for novels not yet started:
-            // use the average chapter count of in-progress novels as a rough proxy.
             const pendingNovels = Math.max(
               0,
               s.overallTotal - s.overallCompleted - activeNovels.length,
             );
             const avgChapters =
               activeNovels.length > 0
-                ? activeNovels.reduce((acc, n) => acc + n.total, 0) / activeNovels.length
+                ? activeNovels.reduce((acc, novel) => acc + novel.total, 0) / activeNovels.length
                 : 0;
             const remainingChapters = activeRemaining + pendingNovels * avgChapters;
 
-            const newSpeed = computeSpeed(newTimestamps, remainingChapters);
             return {
               novelProgress: {
                 ...s.novelProgress,
-                [payload.novel!]: {
-                  name: payload.novel!,
+                [novel]: {
+                  name: novel,
                   current: payload.current ?? 0,
                   total: payload.total ?? 0,
                 },
               },
-              speed: newSpeed,
+              speed: computeSpeed(newTimestamps, remainingChapters),
             };
           });
         }
@@ -167,15 +164,16 @@ export function handleEvent(get: GetFn, set: SetFn) {
           if (site && updated[site]) {
             updated[site] = { ...updated[site], completed: updated[site].completed + 1 };
           }
-          const np = { ...s.novelProgress };
-          if (payload.novel) delete np[payload.novel];
 
-          // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
+          const nextNovelProgress = { ...s.novelProgress };
+          if (payload.novel) delete nextNovelProgress[payload.novel];
+
           const scanItem = payload.url
-            ? s.scanItems.find((i) => i.url === payload.url)
+            ? s.scanItems.find((item) => item.url === payload.url)
             : s.scanItems.find(
-                (i) => i.name === payload.novel && i.site === (payload.site ?? i.site),
+                (item) => item.name === payload.novel && item.site === (payload.site ?? item.site),
               );
+
           const results: NovelResult[] = payload.novel
             ? [
                 ...s.novelResults,
@@ -184,7 +182,7 @@ export function handleEvent(get: GetFn, set: SetFn) {
                   url: scanItem?.url ?? payload.url ?? "",
                   site: scanItem?.site ?? payload.site ?? "",
                   date: scanItem?.date ?? "",
-                  status: "success" as const,
+                  status: "success",
                 },
               ]
             : s.novelResults;
@@ -192,47 +190,53 @@ export function handleEvent(get: GetFn, set: SetFn) {
           return {
             overallCompleted: completed,
             siteProgress: updated,
-            novelProgress: np,
+            novelProgress: nextNovelProgress,
             novelResults: results,
           };
         });
-        if (payload.novel) addLog("success", `✓ ${payload.novel}`);
+
+        if (payload.novel) {
+          addLog("success", `下载成功：${payload.novel}`);
+        }
         break;
 
       case "novel_error":
         if (payload.novel) {
+          const novel = payload.novel;
           set((s) => {
-            // Match by URL first (unique), fall back to name+site match to avoid cross-site collision
             const scanItem = payload.url
-              ? s.scanItems.find((i) => i.url === payload.url)
+              ? s.scanItems.find((item) => item.url === payload.url)
               : s.scanItems.find(
-                  (i) => i.name === payload.novel && i.site === (payload.site ?? i.site),
+                  (item) => item.name === novel && item.site === (payload.site ?? item.site),
                 );
             const site = payload.site;
             const updated = { ...s.siteProgress };
             if (site && updated[site]) {
               updated[site] = { ...updated[site], completed: updated[site].completed + 1 };
             }
-            const np = { ...s.novelProgress };
-            delete np[payload.novel!];
+
+            const nextNovelProgress = { ...s.novelProgress };
+            delete nextNovelProgress[novel];
+
             return {
               overallCompleted: s.overallCompleted + 1,
               siteProgress: updated,
-              novelProgress: np,
+              novelProgress: nextNovelProgress,
               novelResults: [
                 ...s.novelResults,
                 {
-                  name: payload.novel!,
+                  name: novel,
                   url: scanItem?.url ?? payload.url ?? "",
                   site: scanItem?.site ?? payload.site ?? "",
                   date: scanItem?.date ?? "",
-                  status: "error" as const,
+                  status: "error",
                   message: payload.message,
                 },
               ],
             };
           });
-          addLog("error", `✗ ${payload.novel}: ${payload.message ?? ""}`);
+
+          addLog("error", `下载失败：${novel}${payload.message ? `，${payload.message}` : ""}`);
         }
         break;
 

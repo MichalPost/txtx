@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
 use anyhow::Result;
 use rusqlite::Connection;
+use std::path::{Path, PathBuf};
 
 pub(super) fn db_path(base_dir: &Path) -> PathBuf {
     base_dir.join("download_history.db")
@@ -45,4 +45,3 @@ pub(super) fn migrate(conn: &Connection) -> Result<()> {
     )?;
     Ok(())
 }
-

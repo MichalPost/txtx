@@ -1,6 +1,6 @@
+pub mod config;
 pub mod conversion;
 pub mod filters;
-pub mod config;
 pub mod runtime;
 
 pub use config::*;

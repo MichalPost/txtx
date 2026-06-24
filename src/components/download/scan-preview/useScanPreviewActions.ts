@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { ScanItem } from "@/types";
+
+import { buildScanPreviewSummary } from "./scanPreviewUtils";
 
 export function useScanPreviewActions({
   scanItems,
@@ -13,50 +15,43 @@ export function useScanPreviewActions({
   toggleSelect: (url: string) => void;
   onSiteFilterClose: () => void;
 }) {
-  const pendingCount = scanItems.filter((i) => !i.excluded_reason).length;
-  const excludedCount = scanItems.filter((i) => !!i.excluded_reason).length;
-  const selectedCount = selectedUrls.size;
-  const sites = useMemo(() => [...new Set(scanItems.map((i) => i.site))], [scanItems]);
-  const allPendingSelected = pendingCount > 0 && pendingCount === selectedCount;
-  const blacklistCount = scanItems.filter((i) => i.excluded_reason?.startsWith("黑名单")).length;
-  const localCount = scanItems.filter((i) => i.excluded_reason === "本地已存在").length;
+  const summary = useMemo(
+    () => buildScanPreviewSummary(scanItems, selectedUrls),
+    [scanItems, selectedUrls],
+  );
 
-  function forceAdd(item: ScanItem) {
+  const forceAdd = useCallback((item: ScanItem) => {
     if (!selectedUrls.has(item.url)) toggleSelect(item.url);
-  }
+  }, [selectedUrls, toggleSelect]);
 
-  function selectBySite(site: string) {
-    const urls = scanItems.filter((i) => i.site === site && !i.excluded_reason).map((i) => i.url);
-    urls.forEach((u) => {
+  const selectBySite = useCallback((site: string) => {
+    const pendingUrls = summary.sites.find((entry) => entry.site === site)?.pendingUrls ?? [];
+    pendingUrls.forEach((u) => {
       if (!selectedUrls.has(u)) toggleSelect(u);
     });
     onSiteFilterClose();
-  }
+  }, [onSiteFilterClose, selectedUrls, summary.sites, toggleSelect]);
 
-  function forceAddAllBlacklisted() {
-    scanItems
-      .filter((i) => i.excluded_reason?.startsWith("黑名单"))
-      .forEach((i) => {
-        if (!selectedUrls.has(i.url)) toggleSelect(i.url);
-      });
-  }
+  const forceAddAllBlacklisted = useCallback(() => {
+    summary.blacklistedUrls.forEach((url) => {
+      if (!selectedUrls.has(url)) toggleSelect(url);
+    });
+  }, [selectedUrls, summary.blacklistedUrls, toggleSelect]);
 
-  function forceAddAllLocal() {
-    scanItems
-      .filter((i) => i.excluded_reason === "本地已存在")
-      .forEach((i) => {
-        if (!selectedUrls.has(i.url)) toggleSelect(i.url);
-      });
-  }
+  const forceAddAllLocal = useCallback(() => {
+    summary.localUrls.forEach((url) => {
+      if (!selectedUrls.has(url)) toggleSelect(url);
+    });
+  }, [selectedUrls, summary.localUrls, toggleSelect]);
 
   return {
-    pendingCount,
-    excludedCount,
-    selectedCount,
-    sites,
-    allPendingSelected,
-    blacklistCount,
-    localCount,
+    pendingCount: summary.pendingCount,
+    excludedCount: summary.excludedCount,
+    selectedCount: summary.selectedCount,
+    siteSummaries: summary.sites,
+    allPendingSelected: summary.allPendingSelected,
+    blacklistCount: summary.blacklistCount,
+    localCount: summary.localCount,
     forceAdd,
     selectBySite,
     forceAddAllBlacklisted,

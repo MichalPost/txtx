@@ -24,14 +24,14 @@ const navItems: Array<{
   icon: React.ComponentType<{ className?: string }>;
   label: string;
 }> = [
-  { to: "/", icon: Download, label: "下载" },
+  { to: "/", icon: Download, label: "下载控制台" },
   { to: "/tasks", icon: ListTodo, label: "任务管理" },
   { to: "/rules", icon: Wand2, label: "规则管理" },
   { to: "/settings", icon: Settings, label: "通用设置" },
   { to: "/filter", icon: Filter, label: "过滤中心" },
-  { to: "/bookshelf", icon: Library, label: "本地书架" },
+  { to: "/bookshelf", icon: Library, label: "书架" },
   { to: "/history", icon: History, label: "下载历史" },
-  { to: "/health", icon: Activity, label: "站点健康" },
+  { to: "/health", icon: Activity, label: "健康检查" },
   { to: "/converter", icon: FileText, label: "文本转换" },
 ];
 
@@ -52,16 +52,15 @@ export function Sidebar() {
         overflow: "hidden",
       }}
     >
-      {/* ── Logo / brand ──────────────────────────────────────────── */}
       <div
         className="flex h-14 shrink-0 items-center border-b"
         style={{ borderColor: "var(--color-border)" }}
       >
         {collapsed ? (
-          /* 折叠态：Logo 居中，点击展开 */
           <button
             onClick={toggle}
             title="展开侧边栏"
+            aria-label="展开侧边栏"
             className="group flex h-full w-full items-center justify-center transition-colors hover:bg-[var(--color-surface-2)]"
           >
             <div
@@ -75,7 +74,6 @@ export function Sidebar() {
             </div>
           </button>
         ) : (
-          /* 展开态：Logo + 文字 + 折叠按钮 */
           <div className="flex w-full items-center justify-between px-3">
             <div className="flex min-w-0 items-center gap-2.5">
               <div
@@ -98,13 +96,14 @@ export function Sidebar() {
                   className="mt-0.5 text-[10px] leading-none font-medium"
                   style={{ color: "var(--color-text-subtle)" }}
                 >
-                  小说下载
+                  私人书库助手
                 </div>
               </div>
             </div>
             <button
               onClick={toggle}
-              title="折叠侧边栏"
+              title="收起侧边栏"
+              aria-label="收起侧边栏"
               className="flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--color-surface-2)]"
               style={{ color: "var(--color-text-subtle)" }}
             >
@@ -114,7 +113,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* ── Nav ───────────────────────────────────────────────────── */}
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-1.5 py-2.5">
         {navItems.map(({ to, icon: Icon, label }) => {
           const isActive =
@@ -158,18 +156,15 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* ── Bottom: theme + expand hint ───────────────────────────── */}
       <div
         className="flex flex-col gap-2 border-t px-2 pt-2 pb-3"
         style={{ borderColor: "var(--color-border)" }}
       >
         {collapsed ? (
-          /* 折叠态：只显示主题按钮 */
           <div className="flex justify-center">
             <ThemeSwitcher />
           </div>
         ) : (
-          /* 展开态：主题 + 命令面板快捷键 */
           <div className="flex items-center gap-2">
             <ThemeSwitcher />
             <button
@@ -184,18 +179,19 @@ export function Sidebar() {
                 borderColor: "var(--color-border)",
                 color: "var(--color-text-muted)",
               }}
-              title="命令面板 (Ctrl+K)"
+              title="打开命令面板 (Ctrl+K)"
+              aria-label="打开命令面板"
             >
-              ⌘K
+              Ctrl+K
             </button>
           </div>
         )}
 
-        {/* 折叠时，底部加个展开按钮提示 */}
         {collapsed && (
           <button
             onClick={toggle}
             title="展开侧边栏"
+            aria-label="展开侧边栏"
             className="flex h-7 w-full items-center justify-center rounded-lg transition-colors hover:bg-[var(--color-surface-2)]"
             style={{ color: "var(--color-text-subtle)" }}
           >

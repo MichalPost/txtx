@@ -1,9 +1,9 @@
+use axum::http::StatusCode;
 use axum::{
     extract::{Path as AxumPath, State},
     response::{IntoResponse, Response},
     Json,
 };
-use axum::http::StatusCode;
 use serde_json::json;
 
 use crate::models::{TaskId, TaskRecord, TaskStatus};
@@ -21,7 +21,13 @@ pub async fn get_task(
     State(state): State<AppState>,
     AxumPath(task_id): AxumPath<TaskId>,
 ) -> Response {
-    match state.task_manager.lock().await.get_record(&task_id).cloned() {
+    match state
+        .task_manager
+        .lock()
+        .await
+        .get_record(&task_id)
+        .cloned()
+    {
         Some(r) => Json(r).into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
     }
@@ -33,11 +39,18 @@ pub async fn post_cancel_task(
     State(state): State<AppState>,
     AxumPath(task_id): AxumPath<TaskId>,
 ) -> Json<serde_json::Value> {
-    let mut mgr = state.task_manager.lock().await;
-    mgr.cancel_task(&task_id);
-    mgr.update_record(&task_id, |r| {
-        r.status = TaskStatus::Cancelled;
-    });
+    let (base_dir, snapshot) = {
+        let mut mgr = state.task_manager.lock().await;
+        mgr.cancel_task(&task_id);
+        mgr.update_record(&task_id, |r| {
+            r.status = TaskStatus::Cancelled;
+            r.finished_at = Some(chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string());
+        });
+        (mgr.base_dir.clone(), mgr.get_record(&task_id).cloned())
+    };
+    if let Some(record) = snapshot {
+        let _ = crate::task_manager::db::save_task(&base_dir, &record).await;
+    }
     Json(json!({ "ok": true }))
 }
 
@@ -47,11 +60,17 @@ pub async fn post_pause_task(
     State(state): State<AppState>,
     AxumPath(task_id): AxumPath<TaskId>,
 ) -> Json<serde_json::Value> {
-    let mut mgr = state.task_manager.lock().await;
-    mgr.cancel_task(&task_id);
-    mgr.update_record(&task_id, |r| {
-        r.status = TaskStatus::Paused;
-    });
+    let (base_dir, snapshot) = {
+        let mut mgr = state.task_manager.lock().await;
+        mgr.cancel_task(&task_id);
+        mgr.update_record(&task_id, |r| {
+            r.status = TaskStatus::Paused;
+        });
+        (mgr.base_dir.clone(), mgr.get_record(&task_id).cloned())
+    };
+    if let Some(record) = snapshot {
+        let _ = crate::task_manager::db::save_task(&base_dir, &record).await;
+    }
     Json(json!({ "ok": true }))
 }
 
@@ -61,6 +80,12 @@ pub async fn delete_task(
     State(state): State<AppState>,
     AxumPath(task_id): AxumPath<TaskId>,
 ) -> Json<serde_json::Value> {
-    state.task_manager.lock().await.remove_task(&task_id);
+    let base_dir = {
+        let mut mgr = state.task_manager.lock().await;
+        let base_dir = mgr.base_dir.clone();
+        mgr.remove_task(&task_id);
+        base_dir
+    };
+    let _ = crate::task_manager::db::delete_task(&base_dir, &task_id).await;
     Json(json!({ "ok": true }))
 }

@@ -4,6 +4,7 @@ import { ChevronDown, Globe } from "lucide-react";
 import type { ScanItem } from "@/types";
 
 import { ScanRow } from "./ScanRow";
+import { groupScanItemsBySite } from "./scanPreviewUtils";
 
 export function GroupedScanTable({
   items,
@@ -16,14 +17,7 @@ export function GroupedScanTable({
   onToggle: (url: string) => void;
   onForceAdd: (item: ScanItem) => void;
 }) {
-  const groups = useMemo(() => {
-    const map: Record<string, ScanItem[]> = {};
-    items.forEach((i) => {
-      if (!map[i.site]) map[i.site] = [];
-      map[i.site].push(i);
-    });
-    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
-  }, [items]);
+  const groups = useMemo(() => groupScanItemsBySite(items, selectedUrls), [items, selectedUrls]);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -37,24 +31,20 @@ export function GroupedScanTable({
   }
 
   function selectGroup(site: string, value: boolean) {
-    const groupItems = groups.find(([s]) => s === site)?.[1] ?? [];
-    groupItems
-      .filter((i) => !i.excluded_reason)
-      .forEach((i) => {
-        const has = selectedUrls.has(i.url);
-        if (value && !has) onToggle(i.url);
-        if (!value && has) onToggle(i.url);
-      });
+    const pendingUrls = groups.find((group) => group.site === site)?.pendingUrls ?? [];
+    pendingUrls.forEach((url) => {
+      const has = selectedUrls.has(url);
+      if (value && !has) onToggle(url);
+      if (!value && has) onToggle(url);
+    });
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {groups.map(([site, groupItems]) => {
-        const domain = site.replace(/^https?:\/\//, "");
+      {groups.map((group) => {
+        const { site, label, items: groupItems, pendingCount, excludedCount, allPendingSelected } =
+          group;
         const isCollapsed = collapsed.has(site);
-        const pendingItems = groupItems.filter((i) => !i.excluded_reason);
-        const selectedInGroup = pendingItems.filter((i) => selectedUrls.has(i.url)).length;
-        const allGroupSelected = pendingItems.length > 0 && selectedInGroup === pendingItems.length;
         return (
           <div
             key={site}
@@ -68,7 +58,7 @@ export function GroupedScanTable({
             >
               <input
                 type="checkbox"
-                checked={allGroupSelected}
+                checked={allPendingSelected}
                 onChange={(e) => {
                   e.stopPropagation();
                   selectGroup(site, e.target.checked);
@@ -85,7 +75,7 @@ export function GroupedScanTable({
                 className="flex-1 truncate text-xs font-semibold"
                 style={{ color: "var(--color-text)" }}
               >
-                {domain}
+                {label}
               </span>
               <span
                 className="rounded-full px-2 py-0.5 text-xs tabular-nums"
@@ -94,9 +84,9 @@ export function GroupedScanTable({
                   color: "var(--color-accent)",
                 }}
               >
-                {pendingItems.length} 待下载
+                {pendingCount} 待下载
               </span>
-              {groupItems.length - pendingItems.length > 0 && (
+              {excludedCount > 0 && (
                 <span
                   className="rounded-full px-2 py-0.5 text-xs tabular-nums"
                   style={{
@@ -104,7 +94,7 @@ export function GroupedScanTable({
                     color: "var(--color-text-muted)",
                   }}
                 >
-                  {groupItems.length - pendingItems.length} 排除
+                  {excludedCount} 排除
                 </span>
               )}
               <ChevronDown

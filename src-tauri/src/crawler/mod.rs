@@ -10,7 +10,7 @@ pub use xpath_parser::xpath_texts_native;
 
 use anyhow::Result;
 use reqwest::Client;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::models::{
     AppConfig, BookCandidate, ContentFilterConfig, NetworkConfig, SiteHealth, WebsiteConfig,
@@ -306,12 +306,28 @@ fn strip_site_ad_xpath_texts(html: &str, xpath_rules: &[String]) -> String {
 // ─── check_site_health ────────────────────────────────────────────────────────
 
 /// Ping all enabled sites and return reachability + latency.
-pub async fn check_site_health(config: &AppConfig) -> anyhow::Result<Vec<SiteHealth>> {
+pub async fn check_site_health(
+    config: &AppConfig,
+    selected_sites: Option<&[String]>,
+) -> anyhow::Result<Vec<SiteHealth>> {
     let client = build_client(&config.network)?;
+    let site_filter = selected_sites.and_then(|sites| {
+        if sites.is_empty() {
+            None
+        } else {
+            Some(sites.iter().map(String::as_str).collect::<HashSet<_>>())
+        }
+    });
     let sites: Vec<_> = config
         .websites
         .values()
-        .filter(|s| s.enabled)
+        .filter(|s| {
+            s.enabled
+                && site_filter
+                    .as_ref()
+                    .map(|allowed| allowed.contains(s.domain_name.as_str()))
+                    .unwrap_or(true)
+        })
         .cloned()
         .collect();
 

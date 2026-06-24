@@ -27,9 +27,7 @@ pub struct SplitRequest {
     pub pattern: Option<String>,
 }
 
-pub async fn post_split_file(
-    Json(req): Json<SplitRequest>,
-) -> Result<Json<Vec<String>>, AppError> {
+pub async fn post_split_file(Json(req): Json<SplitRequest>) -> Result<Json<Vec<String>>, AppError> {
     let outputs = crate::text_tools::split_file(req.path, req.pattern).await?;
     Ok(Json(outputs))
 }

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
+import { RotateCcw, SearchX } from "lucide-react";
 
+import { Button } from "@/components/Button";
 import { animateCountUp } from "@/lib/animations";
 import { usePersistedState } from "@/lib/persist";
 import { useAppNavigate } from "@/router";
@@ -12,8 +14,6 @@ import { ScanStatsBar } from "./scan-preview/ScanStatsBar";
 import { ScanToolbar, type ScanViewMode } from "./scan-preview/ScanToolbar";
 import { useScanFilter } from "./scan-preview/useScanFilter";
 import { useScanPreviewActions } from "./scan-preview/useScanPreviewActions";
-
-// ─── ScanPreview ─────────────────────────────────────────────────────────────
 
 export function ScanPreview() {
   const {
@@ -41,7 +41,7 @@ export function ScanPreview() {
     pendingCount,
     excludedCount,
     selectedCount,
-    sites,
+    siteSummaries,
     allPendingSelected,
     blacklistCount,
     localCount,
@@ -63,6 +63,8 @@ export function ScanPreview() {
     }
   }, [selectedCount]);
 
+  const hasFilters = search.trim().length > 0 || tab !== "all";
+
   return (
     <div className="flex h-full flex-col gap-3">
       <ScanStatsBar
@@ -83,18 +85,18 @@ export function ScanPreview() {
         pendingCount={pendingCount}
         excludedCount={excludedCount}
         allPendingSelected={allPendingSelected}
-        sites={sites}
+        siteSummaries={siteSummaries}
         blacklistCount={blacklistCount}
         localCount={localCount}
         onSearchChange={setSearch}
         onTabChange={setTab}
         onViewModeChange={setViewMode}
         onSelectAll={selectAll}
-        onToggleSiteFilter={() => setShowSiteFilter((v) => !v)}
+        onToggleSiteFilter={() => startTransition(() => setShowSiteFilter((v) => !v))}
         onSelectBySite={selectBySite}
         onForceAddAllBlacklisted={forceAddAllBlacklisted}
         onForceAddAllLocal={forceAddAllLocal}
-        onToggleExport={() => setShowExport((v) => !v)}
+        onToggleExport={() => startTransition(() => setShowExport((v) => !v))}
         onCloseExport={() => setShowExport(false)}
         onBackToLauncher={() => {
           reset();
@@ -103,7 +105,59 @@ export function ScanPreview() {
       />
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {viewMode === "grouped" && !search.trim() ? (
+        {filtered.length === 0 ? (
+          <div
+            className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-12 text-center"
+            style={{
+              borderColor: "var(--color-border)",
+              background: "var(--color-surface)",
+            }}
+          >
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{
+                background: "var(--color-surface-2)",
+                color: "var(--color-text-subtle)",
+              }}
+            >
+              <SearchX className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>
+                {hasFilters ? "没有匹配的扫描结果" : "这次扫描没有找到可显示的书目"}
+              </p>
+              <p className="text-xs leading-5" style={{ color: "var(--color-text-muted)" }}>
+                {hasFilters
+                  ? "可以清空搜索词、切回全部状态，或调整筛选后再继续确认下载。"
+                  : "可以返回重新发起扫描，或者先去规则页调整站点配置后再回来重试。"}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {hasFilters && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setTab("all");
+                  }}
+                >
+                  清空筛选
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  reset();
+                  navigate("/");
+                }}
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> 返回重新扫描
+              </Button>
+            </div>
+          </div>
+        ) : viewMode === "grouped" && !search.trim() ? (
           <GroupedScanTable
             items={filtered}
             selectedUrls={selectedUrls}

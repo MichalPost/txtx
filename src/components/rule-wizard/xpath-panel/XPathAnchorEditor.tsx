@@ -61,7 +61,7 @@ export function XPathAnchorEditor({
             </div>
             <Button size="sm" variant="secondary" onClick={onAdjust} disabled={fieldState.generating}>
               <RefreshCw className="h-3 w-3" />
-              调整
+              {fieldState.generating ? "调整中..." : "调整"}
             </Button>
           </div>
           {!fieldState.error && fieldState.anchorSamples.length > 0 && (

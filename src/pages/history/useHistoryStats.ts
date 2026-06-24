@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { animateFadeInUp } from "@/lib/animations";
-import { apiGetHistoryStats } from "@/lib/api";
+import { apiGetHistorySiteOptions, apiGetHistoryStats } from "@/lib/api";
+import { normalizeHistorySiteOptions } from "./historySortingUtils";
 
 const PIE_COLORS = [
   "var(--color-accent)",
@@ -16,9 +17,10 @@ const PIE_COLORS = [
 ];
 
 export function useHistoryStats(days = 30) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["history-stats", days],
     queryFn: () => apiGetHistoryStats(days),
+    staleTime: 30_000,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,21 @@ export function useHistoryStats(days = 30) {
     ...s,
     fill: PIE_COLORS[i % PIE_COLORS.length],
   }));
+  const siteOptions = normalizeHistorySiteOptions(data?.site_options ?? []);
 
-  return { isLoading, daily, sites, containerRef };
+  return { isLoading, error, refetch, isFetching, daily, sites, siteOptions, containerRef };
+}
+
+export function useHistorySiteOptions() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["history-site-options"],
+    queryFn: apiGetHistorySiteOptions,
+    staleTime: 60_000,
+  });
+
+  return {
+    isLoading,
+    error,
+    siteOptions: normalizeHistorySiteOptions(data?.site_options ?? []),
+  };
 }
