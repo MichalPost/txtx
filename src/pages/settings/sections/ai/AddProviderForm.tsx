@@ -133,7 +133,7 @@ export function AddProviderForm({ allNames }: { allNames: string[] }) {
           </select>
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="col-span-2">
             <Input
               label="供应商名称"

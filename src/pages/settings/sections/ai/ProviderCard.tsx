@@ -217,7 +217,7 @@ export function ProviderCard({
               </Button>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {/* Name */}
             <div className="col-span-2">
               <Field label="供应商名称">

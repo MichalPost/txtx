@@ -43,7 +43,12 @@ pnpm dev:frontend
 TXTX_PORT=8080 cargo run --bin txtx-server --manifest-path src-tauri/Cargo.toml
 ```
 
-如果改了端口，需要同步调整前端 API 入口或代理配置，否则前端仍会请求 `3721`。
+如果改了端口，请在启动前端时使用同一个 `TXTX_PORT` 或显式设置 `VITE_API_BASE`，Vite 代理和前端 API 入口会读取它：
+
+```bash
+TXTX_PORT=8080 pnpm dev
+VITE_API_BASE=http://localhost:8080 pnpm dev:frontend
+```
 
 ### 常见启动问题
 
@@ -79,7 +84,7 @@ cargo check --manifest-path src-tauri/Cargo.toml --bin txtx-server
 pnpm dev:tauri
 ```
 
-该命令会设置 `VITE_TAURI_MODE=true`，前端通过 Tauri invoke / event 使用本地能力；构建 Rust 桌面二进制时会启用 `tauri-build` feature。
+该命令会设置 `VITE_TAURI_MODE=true`，前端通过 Tauri invoke / event 使用本地能力；`tauri.conf.json` 的 `beforeDevCommand` 也会调用带桌面模式的 `pnpm dev:frontend:tauri`，避免直接从 Tauri CLI 启动时误走 Web HTTP API。构建 Rust 桌面二进制时会启用 `tauri-build` feature。
 
 ## 当前产品主流程
 

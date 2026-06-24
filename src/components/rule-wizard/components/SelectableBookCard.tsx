@@ -19,8 +19,9 @@ export function SelectableBookCard({
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
-      className="flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-all"
+    <button
+      type="button"
+      className="flex w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)]"
       style={{
         background: selected
           ? "color-mix(in srgb, var(--color-accent) 8%, var(--color-surface))"
@@ -39,6 +40,8 @@ export function SelectableBookCard({
       onClick={onSelect}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      aria-pressed={selected}
+      aria-label={`选择第 ${index + 1} 本：${book.name}`}
     >
       <span
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
@@ -106,6 +109,6 @@ export function SelectableBookCard({
           />
         )}
       </div>
-    </div>
+    </button>
   );
 }

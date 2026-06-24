@@ -82,7 +82,6 @@ pub async fn run_server() -> anyhow::Result<()> {
     }));
 
     let base_dir = dirs::data_local_dir()
-        .map(|p| p.join("txtx"))
         .unwrap_or_else(|| {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
         });

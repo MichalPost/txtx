@@ -84,50 +84,56 @@ export function XPathResultRow({
           : effectiveAdopted
             ? "color-mix(in srgb, var(--color-accent) 35%, transparent)"
             : "var(--color-border)",
-        cursor: "pointer",
         opacity: empty ? 0.55 : 1,
       }}
-      onClick={onActivate}
     >
       <div className="flex items-center gap-2">
-        <span
-          className="text-xs font-medium"
-          style={{ color: isActive ? "var(--color-accent)" : "var(--color-text)" }}
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded text-left focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)]"
+          onClick={onActivate}
+          aria-pressed={isActive}
+          aria-label={`选择${target.label} XPath 结果`}
         >
-          {target.label}
-        </span>
-
-        {generating && (
-          <Loader2 className="h-3 w-3 animate-spin" style={{ color: "var(--color-accent)" }} />
-        )}
-
-        {!generating && validation && !validation.error && (
           <span
-            className="rounded-full px-1.5 py-0.5 text-xs"
-            style={{
-              background:
-                validation.count > 0 ? "var(--color-success-bg)" : "var(--color-warning-bg)",
-              color: validation.count > 0 ? "var(--color-success)" : "var(--color-warning)",
-            }}
+            className="text-xs font-medium"
+            style={{ color: isActive ? "var(--color-accent)" : "var(--color-text)" }}
           >
-            命中 {validation.count}
+            {target.label}
           </span>
-        )}
 
-        {!generating && validation?.error && (
-          <span
-            className="rounded-full px-1.5 py-0.5 text-xs"
-            style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
-          >
-            语法错误
-          </span>
-        )}
+          {generating && (
+            <Loader2 className="h-3 w-3 animate-spin" style={{ color: "var(--color-accent)" }} />
+          )}
 
-        {empty && (
-          <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
-            点左侧生成
-          </span>
-        )}
+          {!generating && validation && !validation.error && (
+            <span
+              className="rounded-full px-1.5 py-0.5 text-xs"
+              style={{
+                background:
+                  validation.count > 0 ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                color: validation.count > 0 ? "var(--color-success)" : "var(--color-warning)",
+              }}
+            >
+              命中 {validation.count}
+            </span>
+          )}
+
+          {!generating && validation?.error && (
+            <span
+              className="rounded-full px-1.5 py-0.5 text-xs"
+              style={{ background: "var(--color-danger-bg)", color: "var(--color-danger)" }}
+            >
+              语法错误
+            </span>
+          )}
+
+          {empty && (
+            <span className="text-xs" style={{ color: "var(--color-text-subtle)" }}>
+              点左侧生成
+            </span>
+          )}
+        </button>
 
         {!empty && (
           canAdopt ? (

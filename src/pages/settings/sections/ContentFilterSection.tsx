@@ -21,7 +21,7 @@ export function ContentFilterSection() {
           label="末尾导航行关键词（每行一条，从末尾循环剥离）"
           field="nav_keywords"
         />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Input
               label="安全回退阈值（0.0~1.0）"

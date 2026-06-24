@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.administrator.txtx-app",
   "build": {
-    "beforeDevCommand": "pnpm dev:frontend",
+    "beforeDevCommand": "pnpm dev:frontend:tauri",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build:tauri",
     "frontendDist": "../dist"

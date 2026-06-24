@@ -7,6 +7,7 @@ import { fileURLToPath, URL } from "node:url";
 const host = process.env.TAURI_DEV_HOST;
 const isTauri = process.env.VITE_TAURI_MODE === "true";
 const isProd = process.env.NODE_ENV === "production";
+const apiBase = process.env.VITE_API_BASE ?? `http://localhost:${process.env.TXTX_PORT ?? "3721"}`;
 
 const r = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -45,7 +46,7 @@ export default defineConfig({
       ? {}
       : {
           "/api": {
-            target: "http://localhost:3721",
+            target: apiBase,
             changeOrigin: true,
             ws: true,
           },
@@ -113,7 +114,7 @@ export default defineConfig({
       isTauri ? "true" : "false"
     ),
     "import.meta.env.VITE_API_BASE": JSON.stringify(
-      isTauri ? "" : "http://localhost:3721"
+      isTauri ? "" : apiBase
     ),
   },
 

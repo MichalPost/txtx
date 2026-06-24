@@ -14,7 +14,7 @@ export function FilterSection() {
 
   return (
     <Card title="过滤配置">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <Input label="最大天数限制" type="number" {...register("days_limit")} />
           <FieldError msg={errors.days_limit?.message} />

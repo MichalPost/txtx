@@ -8,6 +8,7 @@ import {
   type HistorySortField,
   type HistorySortOrder,
 } from "./historyQueryParams";
+import { throwIfResponseError } from "./response";
 
 export interface HistoryQuery extends HistoryQuerySort {}
 export type { HistorySortField, HistorySortOrder };
@@ -43,7 +44,7 @@ export async function apiGetHistory(): Promise<HistoryEntry[]> {
     return invokeDesktopCommand<HistoryEntry[]>("get_history");
   }
   const res = await fetch(`${API_BASE}/api/history`);
-  if (!res.ok) throw new Error(await res.text());
+  await throwIfResponseError(res);
   return res.json();
 }
 
@@ -53,7 +54,7 @@ export async function apiQueryHistory(query: HistoryQuery): Promise<HistoryPageR
   }
   const params = buildHistoryQuerySearchParams(query);
   const res = await fetch(`${API_BASE}/api/history/page?${params.toString()}`);
-  if (!res.ok) throw new Error(await res.text());
+  await throwIfResponseError(res);
   return res.json();
 }
 
@@ -62,7 +63,7 @@ export async function apiGetHistoryStats(days = 30): Promise<HistoryStats> {
     return invokeDesktopCommand<HistoryStats>("get_history_stats", { days });
   }
   const res = await fetch(`${API_BASE}/api/history/stats?days=${days}`);
-  if (!res.ok) throw new Error(await res.text());
+  await throwIfResponseError(res);
   return res.json();
 }
 
@@ -71,7 +72,7 @@ export async function apiGetHistorySiteOptions(): Promise<HistorySiteOptionsResu
     return invokeDesktopCommand<HistorySiteOptionsResult>("get_history_site_options");
   }
   const res = await fetch(`${API_BASE}/api/history/sites`);
-  if (!res.ok) throw new Error(await res.text());
+  await throwIfResponseError(res);
   return res.json();
 }
 
@@ -80,5 +81,5 @@ export async function apiClearHistory(): Promise<void> {
     return invokeDesktopCommand("clear_history");
   }
   const res = await fetch(`${API_BASE}/api/history`, { method: "DELETE" });
-  if (!res.ok) throw new Error(await res.text());
+  await throwIfResponseError(res);
 }

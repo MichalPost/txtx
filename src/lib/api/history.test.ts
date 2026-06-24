@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { apiClearHistory } from "./history.ts";
 import { buildHistoryQuerySearchParams, type HistoryQuerySort } from "./historyQueryParams.ts";
+import { throwIfResponseError } from "./response.ts";
 
 test("buildHistoryQuerySearchParams includes supported sort fields and directions", () => {
   const params = buildHistoryQuerySearchParams({
@@ -34,15 +34,15 @@ test("buildHistoryQuerySearchParams omits empty filters and unsupported sort opt
   assert.equal(params.toString(), "page=1");
 });
 
-test("apiClearHistory throws when web request fails", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response("clear failed", {
-      status: 500,
-      headers: { "Content-Type": "text/plain" },
-    });
-
-  await assert.rejects(() => apiClearHistory(), /clear failed/);
-
-  globalThis.fetch = originalFetch;
+test("throwIfResponseError preserves server error text", async () => {
+  await assert.rejects(
+    () =>
+      throwIfResponseError(
+        new Response("clear failed", {
+          status: 500,
+          headers: { "Content-Type": "text/plain" },
+        }),
+      ),
+    /clear failed/,
+  );
 });

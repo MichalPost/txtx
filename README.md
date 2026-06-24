@@ -52,6 +52,7 @@ pnpm dev
 - 前端：`http://localhost:1420`
 - 后端：`http://localhost:3721`
 - Web 开发模式下 Vite 会代理 `/api/*` 到后端
+- 自定义后端端口时，给前后端使用同一个 `TXTX_PORT`，或为前端设置 `VITE_API_BASE`
 
 也可以分开启动：
 
@@ -65,6 +66,8 @@ pnpm dev:backend
 ```bash
 pnpm dev:tauri
 ```
+
+Tauri 开发和打包会注入 `VITE_TAURI_MODE=true`，桌面包会走 Tauri invoke，而不是请求本地 HTTP 服务。
 
 ## 质量检查
 
@@ -98,14 +101,14 @@ pnpm format
 
 ## 目录说明
 
-- [src](D:/Code/Node/txtx/src)：前端页面、组件、状态和平台适配
-- [src-tauri](D:/Code/Node/txtx/src-tauri)：Tauri 命令、Rust HTTP 服务、下载逻辑、SQLite 历史与本地能力
-- [docs/project-flow.md](D:/Code/Node/txtx/docs/project-flow.md)：当前产品主流程与数据流
-- [docs/plans](D:/Code/Node/txtx/docs/plans)：历次规划与实施文档
-- [DEV.md](D:/Code/Node/txtx/DEV.md)：本地开发、验证和性能注意事项
-- [PRODUCT.md](D:/Code/Node/txtx/PRODUCT.md)：产品定位与语气约束
+- [src](src)：前端页面、组件、状态和平台适配
+- [src-tauri](src-tauri)：Tauri 命令、Rust HTTP 服务、下载逻辑、SQLite 历史与本地能力
+- [docs/project-flow.md](docs/project-flow.md)：当前产品主流程与数据流
+- [docs/plans](docs/plans)：历次规划与实施文档
+- [DEV.md](DEV.md)：本地开发、验证和性能注意事项
+- [PRODUCT.md](PRODUCT.md)：产品定位与语气约束
 
 ## 进一步阅读
 
-- [开发指南](D:/Code/Node/txtx/DEV.md)
-- [项目流程梳理](D:/Code/Node/txtx/docs/project-flow.md)
+- [开发指南](DEV.md)
+- [项目流程梳理](docs/project-flow.md)

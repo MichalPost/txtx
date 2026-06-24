@@ -79,16 +79,7 @@ export function TaskListItem({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      className="group flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2.5 transition-all"
+      className="group flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-all"
       style={{
         background: isActive ? "var(--color-accent-muted)" : "var(--color-surface)",
         borderColor: isActive
@@ -96,62 +87,66 @@ export function TaskListItem({
           : "var(--color-border)",
         opacity: isBusy ? 0.78 : 1,
       }}
-      aria-pressed={isActive}
-      aria-label={`${task.label}，${STATUS_LABEL[task.status] ?? task.status}`}
     >
-      {/* Scanning: spinning arc instead of progress ring */}
-      {isScanning ? (
-        <svg
-          width="28"
-          height="28"
-          viewBox="0 0 28 28"
-          className="shrink-0 animate-spin"
-          style={{ animationDuration: "1.5s" }}
-        >
-          <circle
-            cx="14"
-            cy="14"
-            r="10"
-            fill="none"
-            stroke="var(--color-border)"
-            strokeWidth="2.5"
-          />
-          <circle
-            cx="14"
-            cy="14"
-            r="10"
-            fill="none"
-            stroke={color}
-            strokeWidth="2.5"
-            strokeDasharray="20 43"
-            strokeLinecap="round"
-            transform="rotate(-90 14 14)"
-          />
-        </svg>
-      ) : (
-        <ProgressRing pct={pct} color={color} />
-      )}
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-muted)]"
+        aria-pressed={isActive}
+        aria-label={`${task.label}，${STATUS_LABEL[task.status] ?? task.status}`}
+      >
+        {/* Scanning: spinning arc instead of progress ring */}
+        {isScanning ? (
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 28 28"
+            className="shrink-0 animate-spin"
+            style={{ animationDuration: "1.5s" }}
+          >
+            <circle
+              cx="14"
+              cy="14"
+              r="10"
+              fill="none"
+              stroke="var(--color-border)"
+              strokeWidth="2.5"
+            />
+            <circle
+              cx="14"
+              cy="14"
+              r="10"
+              fill="none"
+              stroke={color}
+              strokeWidth="2.5"
+              strokeDasharray="20 43"
+              strokeLinecap="round"
+              transform="rotate(-90 14 14)"
+            />
+          </svg>
+        ) : (
+          <ProgressRing pct={pct} color={color} />
+        )}
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium" style={{ color: "var(--color-text)" }}>
-          {task.label}
-        </p>
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <span className="text-[10px] font-medium" style={{ color }}>
-            {STATUS_LABEL[task.status] ?? task.status}
-          </span>
-          {task.total > 0 && (
-            <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-              {task.completed}/{task.total}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium" style={{ color: "var(--color-text)" }}>
+            {task.label}
+          </p>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <span className="text-[10px] font-medium" style={{ color }}>
+              {STATUS_LABEL[task.status] ?? task.status}
             </span>
-          )}
+            {task.total > 0 && (
+              <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+                {task.completed}/{task.total}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      </button>
 
       <div
-        className="flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
       >
         {isRunning && task.status === "downloading" && (
           <button
